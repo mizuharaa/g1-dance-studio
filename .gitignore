@@ -1,0 +1,16 @@
+third_party/
+data/videos/*
+data/motions/*
+data/policies/*
+data/exports/*
+!data/**/.gitkeep
+logs/*.log
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+*.onnx
+*.pt
+*.ckpt
+*.mp4
+*.npz
