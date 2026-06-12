@@ -27,15 +27,13 @@ push-robust** (RL whole-body tracking controller, not open-loop playback).
   in the form of a **Notebook instance** (Jupyter-style, GPU-backed). Access details/credentials
   still needed from user before Phase 5.
 
-## Architecture (filled in after research — see docs/architecture.md)
+## Architecture — PINNED, see docs/architecture.md (2026-06-12)
 
-Pipeline stages:
-1. **Ingest**: dance video upload via web UI
-2. **Motion extraction**: video → world-grounded SMPL motion (GPU)
-3. **Retarget**: SMPL → G1 29-DoF reference trajectory (CPU-ok)
-4. **Train**: RL whole-body tracking policy in Isaac Lab, push-randomized (cloud GPU)
-5. **Verify**: sim2sim playback in MuJoCo, automated metrics + viewer (CPU-ok)
-6. **Export/Deploy**: package policy → run on robot via unitree_sdk2 low-level control
+Video → GVHMR (GreenNode 4090) → SMPL → GMR retarget (laptop CPU) → 30fps CSV →
+csv_to_npz + BeyondMimic `Tracking-Flat-G1-v0` training (GreenNode 4090, Isaac Lab 2.1.0;
+bounded fallback: mjlab) → policy.onnx → MuJoCo sim2sim gate (laptop) →
+motion_tracking_controller onboard Jetson PC2 (Docker qiayuanl/unitree:jazzy).
+Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
@@ -45,11 +43,18 @@ Pipeline stages:
   Implication: training jobs run inside a Jupyter notebook environment (persistent while the
   instance runs) rather than a batch-job API — plan for tmux/nohup inside the instance and
   artifact sync via the notebook's storage. Dev OS confirmed: Ubuntu (laptop already is 22.04).
+- 2026-06-12: User: GreenNode GPU = **RTX 4090**; dance area = **hard flat ground, ≤2 m radius**
+  → motion vetting gate: root XY excursion ≤1.5 m, no floorwork in v1.
+- 2026-06-12: **Phase 1 done — architecture pinned in docs/architecture.md** (BeyondMimic
+  primary, mjlab as bounded fallback given no-Docker notebook; GVHMR + GMR front-end;
+  motion_tracking_controller onboard PC2 for deploy; W&B question deferred to provisioning).
+- 2026-06-12: conda default channels blocked by Anaconda ToS prompt on this machine —
+  create all new envs with `-c conda-forge --override-channels`.
 
 ## Phase checklist
 
 - [x] Phase 0 — Workspace, persistence, hardware audit
-- [ ] Phase 1 — Architecture pinned (research synthesis → docs/architecture.md)
+- [x] Phase 1 — Architecture pinned (research synthesis → docs/architecture.md, 2026-06-12)
 - [ ] Phase 2 — Local foundations: conda envs, repos cloned, MuJoCo G1 model loads
 - [ ] Phase 3 — Motion path on known data: pre-retargeted dance motion (e.g. LAFAN1)
       visualized in MuJoCo viewer
@@ -61,16 +66,22 @@ Pipeline stages:
 
 ## Current status
 
-Phase 0 complete; Phase 1 in progress — research workflow running
-(6 parallel deep-dives: motion extraction, retargeting, RL controller, deployment,
-GPU strategy, turnkey alternatives).
+Phase 1 complete (architecture pinned). Phase 2 in progress: conda env `g1dance`
+(py3.10, conda-forge) being created; shallow clones of GMR / whole_body_tracking /
+unitree_mujoco / mujoco_menagerie into `third_party/`.
 
 ## Next actions
 
-1. Read research synthesis → write `docs/architecture.md` + decision log entries.
-2. Create conda envs + clone chosen repos into `third_party/`.
-3. Get a pre-made G1 dance motion playing in the MuJoCo viewer (Phase 3) — proves the
-   motion format end of the pipeline before touching video or training.
+1. Finish Phase 2: verify mujoco imports, G1 29-DoF MJCF loads (check unitree_mujoco
+   and menagerie assets — confirm which has the 29-DoF model with right joint order).
+2. Phase 3: download `dance1_subject2.csv` from LAFAN1_Retargeting_Dataset on HF
+   (try `lvhaidong/...` mirror if `unitreerobotics/...` 401s anonymously) →
+   `pipeline/` playback script (CSV → qpos, render MP4 to `data/previews/`) →
+   visually verify the dance.
+3. Write the motion vetting module (root excursion ≤1.5 m, joint limits, foot-skate)
+   against the same CSV — reusable for every future motion.
+4. When user provides GreenNode notebook access: provision envs there (GVHMR + Isaac
+   Lab 2.1.0 pip install; fallback mjlab) and benchmark training on dance1_subject2.
 
 ## Resume protocol (after reboot / new session)
 
