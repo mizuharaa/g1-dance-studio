@@ -1,12 +1,16 @@
 """Automated vetting gate for G1 motion CSVs (LAFAN1 convention, 30 fps).
 
-Checks (see docs/architecture.md section 5):
-  1. Root XY excursion from start <= 1.5 m  (2 m-radius dance area, drift margin)
-  2. Joint angles within model limits; joint velocities within model limits
-  3. Foot-skate heuristic: stance-foot horizontal speed while at ground height
-  4. Root height sanity (no floorwork in v1: pelvis never below 0.35 m)
+Two tiers (see docs/architecture.md section 5):
+  HARD (gate fails):
+    1. Root XY excursion from start <= 1.5 m  (2 m-radius dance area, drift margin)
+    2. Joint angles within model position limits
+    3. No floorwork in v1: pelvis never below 0.35 m
+  ADVISORY (warnings only -- the RL tracking reward smooths infeasible references;
+  Unitree's own LAFAN1 retargets exceed motor velocity limits on ~30% of frames):
+    4. Joint velocity stats vs the ~3*pi rad/s motor class limit
+    5. Foot-skate: stance-foot (low + vertically still) horizontal speed
 
-Exit code 0 = PASS, 1 = FAIL. Use --json for machine-readable output (UI hook).
+Exit code 0 = PASS, 1 = FAIL (hard checks only). --json for the UI hook.
 """
 
 import argparse
@@ -23,9 +27,10 @@ CSV_FPS = 30.0
 
 MAX_ROOT_EXCURSION_M = 1.5
 MIN_PELVIS_HEIGHT_M = 0.35
-FOOT_SKATE_SPEED = 0.30      # m/s tolerated horizontal foot speed during contact
-FOOT_CONTACT_HEIGHT = 0.08   # foot site below this height counts as stance
-VEL_LIMIT_FRACTION = 1.0     # fraction of model joint velocity limit allowed
+FOOT_SKATE_SPEED = 0.30      # m/s tolerated horizontal foot speed during stance
+FOOT_CONTACT_HEIGHT = 0.045  # ankle_roll_link origin: grounded sole ~0.023-0.04 m
+FOOT_CONTACT_VZ = 0.20       # m/s max vertical speed to count as stance
+MOTOR_VEL_LIMIT = 3 * np.pi  # rad/s, G1 motor class limit (advisory)
 
 
 def main():
@@ -45,31 +50,40 @@ def main():
     qpos[:, 7:] = m[:, 7:]
 
     res = {"file": args.csv, "frames": len(m), "seconds": len(m) / CSV_FPS}
-    checks = {}
+    hard, advisory = {}, {}
 
-    # 1. root excursion
+    # HARD 1: root excursion
     xy = m[:, 0:2] - m[0, 0:2]
     exc = float(np.linalg.norm(xy, axis=1).max())
-    checks["root_excursion"] = {"max_m": round(exc, 3), "limit": MAX_ROOT_EXCURSION_M,
-                                "pass": exc <= MAX_ROOT_EXCURSION_M}
+    hard["root_excursion"] = {"max_m": round(exc, 3), "limit": MAX_ROOT_EXCURSION_M,
+                              "pass": exc <= MAX_ROOT_EXCURSION_M}
 
-    # 2a. joint position limits (model ranges, joints are qpos 7..35 = jnt 1..29)
+    # HARD 2: joint position limits (model ranges, joints are qpos 7..35 = jnt 1..29)
     lo = model.jnt_range[1:, 0]
     hi = model.jnt_range[1:, 1]
     joints = m[:, 7:]
     viol = np.clip(lo - joints, 0, None) + np.clip(joints - hi, 0, None)
     worst = float(viol.max())
-    checks["joint_limits"] = {"worst_violation_rad": round(worst, 4),
-                              "pass": worst < 0.02}
+    hard["joint_limits"] = {"worst_violation_rad": round(worst, 4),
+                            "pass": worst < 0.02}
 
-    # 2b. joint velocities vs actuator/model limits where defined
-    jvel = np.diff(joints, axis=0) * CSV_FPS
-    peak = float(np.abs(jvel).max())
-    checks["joint_velocity"] = {"peak_rad_s": round(peak, 2),
-                                "limit_note": "G1 motor limit ~ 3*pi=9.42",
-                                "pass": peak <= 3 * np.pi * VEL_LIMIT_FRACTION}
+    # HARD 3: pelvis height (no floorwork in v1)
+    pelvis_min = float(m[:, 2].min())
+    hard["pelvis_height"] = {"min_m": round(pelvis_min, 3),
+                             "limit": MIN_PELVIS_HEIGHT_M,
+                             "pass": pelvis_min >= MIN_PELVIS_HEIGHT_M}
 
-    # 3+4. FK pass: foot skate + pelvis height
+    # ADVISORY 1: joint velocity stats
+    jvel = np.abs(np.diff(joints, axis=0) * CSV_FPS)
+    over = float((jvel > MOTOR_VEL_LIMIT).any(axis=1).mean())
+    advisory["joint_velocity"] = {
+        "peak_rad_s": round(float(jvel.max()), 2),
+        "p99_rad_s": round(float(np.percentile(jvel, 99)), 2),
+        "frames_over_limit_pct": round(100 * over, 1),
+        "limit": round(MOTOR_VEL_LIMIT, 2),
+        "ok": over < 0.40}
+
+    # ADVISORY 2: foot skate (FK pass; stance = low AND vertically still)
     lfoot = model.body("left_ankle_roll_link").id
     rfoot = model.body("right_ankle_roll_link").id
     fpos = np.empty((len(qpos), 2, 3))
@@ -78,27 +92,29 @@ def main():
         mujoco.mj_forward(model, data)
         fpos[i, 0] = data.xpos[lfoot]
         fpos[i, 1] = data.xpos[rfoot]
-    fvel = np.linalg.norm(np.diff(fpos[:, :, 0:2], axis=0), axis=2) * CSV_FPS
-    stance = fpos[:-1, :, 2] < FOOT_CONTACT_HEIGHT
-    skate = float(fvel[stance].max()) if stance.any() else 0.0
-    checks["foot_skate"] = {"max_stance_speed_m_s": round(skate, 3),
-                            "limit": FOOT_SKATE_SPEED, "pass": skate <= FOOT_SKATE_SPEED}
+    fvel_xy = np.linalg.norm(np.diff(fpos[:, :, 0:2], axis=0), axis=2) * CSV_FPS
+    fvel_z = np.abs(np.diff(fpos[:, :, 2], axis=0)) * CSV_FPS
+    stance = (fpos[:-1, :, 2] < FOOT_CONTACT_HEIGHT) & (fvel_z < FOOT_CONTACT_VZ)
+    skate_p95 = float(np.percentile(fvel_xy[stance], 95)) if stance.any() else 0.0
+    advisory["foot_skate"] = {"p95_stance_speed_m_s": round(skate_p95, 3),
+                              "limit": FOOT_SKATE_SPEED,
+                              "ok": skate_p95 <= FOOT_SKATE_SPEED}
 
-    pelvis_min = float(m[:, 2].min())
-    checks["pelvis_height"] = {"min_m": round(pelvis_min, 3),
-                               "limit": MIN_PELVIS_HEIGHT_M,
-                               "pass": pelvis_min >= MIN_PELVIS_HEIGHT_M}
-
-    res["checks"] = checks
-    res["pass"] = all(c["pass"] for c in checks.values())
+    res["hard"] = hard
+    res["advisory"] = advisory
+    res["pass"] = all(c["pass"] for c in hard.values())
 
     if args.json:
         print(json.dumps(res, indent=2))
     else:
         print(f"{res['file']}: {res['frames']} frames, {res['seconds']:.1f}s")
-        for name, c in checks.items():
+        for name, c in hard.items():
             status = "PASS" if c["pass"] else "FAIL"
             detail = {k: v for k, v in c.items() if k != "pass"}
+            print(f"  [{status}] {name}: {detail}")
+        for name, c in advisory.items():
+            status = "ok" if c["ok"] else "WARN"
+            detail = {k: v for k, v in c.items() if k != "ok"}
             print(f"  [{status}] {name}: {detail}")
         print("OVERALL:", "PASS" if res["pass"] else "FAIL")
     sys.exit(0 if res["pass"] else 1)

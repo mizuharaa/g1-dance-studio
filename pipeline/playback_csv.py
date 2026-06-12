@@ -32,7 +32,7 @@ def load_motion(csv_path):
     return qpos
 
 
-def render(model, data, qpos, out_path, width=854, height=480):
+def render(model, data, qpos, out_path, width=640, height=480):
     import imageio
     renderer = mujoco.Renderer(model, height=height, width=width)
     cam = mujoco.MjvCamera()
