@@ -23,7 +23,9 @@ push-robust** (RL whole-body tracking controller, not open-loop playback).
   `unitree_sdk2_python` + CycloneDDS working; runbooks (`RUNBOOK.md`, `TELEOP_GUIDE.md`);
   conda env `tv` on laptop, `teleimager` on robot. Camera server procedure documented there.
 - **GPU strategy**: no local CUDA ⇒ RL training + fast pose estimation must run on a
-  cloud GPU (decision pending research; see docs/architecture.md once written).
+  cloud GPU. User confirmed 2026-06-12: provider is **GreenNode AI Platform** (greennode.ai),
+  in the form of a **Notebook instance** (Jupyter-style, GPU-backed). Access details/credentials
+  still needed from user before Phase 5.
 
 ## Architecture (filled in after research — see docs/architecture.md)
 
@@ -39,6 +41,10 @@ Pipeline stages:
 
 - 2026-06-11: Project started. Workspace `~/g1-dance/`, git-tracked.
 - 2026-06-11: Research workflow launched to pin component choices (results → docs/architecture.md).
+- 2026-06-12: User confirmed cloud compute = GreenNode AI Platform Notebook instance.
+  Implication: training jobs run inside a Jupyter notebook environment (persistent while the
+  instance runs) rather than a batch-job API — plan for tmux/nohup inside the instance and
+  artifact sync via the notebook's storage. Dev OS confirmed: Ubuntu (laptop already is 22.04).
 
 ## Phase checklist
 
@@ -76,7 +82,7 @@ GPU strategy, turnkey alternatives).
 
 ## Open questions for the user (non-blocking, answer when available)
 
-- Cloud GPU budget/provider preference (research will recommend; expect roughly
-  $1–10 per trained dance on a rented RTX 4090-class GPU). An API key for the chosen
-  provider will be needed before Phase 5.
+- ~~Cloud GPU budget/provider preference~~ → ANSWERED 2026-06-12: GreenNode AI Platform
+  Notebook instance. Still needed before Phase 5: instance access (URL/SSH/credentials)
+  and which GPU type the notebook has.
 - Where will the robot dance (flat ground? space size?) — affects motion vetting.
