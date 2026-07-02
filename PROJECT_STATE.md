@@ -154,6 +154,7 @@ self-contained); conda needs `-c conda-forge --override-channels` (Anaconda ToS)
 - ~~Cloud GPU budget/provider preference~~ → ANSWERED 2026-06-12: GreenNode AI Platform
   Notebook instance. Still needed before Phase 5: instance access (URL/SSH/credentials)
   and which GPU type the notebook has.
-- ~~Where will the robot dance (flat ground? space size?)~~ → home area answered
-  2026-06-12 (hard flat, ≤2 m radius). REOPENED 2026-07-02 for client shows: typical
-  stage size + floor surface at venues → make vet-gate limits per-venue parameters.
+- ~~Where will the robot dance (flat ground? space size?)~~ → ANSWERED, CLOSED
+  2026-07-02: user confirms **client shows also fit the 2 m radius** — keep the
+  ≤1.5 m root-excursion vet gate as a constant. (Per-venue parameterization
+  deprioritized to Phase 8 nice-to-have.)
