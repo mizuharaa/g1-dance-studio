@@ -129,7 +129,44 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
       end-to-end with progress + preview
 - [ ] Phase 8 — Hardening: error handling, docs, repeatability, second/third dance
 
-## Current status (2026-07-02 evening)
+## Current status (2026-07-02 night)
+
+**Cloud-handover layer built — the moment GreenNode access arrives, connection is a
+paste-and-click.** New (commit 918f18c + this one):
+- `pipeline/cloud.py`: cloud GPU transports — SSH (host-key-change tolerant, GreenNode
+  regenerates keys per restart; sshpass only if password auth) and Jupyter (REST +
+  kernel-websocket command exec; works with the cloudflared quick-tunnel one-liner now
+  embedded verbatim in docs/GREENNODE_SETUP.md Part E). Config `.secrets/cloud.json`
+  (gitignored, 600). `run()` + `test_connection()` (GPU name/util/busy). **Verified
+  end-to-end against a local jupyter_server**: status, auth, command exec with rc.
+- UI: Cloud GPU card (status dot: off/ok/busy/bad, transport form, Save & test;
+  secrets masked as •set• and never echoed back), Body models card, endpoints
+  /api/cloud{,/config,/test}, /api/bodymodels{,/install}.
+- `pipeline/body_models.py`: installer for the license-gated zips (drop into
+  data/body_models/) — detects SMPL v1.1.0 / SMPL-X v1.1 by CONTENT, catches the
+  v1.0.0 wrong-download (no neutral) with a clear message, arranges
+  data/body_models/{smpl,smplx}/ + symlinks GMR assets/body_models/smplx. Verified on
+  synthetic zips incl. corrupt + v1.0.0 paths (fakes cleaned up; **awaiting user's
+  real zips** — status card will flip when they land).
+- `pipeline/video_probe.py` + extract stage: ffprobe intake validation the moment a
+  video job is created — hard: readable+video stream, 15 s–4 min; advisory: <720p,
+  VFR. Verified with generated clips (20 s ok → meta recorded then honest cloud-block;
+  5 s → fails with readable reason). ffmpeg + tmux + shellcheck now in g1dance env
+  (NOTE: conda transactions can delete the env's ensurepip pip — restore with
+  `python -m ensurepip`).
+- `cloud/` provisioning scripts (shellcheck-clean, idempotent, everything under the
+  persistent mount): 00_bootstrap (layout/tmux/env.sh), 10_gvhmr (venv reusing image
+  torch via system-site-packages, HF checkpoint fetch, body-model links), 20_training
+  (Isaac Lab 2.1.0 attempt with preflight + honest failure report →
+  `$NB_DATA/reports/training_stack.json`; `bash 20_training.sh mjlab` fallback),
+  run_job.sh (tmux job wrapper writing pollable status JSON — **live-tested locally**:
+  running→failed rc=3 captured).
+- **W&B Registry 'motions' CREATED programmatically** (wandb 0.28 create_registry) in
+  org `luong-alois-vng-group-org`; artifact path prefix is `wandb-registry-motions`
+  (NOT plain `motions` — adjust BeyondMimic --registry_name accordingly at training
+  time). Verified via api.registries().
+
+## Prior status (2026-07-02 evening)
 
 **Phase 7 runner wired — the app now really executes jobs.** New since the skeleton:
 `pipeline/stages/local_motion.py` (real stage impls: CSV input → window (find_window)
@@ -189,6 +226,12 @@ self-contained); conda needs `-c conda-forge --override-channels` (Anaconda ToS)
 2. ~~Phase 7 runner/stage wiring~~ DONE 2026-07-02 (see Current status). Remaining
    Phase 7: user visual test (`scripts/dance-studio`); cloud-backed stage impls
    (extract/train) once GreenNode lands — the StageBlocked plumbing is ready for them.
+2b. ~~Cloud handover prep~~ DONE 2026-07-02 night: transports + provisioning scripts
+   + W&B registry + intake validation (see Current status). When user connects:
+   test connection → push cloud/ scripts + body_models → run 00/10/20 via run_job.sh
+   → read training_stack.json → wire ExtractStage/TrainStage to pipeline/cloud.run().
+   When user's model zips land in data/body_models/: click Install (or
+   `python -m pipeline.body_models --install`).
 3. BLOCKED on user: GreenNode notebook access (Jupyter URL/token or SSH) → provision
    GVHMR + Isaac Lab 2.1.0 envs there (fallback mjlab), benchmark training on
    data/dance1_subject2_seg.csv. Also need (timing-flexible): SMPL-X registration

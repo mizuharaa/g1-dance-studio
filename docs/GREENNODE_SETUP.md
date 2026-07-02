@@ -126,9 +126,17 @@ volume.
    - If you see **SSH or TCP-port connection details** (a host/port/command/key):
      copy ALL of it to Claude — that's the best hands-off channel.
    - **Either way, also do this** (guaranteed fallback): in the Jupyter page, open
-     **File → New → Terminal**, then paste the one-line command Claude will give you
-     when you reach this step. It creates a secure outbound tunnel from the notebook
-     to your laptop session — no firewall changes, revocable by stopping the instance.
+     **File → New → Terminal**, paste this single line, and press Enter:
+
+     ```bash
+     bash -c 'D=${NB_DATA:-/workspace/notebook-data}; [ -d "$D" ] || D=$HOME; mkdir -p "$D/bin"; [ -x "$D/bin/cloudflared" ] || (curl -fsSL -o "$D/bin/cloudflared" https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x "$D/bin/cloudflared"); T=$(python3 -c "import secrets;print(secrets.token_hex(16))"); (jupyter server --ip=127.0.0.1 --port=8899 --ServerApp.token="$T" --no-browser >/tmp/g1jup.log 2>&1 &); sleep 4; echo; echo "=== COPY THIS TOKEN: $T"; "$D/bin/cloudflared" tunnel --url http://127.0.0.1:8899 --no-autoupdate 2>&1 | grep --line-buffered -o "https://[a-z0-9-]*\.trycloudflare\.com"'
+     ```
+
+     After ~10 seconds it prints a **TOKEN** line and a **https://…trycloudflare.com**
+     URL. Paste BOTH into the app: *Cloud GPU → Connection settings → Jupyter/tunnel
+     URL (plan B)*, then click **Save & test** — the status dot should turn green.
+     Keep that terminal tab open (closing it closes the tunnel; the tunnel dies
+     anyway when the instance stops, which is fine — re-paste to reconnect).
 3. Note: the Jupyter session is reached through your logged-in console ✅ (notebooks
    have **no public IP** ✅), so a copy-pasted browser URL alone may not work from
    outside — that's why step 2 matters.
