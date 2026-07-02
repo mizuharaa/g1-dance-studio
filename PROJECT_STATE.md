@@ -83,6 +83,27 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   that registry (also W&B-dependent). ⇒ Before first training: create a W&B Registry
   called `motions` in entity `luong-alois-vng-group` (or patch to local npz paths —
   decide at provisioning). Key: `.secrets/wandb.key`.
+- 2026-07-02: **GreenNode ground truth researched** (ultracode sweep, 109 sourced facts
+  → docs/GREENNODE_SETUP.md rewritten). Load-bearing corrections vs earlier plan:
+  (1) notebook local disk is EPHEMERAL — data lost on Stop; persistence = Network
+  Volume (create first, auto-sync to /workspace/notebook-data, overwrites on stop);
+  (2) NO SSH-key field at creation; connect methods = Code Editor / TCP Port / SSH
+  (SSH how-to login-gated) — plan A: SSH/TCP details from Connect dialog, plan B:
+  user pastes our tunnel one-liner into Jupyter terminal (notebooks have no public IP;
+  Jupyter is behind console session);
+  (3) image is FIXED: PyTorch 2.5.1 CUDA 12.4 only — raises Isaac Lab 2.1.0 risk,
+  mjlab fallback more likely;
+  (4) NO public API/CLI for notebook lifecycle — console-only, user hands required
+  for create/start/stop (auto-schedules exist in-console since 25.08);
+  (5) prepaid billing gotcha: docs say charged at creation, refund on delete —
+  whether Stop pauses prepaid burn is UNVERIFIED, must read create-screen text;
+  (6) two consoles, same platform: intl (greennode.ai, USD, Stripe) vs domestic VN
+  (aiplatform.console.vngcloud.vn, VND, MoMo/ZaloPay); region HCM only; block storage
+  20–1000 GB grow-only; 4090 = GPU-CODE-RTX4090 family, hourly price shown only
+  in-console (GPU-instance list price $610/mo ≈ $0.84/h as anchor).
+  Research shortcut for future sessions: docs.vngcloud.vn pages are fetchable as
+  raw markdown (append .md), full index at /vng-cloud-document/llms.txt, and
+  ?ask=<question> returns cited answers. Helpdesk KB is SSO-gated since ~May 2026.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
