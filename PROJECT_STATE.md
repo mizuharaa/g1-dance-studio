@@ -120,6 +120,19 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   (6) also available: A40 family up to 8×48GB — relevant if 24GB VRAM ever binds;
   (7) custom container images ARE selectable (besides the fixed PyTorch 2.5.1 image) —
   softens the Isaac Lab risk from the earlier research.
+- 2026-07-02 (night): **Billing model ANSWERED (user):** notebook charges the FULL
+  MONTH upfront at creation; refund of the remainder on DELETE. ⇒ Cost strategy:
+  stopping saves nothing — create the notebook when entering a GPU-intensive phase,
+  keep it for the phase, DELETE it at phase end to reclaim credit (data survives on
+  the Network Volume + laptop syncs). Budget note: creation needs ≥16.16M VND
+  (~$623+VAT) of credit available even if most is later refunded.
+- 2026-07-02 (night): **Body models INSTALLED** — user delivered SMPL v1.1.0 +
+  SMPL-X v1.1 zips; pipeline/body_models.py verified all 9 model files, GMR symlink
+  done (ready=true). Password rotation: user declined for now ("no need").
+- 2026-07-02 (night): Desktop app first real launch on X11 fixed: PySide6 Qt needs
+  libxcb-cursor.so.0 → conda-forge `xcb-util-cursor` installed in g1dance +
+  scripts/dance-studio now exports LD_LIBRARY_PATH=$CONDA_PREFIX/lib. App verified
+  running windowed on the user's display (server 200, process alive).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just

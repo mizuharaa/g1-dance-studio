@@ -3,4 +3,7 @@
 set -e
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate g1dance
+# PySide6's bundled Qt dlopens libxcb-cursor.so.0, which lives in the conda env
+# (xcb-util-cursor package), not on the system library path.
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec python "$HOME/g1-dance/ui/desktop.py" "$@"
