@@ -104,6 +104,22 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   Research shortcut for future sessions: docs.vngcloud.vn pages are fetchable as
   raw markdown (append .md), full index at /vng-cloud-document/llms.txt, and
   ?ask=<question> returns cited answers. Helpdesk KB is SSO-gated since ~May 2026.
+- 2026-07-02 (late): **GreenNode console recon done** (user's VNG root account
+  alois@vng.com.vn via piloted Chrome + sonnet agent per user's "don't use fable 5";
+  creds in .secrets/greennode.cred — ADVISE ROTATION, passed through chat; full recon
+  in docs/greennode_console_recon.md). Key facts vs docs: (1) **balance 0 credits** —
+  payment/VNG credit still the blocker; (2) create form **HAS SSH pubkey field** +
+  HTTP ports (default 8888, max 3) + TCP ports (max 3) — Plan A connect is viable;
+  keypair generated: .secrets/greennode_ssh_key(.pub), pubkey embedded in setup guide;
+  (3) smallest 4090 flavor `aiplatform-standard-16x64-1rtx4090` (16C/64G):
+  16,080,632 VND compute + 74,800 VND/20GB storage, NO period label (≈$623 ≈ monthly
+  anchor; ~$0.87/h pro-rated) — whether creation charges full month upfront is OPEN,
+  ask support before spending; VAT excluded; (4) Network Volume field is REQUIRED at
+  creation; volume base price 1,080 VND; (5) helpdesk notebook articles are restricted
+  even logged-in (SSH docs uncaptured — rely on form fields + tunnel fallback);
+  (6) also available: A40 family up to 8×48GB — relevant if 24GB VRAM ever binds;
+  (7) custom container images ARE selectable (besides the fixed PyTorch 2.5.1 image) —
+  softens the Isaac Lab risk from the earlier research.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just

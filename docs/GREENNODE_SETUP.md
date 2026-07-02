@@ -111,9 +111,23 @@ volume.
      (allowed 20–1000 ✅; must be larger than the Network Volume's current size ✅ —
      Isaac Lab and checkpoints are huge, don't go small; it can be grown later via
      "Resize" but never shrunk ✅)
-3. There is **no SSH-key field** on this form ✅ — that's normal, ignore that earlier
-   suggestion of mine.
-4. Click **Create Instance**. The notebook **starts automatically** ✅ and begins
+3. **CORRECTION (2026-07-02 console recon — the form is better than the docs said):**
+   the create form **does have an SSH public key field** (dropdown or paste inline) ✅,
+   plus **HTTP ports** (default 8888, max 3) ✅ and **TCP ports** (max 3) ✅.
+   - **SSH public key**: paste the line below (Claude's pre-generated key, private
+     half stays on the laptop in `.secrets/greennode_ssh_key`):
+     ```
+     ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICTYBj0plfDnYAhJ5HKoH8yP2ePz7d1Z6HIKz/+kScfJ g1dance-laptop
+     ```
+   - Leave HTTP port 8888 as is; add TCP port **22** if it asks for explicit numbers.
+   - The **network volume field is REQUIRED** ✅ — hence Part C first.
+4. Observed price (2026-07-02, VND, **no per-hour/per-month label shown** ⚠️):
+   smallest 4090 type `aiplatform-standard-16x64-1rtx4090` (16 CPU / 64 GB RAM):
+   compute 16,080,632 VND + 74,800 VND per 20 GB block storage ≈ 16.16M VND total
+   (≈ $623 — matches the public *monthly* price; ≈ $0.87/hour if pro-rated).
+   Prices exclude VAT ✅. **Ask GreenNode support/VNG whether creation charges the
+   full month upfront or burns credit hourly before committing real money.**
+5. Click **Create Instance**. The notebook **starts automatically** ✅ and begins
    billing while running ✅. Wait for status **Active**.
 
 ## Part E — Connect and hand over to Claude (~5 min)
