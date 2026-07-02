@@ -65,6 +65,17 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   from inside the logged-in console with the user.
 - 2026-07-02: User registered on smpl.is.tue.mpg.de (SMPL-X registration still pending).
   Drop point for model zips: `data/body_models/` — unpack/arrange is our job.
+  SMPL download: **v1.1.0 for Python 2.7** (includes neutral + 300 shape PCs; better
+  than v1.0.0 which lacks the neutral model).
+- 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
+  **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
+  Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
+  the 28.8 s test segment — budget more GPU-hours per dance and validate long-horizon
+  tracking; (b) Phase 8 hardening is now a hard requirement, not polish: pre-show
+  checklist, rehearsal protocol, battery plan, operator e-stop procedure, fall recovery
+  plan; (c) the ≤2 m-radius / hard-flat-ground vetting assumption was for his home area —
+  client venues may differ → NEW OPEN QUESTION: typical show stage size + floor surface;
+  vet gate limits should become per-venue parameters, not constants.
 
 ## Phase checklist
 
@@ -143,4 +154,6 @@ self-contained); conda needs `-c conda-forge --override-channels` (Anaconda ToS)
 - ~~Cloud GPU budget/provider preference~~ → ANSWERED 2026-06-12: GreenNode AI Platform
   Notebook instance. Still needed before Phase 5: instance access (URL/SSH/credentials)
   and which GPU type the notebook has.
-- Where will the robot dance (flat ground? space size?) — affects motion vetting.
+- ~~Where will the robot dance (flat ground? space size?)~~ → home area answered
+  2026-06-12 (hard flat, ≤2 m radius). REOPENED 2026-07-02 for client shows: typical
+  stage size + floor surface at venues → make vet-gate limits per-venue parameters.
