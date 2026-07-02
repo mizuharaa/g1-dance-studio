@@ -53,6 +53,18 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 - 2026-07-02: User: the UI must be a **desktop application**, not a browser web app.
   Plan: keep the FastAPI backend as the local engine, wrap the frontend in **pywebview**
   (native desktop window, stays all-Python, no Electron). Phase 7 renamed accordingly.
+- 2026-07-02: **W&B answered** — user supplied API key; verified against api.wandb.ai
+  (user `luong-alois`, entity `luong-alois-vng-group`); stored in `.secrets/wandb.key`
+  (gitignored, chmod 600). Use `WANDB_API_KEY=$(cat ~/g1-dance/.secrets/wandb.key)`.
+- 2026-07-02: GreenNode reality check — user has NEVER used GreenNode; account signup +
+  prepaid payment (Visa/MC/bank transfer) must be done by user at register.greennode.ai/signup.
+  Note: W&B entity says VNG Group and GreenNode is VNG's cloud — user may have a company
+  tenant/credits; suggested checking internally first. After account exists: guide user
+  through notebook creation in console, then take over via Jupyter URL/token (+SSH if
+  offered). Helpdesk KB is JS-rendered (curl gets empty shell) — get exact console steps
+  from inside the logged-in console with the user.
+- 2026-07-02: User registered on smpl.is.tue.mpg.de (SMPL-X registration still pending).
+  Drop point for model zips: `data/body_models/` — unpack/arrange is our job.
 
 ## Phase checklist
 
