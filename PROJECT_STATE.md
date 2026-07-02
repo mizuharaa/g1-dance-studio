@@ -50,6 +50,9 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   motion_tracking_controller onboard PC2 for deploy; W&B question deferred to provisioning).
 - 2026-06-12: conda default channels blocked by Anaconda ToS prompt on this machine —
   create all new envs with `-c conda-forge --override-channels`.
+- 2026-07-02: User: the UI must be a **desktop application**, not a browser web app.
+  Plan: keep the FastAPI backend as the local engine, wrap the frontend in **pywebview**
+  (native desktop window, stays all-Python, no Electron). Phase 7 renamed accordingly.
 
 ## Phase checklist
 
@@ -62,7 +65,8 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 - [ ] Phase 4 — Video front-end: video → SMPL → retargeted G1 motion (our own video)
 - [ ] Phase 5 — Training: cloud GPU job for tracking policy on one motion; sim verify
 - [ ] Phase 6 — Deploy: policy runs on real G1 (hung from gantry first), push test
-- [ ] Phase 7 — UI: web app orchestrating stages end-to-end with progress + preview
+- [ ] Phase 7 — UI: desktop app (pywebview + FastAPI engine) orchestrating stages
+      end-to-end with progress + preview
 - [ ] Phase 8 — Hardening: error handling, docs, repeatability, second/third dance
 
 ## Current status (2026-06-12 midday)
@@ -84,9 +88,10 @@ self-contained); conda needs `-c conda-forge --override-channels` (Anaconda ToS)
 1. When GMR/whole_body_tracking/unitree_mujoco clones land (background loop running):
    pin commit SHAs in decision log; read whole_body_tracking csv_to_npz.py + train
    API to confirm interfaces and W&B dependency surface.
-2. Start Phase 7 UI skeleton early (web app, local FastAPI + simple frontend):
-   upload video → stage list → vet report (JSON from vet_motion.py) → preview MP4
-   player → deploy gate placeholder. UI grows with each backend stage.
+2. Start Phase 7 UI skeleton early (DESKTOP app per 2026-07-02 decision: pywebview
+   window + local FastAPI engine): pick video → stage list → vet report (JSON from
+   vet_motion.py) → preview MP4 player → deploy gate placeholder. UI grows with each
+   backend stage.
 3. BLOCKED on user: GreenNode notebook access (Jupyter URL/token or SSH) → provision
    GVHMR + Isaac Lab 2.1.0 envs there (fallback mjlab), benchmark training on
    data/dance1_subject2_seg.csv. Also need (timing-flexible): SMPL-X registration
