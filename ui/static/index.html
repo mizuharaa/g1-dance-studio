@@ -21,6 +21,12 @@
       </form>
       <p class="hint">Pick a reference dance video. One dancer, whole body
       visible, camera still, 20&ndash;40&nbsp;s.</p>
+      <div class="row">
+        <select id="csv-select"></select>
+        <button id="csv-run">Run motion CSV</button>
+      </div>
+      <p class="hint">Or run an existing robot-motion CSV through the local
+      pipeline (window &rarr; vet &rarr; preview).</p>
     </section>
 
     <section>
@@ -38,6 +44,8 @@
     <section id="stage-panel">
       <h2>Pipeline <span id="job-title"></span></h2>
       <div id="stages"><p class="empty">Select or create a job to see its stages.</p></div>
+      <button id="retry-btn" hidden>Retry stage</button>
+      <div id="job-vet"></div>
       <pre id="job-log" hidden></pre>
     </section>
 

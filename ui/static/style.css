@@ -56,6 +56,11 @@ form button { margin-top: 8px; }
 .state.done { color: var(--ok); }
 .state.running { color: var(--accent); }
 .state.failed { color: var(--fail); }
+.state.blocked { color: var(--warn); }
+.state.skipped { color: var(--dim); font-style: italic; }
+#retry-btn { margin-top: 8px; }
+.row + .hint { margin-top: 6px; }
+#new-job-form + .hint { margin-bottom: 12px; }
 
 table.vet { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
 table.vet td, table.vet th { padding: 6px 8px; border-bottom: 1px solid var(--border);

@@ -12,10 +12,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import queue
 import shutil
 import subprocess
 import sys
+import threading
 import time
+import traceback
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -27,6 +30,8 @@ from fastapi.staticfiles import StaticFiles
 
 from pipeline.config import DATA_DIR, STAGE_ORDER
 from pipeline import store
+from pipeline.runner import Runner
+from pipeline.stages.local_motion import build_stages
 
 STATIC_DIR = Path(__file__).parent / "static"
 PREVIEWS_DIR = DATA_DIR / "previews"
@@ -37,15 +42,71 @@ app = FastAPI(title="G1 Dance Studio")
 # Vet runs load MuJoCo and FK every frame (~seconds); cache per (path, mtime).
 _vet_cache: dict[tuple[str, float], dict] = {}
 
+# ---- background job worker ---------------------------------------------------
+# One worker thread executes queued jobs via the pipeline runner. Stage state is
+# persisted by the runner (pipeline/store.py), so a crash/reboot loses nothing:
+# _reconcile_jobs() re-queues whatever was interrupted.
+
+_job_queue: "queue.Queue[str]" = queue.Queue()
+_runner = Runner(build_stages())
+
+
+def _worker_loop() -> None:
+    while True:
+        job_id = _job_queue.get()
+        try:
+            job = store.load_job(job_id)
+            _runner.run_job(job)
+        except Exception:
+            try:
+                store.load_job(job_id).log(
+                    f"worker error:\n{traceback.format_exc()}")
+            except Exception:
+                pass
+        finally:
+            _job_queue.task_done()
+
+
+def _reconcile_jobs() -> None:
+    """On startup: re-queue interrupted/pending/blocked jobs; leave failed ones
+    for the explicit Retry button."""
+    for job in store.list_jobs():
+        cur = job.current_stage()
+        if cur is None:
+            continue
+        st = job.stages[cur]
+        if st.state == "running":  # process died mid-stage
+            st.state = "pending"
+            st.message = "interrupted by restart — re-queued"
+            st.progress = 0.0
+            job.save()
+            job.log(f"stage {cur}: was running at shutdown — re-queued")
+        if st.state in ("pending", "blocked"):
+            _job_queue.put(job.id)
+
+
+@app.on_event("startup")
+def _start_worker() -> None:
+    _reconcile_jobs()
+    threading.Thread(target=_worker_loop, name="job-worker", daemon=True).start()
+
 
 def _job_dict(job: store.Job) -> dict:
-    return {
+    d = {
         "id": job.id,
         "name": job.name,
         "created_at": job.created_at,
+        "input": job.input,
         "current_stage": job.current_stage(),
         "stages": {k: vars(v) for k, v in job.stages.items()},
     }
+    preview = job.dir / "retarget" / "preview.mp4"
+    if preview.exists():
+        d["preview_url"] = f"/previews/job-{job.id}.mp4"
+    vet = job.dir / "retarget" / "vet.json"
+    if vet.exists():
+        d["vet"] = json.loads(vet.read_text())
+    return d
 
 
 @app.get("/api/health")
@@ -70,23 +131,24 @@ def job_detail(job_id: str) -> dict:
     return d
 
 
-def _create_job_from_video(name: str, src: Path) -> store.Job:
-    job = store.new_job(name)
-    shutil.copyfile(src, job.dir / "input.mp4")
-    job.log(f"input video: {src} ({src.stat().st_size} bytes)")
-    # Stage implementations land in later phases; the job waits at "extract".
-    job.log("job queued — pipeline stages not yet implemented in this skeleton")
+def _create_job(name: str, src: Path) -> store.Job:
+    """Create a job from an input file: .csv = robot motion, else video."""
+    kind = "csv" if src.suffix.lower() == ".csv" else "video"
+    job = store.new_job(name, input={"type": kind, "source": str(src)})
+    shutil.copyfile(src, job.dir / ("input.csv" if kind == "csv" else "input.mp4"))
+    job.log(f"input {kind}: {src} ({src.stat().st_size} bytes)")
+    _job_queue.put(job.id)
     return job
 
 
 @app.post("/api/jobs")
 def create_job(payload: dict = Body(...)) -> dict:
-    """Create a job from a video already on disk (path from the file picker)."""
-    video_path = Path(payload.get("video_path", "")).expanduser()
-    if not video_path.is_file():
-        raise HTTPException(400, f"video file not found: {video_path}")
-    name = payload.get("name") or video_path.stem
-    return _job_dict(_create_job_from_video(name, video_path))
+    """Create a job from a file already on disk (video, or motion CSV)."""
+    src = Path(payload.get("input_path") or payload.get("video_path", "")).expanduser()
+    if not src.is_file():
+        raise HTTPException(400, f"input file not found: {src}")
+    name = payload.get("name") or src.stem
+    return _job_dict(_create_job(name, src))
 
 
 @app.post("/api/jobs/upload")
@@ -97,7 +159,30 @@ async def create_job_upload(video: UploadFile) -> dict:
     with open(tmp, "wb") as f:
         shutil.copyfileobj(video.file, f)
     name = Path(video.filename or "upload").stem
-    return _job_dict(_create_job_from_video(name, tmp))
+    return _job_dict(_create_job(name, tmp))
+
+
+@app.post("/api/jobs/{job_id}/retry")
+def retry_job(job_id: str) -> dict:
+    """Reset a failed/blocked current stage to pending and re-queue the job."""
+    try:
+        job = store.load_job(job_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such job: {job_id}")
+    cur = job.current_stage()
+    if cur is None:
+        raise HTTPException(400, "job is already complete")
+    st = job.stages[cur]
+    if st.state not in ("failed", "blocked"):
+        raise HTTPException(400, f"stage {cur} is {st.state}; nothing to retry")
+    st.state = "pending"
+    st.message = ""
+    st.progress = 0.0
+    st.started_at = st.finished_at = None
+    job.save()
+    job.log(f"stage {cur}: reset by user — re-queued")
+    _job_queue.put(job.id)
+    return _job_dict(job)
 
 
 @app.post("/api/jobs/{job_id}/deploy")

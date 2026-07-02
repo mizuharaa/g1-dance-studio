@@ -15,6 +15,17 @@ from ..store import Job
 Reporter = Callable[[float, str], None]
 
 
+class SkipStage(Exception):
+    """Raised by a stage that does not apply to this job (e.g. extract on a
+    CSV motion input). The runner marks it 'skipped' and moves on."""
+
+
+class StageBlocked(Exception):
+    """Raised by a stage that cannot run yet for an external reason (e.g. the
+    cloud GPU is not provisioned). The runner marks the stage 'blocked' and
+    stops the job without failing it; a later re-queue retries."""
+
+
 class Stage(Protocol):
     name: str
 

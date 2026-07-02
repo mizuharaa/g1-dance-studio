@@ -6,7 +6,7 @@ import traceback
 
 from .config import STAGE_ORDER
 from .store import Job
-from .stages.base import Stage
+from .stages.base import SkipStage, Stage, StageBlocked
 
 
 class Runner:
@@ -21,7 +21,7 @@ class Runner:
         (the export→robot boundary is always an explicit human action)."""
         while (name := job.current_stage()) is not None:
             self._run_stage(job, name)
-            if job.stages[name].state == "failed" or name == until:
+            if job.stages[name].state in ("failed", "blocked") or name == until:
                 return
 
     def _run_stage(self, job: Job, name: str) -> None:
@@ -42,6 +42,16 @@ class Runner:
             st.progress = 1.0
             st.finished_at = time.time()
             job.log(f"stage {name}: done")
+        except SkipStage as e:
+            st.state = "skipped"
+            st.message = str(e)
+            st.finished_at = time.time()
+            job.log(f"stage {name}: skipped — {e}")
+        except StageBlocked as e:
+            st.state = "blocked"
+            st.message = str(e)
+            st.started_at = None      # it never really ran
+            job.log(f"stage {name}: blocked — {e}")
         except Exception as e:
             st.state = "failed"
             st.message = f"{type(e).__name__}: {e}"

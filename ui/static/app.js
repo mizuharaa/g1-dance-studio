@@ -41,6 +41,17 @@ async function showJob(id) {
       <span class="state ${st.state}">${st.state}${st.message ? " · " + st.message : ""}</span>`;
     box.appendChild(div);
   }
+  const cur = j.current_stage && j.stages[j.current_stage];
+  const retry = $("#retry-btn");
+  retry.hidden = !(cur && (cur.state === "failed" || cur.state === "blocked"));
+  retry.onclick = async () => {
+    try { await api(`/api/jobs/${id}/retry`, { method: "POST" }); showJob(id); }
+    catch (err) { alert("Retry refused: " + err.message); }
+  };
+  $("#job-vet").innerHTML = j.vet ? vetHtml(j.vet) : "";
+  if (j.preview_url && $("#preview-video").src !== location.origin + j.preview_url) {
+    playPreview(j.preview_url);
+  }
   const log = $("#job-log");
   log.hidden = !j.log_tail.length;
   log.textContent = j.log_tail.join("\n");
@@ -66,8 +77,53 @@ $("#new-job-form").onsubmit = async (e) => {
 
 async function loadMotions() {
   const motions = await api("/api/motions");
-  const sel = $("#vet-select");
-  sel.innerHTML = motions.map((m) => `<option value="${m.path}">${m.name}</option>`).join("");
+  const opts = motions.map((m) => `<option value="${m.path}">${m.name}</option>`).join("");
+  $("#vet-select").innerHTML = opts;
+  $("#csv-select").innerHTML = opts;
+}
+
+$("#csv-run").onclick = async () => {
+  const csv = $("#csv-select").value;
+  if (!csv) return;
+  try {
+    const j = await api("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input_path: csv }),
+    });
+    selectedJob = j.id;
+    await refreshJobs();
+    await showJob(j.id);
+  } catch (err) { alert("Could not create job: " + err.message); }
+};
+
+function vetHtml(r) {
+  const row = (name, c, hard) => {
+    const ok = hard ? c.pass : c.ok;
+    const badge = hard
+      ? `<span class="badge ${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"}</span>`
+      : `<span class="badge ${ok ? "pass" : "warn"}">${ok ? "ok" : "WARN"}</span>`;
+    const detail = Object.entries(c).filter(([k]) => k !== "pass" && k !== "ok")
+      .map(([k, v]) => `${k}: ${v}`).join(", ");
+    return `<tr><td>${badge}</td><td>${name}</td><td>${detail}</td></tr>`;
+  };
+  return `
+    <p class="hint">${r.file.split("/").pop()} — ${r.frames} frames, ${r.seconds.toFixed(1)} s</p>
+    <table class="vet">
+      <tr><th></th><th>check</th><th>details</th></tr>
+      ${Object.entries(r.hard).map(([n, c]) => row(n, c, true)).join("")}
+      ${Object.entries(r.advisory).map(([n, c]) => row(n, c, false)).join("")}
+    </table>
+    <p class="verdict">${r.pass
+      ? '<span class="badge pass">DEPLOYABLE MOTION</span>'
+      : '<span class="badge fail">REJECTED</span>'}</p>`;
+}
+
+function playPreview(url) {
+  const v = $("#preview-video");
+  v.src = url;
+  v.hidden = false;
+  $("#preview-hint").hidden = true;
 }
 
 $("#vet-run").onclick = async () => {
@@ -77,25 +133,7 @@ $("#vet-run").onclick = async () => {
   out.innerHTML = '<p class="hint">Running checks (loads physics model)&hellip;</p>';
   try {
     const r = await api(`/api/vet?csv=${encodeURIComponent(csv)}`);
-    const row = (name, c, hard) => {
-      const ok = hard ? c.pass : c.ok;
-      const badge = hard
-        ? `<span class="badge ${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"}</span>`
-        : `<span class="badge ${ok ? "pass" : "warn"}">${ok ? "ok" : "WARN"}</span>`;
-      const detail = Object.entries(c).filter(([k]) => k !== "pass" && k !== "ok")
-        .map(([k, v]) => `${k}: ${v}`).join(", ");
-      return `<tr><td>${badge}</td><td>${name}</td><td>${detail}</td></tr>`;
-    };
-    out.innerHTML = `
-      <p class="hint">${r.file} — ${r.frames} frames, ${r.seconds.toFixed(1)} s</p>
-      <table class="vet">
-        <tr><th></th><th>check</th><th>details</th></tr>
-        ${Object.entries(r.hard).map(([n, c]) => row(n, c, true)).join("")}
-        ${Object.entries(r.advisory).map(([n, c]) => row(n, c, false)).join("")}
-      </table>
-      <p class="verdict">${r.pass
-        ? '<span class="badge pass">DEPLOYABLE MOTION</span>'
-        : '<span class="badge fail">REJECTED</span>'}</p>`;
+    out.innerHTML = vetHtml(r);
   } catch (err) { out.innerHTML = `<p class="hint">Vet failed: ${err.message}</p>`; }
 };
 
@@ -108,13 +146,7 @@ async function loadPreviews() {
   for (const p of previews) {
     const li = document.createElement("li");
     li.innerHTML = `${p.name}<span class="sub">${(p.size / 1e6).toFixed(1)} MB</span>`;
-    li.onclick = () => {
-      const v = $("#preview-video");
-      v.src = p.url;
-      v.hidden = false;
-      $("#preview-hint").hidden = true;
-      v.play();
-    };
+    li.onclick = () => { playPreview(p.url); $("#preview-video").play(); };
     ul.appendChild(li);
   }
 }

@@ -26,7 +26,7 @@ from pathlib import Path
 
 from .config import JOBS_DIR, STAGE_ORDER
 
-STAGE_STATES = ("pending", "running", "done", "failed", "skipped")
+STAGE_STATES = ("pending", "running", "done", "failed", "skipped", "blocked")
 
 
 @dataclass
@@ -47,6 +47,8 @@ class Job:
     name: str
     created_at: float
     stages: dict[str, StageStatus]
+    # {"type": "video"|"csv", "source": original path} — decides which stages apply.
+    input: dict = field(default_factory=dict)
 
     @property
     def dir(self) -> Path:
@@ -74,6 +76,7 @@ class Job:
             "id": self.id,
             "name": self.name,
             "created_at": self.created_at,
+            "input": self.input,
             "stages": {k: asdict(v) for k, v in self.stages.items()},
         }
         tmp = self.dir / "job.json.tmp"
@@ -81,12 +84,13 @@ class Job:
         os.replace(tmp, self.dir / "job.json")
 
 
-def new_job(name: str) -> Job:
+def new_job(name: str, input: dict | None = None) -> Job:
     job = Job(
         id=time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6],
         name=name,
         created_at=time.time(),
         stages={s: StageStatus() for s in STAGE_ORDER},
+        input=input or {},
     )
     job.dir.mkdir(parents=True, exist_ok=True)
     job.save()
@@ -101,6 +105,7 @@ def load_job(job_id: str) -> Job:
         name=payload["name"],
         created_at=payload["created_at"],
         stages={k: StageStatus(**v) for k, v in payload["stages"].items()},
+        input=payload.get("input", {}),
     )
 
 
