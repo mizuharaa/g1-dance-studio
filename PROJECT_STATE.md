@@ -67,6 +67,10 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   Drop point for model zips: `data/body_models/` — unpack/arrange is our job.
   SMPL download: **v1.1.0 for Python 2.7** (includes neutral + 300 shape PCs; better
   than v1.0.0 which lacks the neutral model).
+- 2026-07-02: **Working mode (user):** high effort by default; Claude is pre-authorized
+  to use ultracode (multi-agent workflows) at his own discretion when a milestone
+  warrants it — planned: hyperparameter research before GPU spend, adversarial review
+  of the deploy/safety path before client shows, final app audit at Phase 8.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
