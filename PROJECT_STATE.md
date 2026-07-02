@@ -71,6 +71,18 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   to use ultracode (multi-agent workflows) at his own discretion when a milestone
   warrants it — planned: hyperparameter research before GPU spend, adversarial review
   of the deploy/safety path before client shows, final app audit at Phase 8.
+- 2026-07-02: **third_party pinned** (shallow clones, all landed): GMR `bb1bbe4`
+  (YanjieZe/GMR), whole_body_tracking `cd65172` (HybridRobotics), unitree_mujoco
+  `ae6a840` (unitreerobotics), mujoco_menagerie `4c358ef` (was already present).
+- 2026-07-02: **BeyondMimic interface confirmed** (whole_body_tracking@cd65172):
+  `scripts/csv_to_npz.py --input_file X.csv --input_fps 30 [--frame_range S E]
+  --output_name NAME --output_fps 50` — runs under Isaac Sim (AppLauncher; CLOUD ONLY)
+  and **requires W&B**: writes /tmp/motion.npz then uploads it to a W&B *Registry*
+  named `motions` (collection = output_name). `scripts/rsl_rl/train.py --task
+  Tracking-Flat-G1-v0 --registry_name <entity>/motions/<name>` pulls the motion from
+  that registry (also W&B-dependent). ⇒ Before first training: create a W&B Registry
+  called `motions` in entity `luong-alois-vng-group` (or patch to local npz paths —
+  decide at provisioning). Key: `.secrets/wandb.key`.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
@@ -96,7 +108,28 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
       end-to-end with progress + preview
 - [ ] Phase 8 — Hardening: error handling, docs, repeatability, second/third dance
 
-## Current status (2026-07-02)
+## Current status (2026-07-02 evening)
+
+**Phase 7 runner wired — the app now really executes jobs.** New since the skeleton:
+`pipeline/stages/local_motion.py` (real stage impls: CSV input → window (find_window)
+→ vet gate (fails job on hard-check FAIL, vet.json + meta persisted) → MuJoCo EGL
+preview render with live progress → symlinked into /previews). Stages that need the
+cloud raise `StageBlocked` → honest amber "blocked: waiting on cloud GPU" state (new
+store state + SkipStage/StageBlocked in stages/base.py, runner handles both).
+`ui/server.py`: worker thread + queue executes jobs; startup reconciliation re-queues
+interrupted (running→pending) / pending / blocked jobs, leaves failed for the new
+`POST /api/jobs/{id}/retry`; jobs accept motion CSVs as input (`input_path`), not just
+videos; job detail carries vet report + preview_url; previews mount needs
+`follow_symlink=True` (job previews are symlinks — without it StaticFiles 404s).
+UI: "Run motion CSV" flow, blocked/skipped styling, per-job vet table + auto preview,
+Retry button. **Verified headlessly end-to-end**: dance1_subject2.csv job →
+extract:skipped, retarget:done (863-frame window, vet PASS, 1.8 MB preview, HTTP 206
+Range OK), train:blocked; survives server restart (re-queues, re-blocks, done stages
+untouched); video-input job blocks at extract with clean message; retry endpoint works;
+desktop entry path smoke-tested with QT_QPA_PLATFORM=offscreen (server + window object
+OK — visual test still on user).
+
+## Prior status (2026-07-02 midday)
 
 **Phase 7 skeleton built and verified headlessly** (desktop app per 2026-07-02 decision):
 `ui/server.py` (FastAPI engine over pipeline/store.py job model: create job from
@@ -130,13 +163,11 @@ self-contained); conda needs `-c conda-forge --override-channels` (Anaconda ToS)
 
 ## Next actions
 
-1. When GMR/whole_body_tracking/unitree_mujoco clones land (background loop running):
-   pin commit SHAs in decision log; read whole_body_tracking csv_to_npz.py + train
-   API to confirm interfaces and W&B dependency surface.
-2. ~~Phase 7 UI skeleton~~ DONE 2026-07-02 (see Current status). Remaining Phase 7:
-   user visual test (`scripts/dance-studio`), then wire real stage implementations
-   into pipeline/stages/ as Phases 4–6 land; add a runner thread/queue to ui/server.py
-   so created jobs actually execute stages instead of waiting at "extract".
+1. ~~third_party clones + interface reading~~ DONE 2026-07-02 (SHAs + BeyondMimic
+   interface in decision log).
+2. ~~Phase 7 runner/stage wiring~~ DONE 2026-07-02 (see Current status). Remaining
+   Phase 7: user visual test (`scripts/dance-studio`); cloud-backed stage impls
+   (extract/train) once GreenNode lands — the StageBlocked plumbing is ready for them.
 3. BLOCKED on user: GreenNode notebook access (Jupyter URL/token or SSH) → provision
    GVHMR + Isaac Lab 2.1.0 envs there (fallback mjlab), benchmark training on
    data/dance1_subject2_seg.csv. Also need (timing-flexible): SMPL-X registration

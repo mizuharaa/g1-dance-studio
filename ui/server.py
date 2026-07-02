@@ -254,7 +254,9 @@ def index() -> FileResponse:
 
 PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
 # StaticFiles handles HTTP Range requests, so the <video> player can seek.
-app.mount("/previews", StaticFiles(directory=PREVIEWS_DIR), name="previews")
+# follow_symlink: job previews are symlinks into data/jobs/<id>/retarget/.
+app.mount("/previews", StaticFiles(directory=PREVIEWS_DIR, follow_symlink=True),
+          name="previews")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
