@@ -62,6 +62,18 @@ form button { margin-top: 8px; }
 .row + .hint { margin-top: 6px; }
 #new-job-form + .hint { margin-bottom: 12px; }
 
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+       margin-left: 6px; vertical-align: middle; }
+.dot.off { background: var(--dim); }
+.dot.ok { background: var(--ok); }
+.dot.bad { background: var(--fail); }
+.dot.busy { background: var(--warn); }
+#cloud-details summary { cursor: pointer; color: var(--dim); font-size: 13px;
+                         margin-bottom: 8px; }
+.transport-fields { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 10px; }
+#cloud-form label { display: block; font-size: 13px; margin-top: 6px; }
+#cloud-form input[type=radio] { width: auto; margin-right: 6px; }
+
 table.vet { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
 table.vet td, table.vet th { padding: 6px 8px; border-bottom: 1px solid var(--border);
                              text-align: left; }

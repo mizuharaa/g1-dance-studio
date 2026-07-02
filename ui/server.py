@@ -29,7 +29,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from pipeline.config import DATA_DIR, STAGE_ORDER
-from pipeline import store
+from pipeline import body_models, cloud, store
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -208,6 +208,48 @@ def deploy_gate(job_id: str, payload: dict = Body(...)) -> dict:
     job.log("deploy requested by user — recorded only (deploy not implemented)")
     return {"recorded": True, "deployed": False,
             "note": "Deployment is not implemented yet. Nothing was sent to the robot."}
+
+
+# ---- cloud GPU box (GreenNode) ------------------------------------------------
+# Config in .secrets/cloud.json; this server only talks to the GPU box, never
+# the robot. Last test result is cached so the UI can poll cheaply.
+
+_cloud_last: dict = {}
+
+
+@app.get("/api/cloud")
+def cloud_info() -> dict:
+    return {"config": cloud.masked_config(), "last_test": _cloud_last or None}
+
+
+@app.post("/api/cloud/config")
+def cloud_config(payload: dict = Body(...)) -> dict:
+    if payload.get("transport") not in ("", "ssh", "jupyter", None):
+        raise HTTPException(400, "transport must be 'ssh' or 'jupyter'")
+    cloud.update_config(payload)
+    return {"config": cloud.masked_config()}
+
+
+@app.post("/api/cloud/test")
+def cloud_test() -> dict:
+    global _cloud_last
+    _cloud_last = cloud.test_connection()
+    return _cloud_last
+
+
+# ---- body models ----------------------------------------------------------------
+
+@app.get("/api/bodymodels")
+def bodymodels_status() -> dict:
+    return body_models.status()
+
+
+@app.post("/api/bodymodels/install")
+def bodymodels_install() -> dict:
+    try:
+        return body_models.install()
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/api/motions")

@@ -50,11 +50,26 @@ def _run_tool(script: str, args: list[str], job: Job, on_line=None,
 
 
 class ExtractStage:
+    """Local part: intake validation via ffprobe (fail fast on unusable
+    footage). The GPU pose extraction itself is cloud-blocked until
+    GreenNode is provisioned."""
+
     name = "extract"
 
     def run(self, job: Job, report: Reporter) -> None:
         if _input_csv(job):
             raise SkipStage("input is already robot motion (CSV) — no video to extract")
+        st = job.stages[self.name]
+        if "video" not in st.meta:
+            from ..video_probe import validate
+            report(0.05, "checking video file")
+            st.meta["video"] = validate(job.dir / "input.mp4")  # raises w/ reason
+            for adv in st.meta["video"]["advisories"]:
+                job.log(f"extract: ADVISORY — {adv}")
+            job.log(f"extract: video ok — {st.meta['video']['duration_s']}s "
+                    f"{st.meta['video']['width']}x{st.meta['video']['height']} "
+                    f"@ {st.meta['video']['fps']}fps")
+            report(0.1, "video valid — waiting on cloud for pose extraction")
         raise StageBlocked(CLOUD_MSG)
 
 

@@ -173,9 +173,95 @@ $("#deploy-confirm").onclick = async () => {
   $("#deploy-dialog").close();
 };
 
+// ---- cloud GPU ---------------------------------------------------------------
+
+function cloudFieldsFor(transport) {
+  $("#fields-ssh").hidden = transport !== "ssh";
+  $("#fields-jupyter").hidden = transport !== "jupyter";
+}
+
+async function refreshCloud(test = false) {
+  const info = await api("/api/cloud");
+  const cfg = info.config;
+  if (cfg.transport) {
+    document.querySelector(`input[name=transport][value=${cfg.transport}]`).checked = true;
+    cloudFieldsFor(cfg.transport);
+  }
+  $("#ssh-host").value = cfg.ssh.host || "";
+  $("#ssh-port").value = cfg.ssh.port || "";
+  $("#ssh-user").value = cfg.ssh.user || "";
+  $("#ssh-key").value = cfg.ssh.key_path || "";
+  $("#jup-url").value = cfg.jupyter.url || "";
+  const t = test ? await api("/api/cloud/test", { method: "POST" }) : info.last_test;
+  const dot = $("#cloud-dot"), status = $("#cloud-status");
+  if (!cfg.transport) {
+    dot.className = "dot off";
+    status.textContent = "not configured — waiting for GreenNode setup";
+  } else if (!t) {
+    dot.className = "dot off";
+    status.textContent = "configured, not tested yet";
+  } else if (!t.connected) {
+    dot.className = "dot bad";
+    status.textContent = "disconnected: " + t.detail;
+  } else {
+    dot.className = t.busy ? "dot busy" : "dot ok";
+    status.textContent = (t.busy ? "GPU busy — " : "connected — ") + t.detail;
+  }
+}
+
+for (const r of document.querySelectorAll("input[name=transport]"))
+  r.onchange = () => cloudFieldsFor(r.value);
+
+$("#cloud-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const transport = (document.querySelector("input[name=transport]:checked") || {}).value;
+  if (!transport) return alert("Pick SSH or Jupyter first.");
+  const payload = {
+    transport,
+    ssh: { host: $("#ssh-host").value.trim(), port: $("#ssh-port").value.trim(),
+           user: $("#ssh-user").value.trim(), key_path: $("#ssh-key").value.trim(),
+           password: $("#ssh-pass").value },
+    jupyter: { url: $("#jup-url").value.trim(), token: $("#jup-token").value },
+  };
+  try {
+    await api("/api/cloud/config", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    $("#cloud-status").textContent = "testing…";
+    await refreshCloud(true);
+  } catch (err) { alert("Cloud config failed: " + err.message); }
+};
+
+// ---- body models ---------------------------------------------------------------
+
+async function refreshBodyModels() {
+  const s = await api("/api/bodymodels");
+  const btn = $("#bm-install");
+  if (s.ready) {
+    $("#bm-status").innerHTML = '<span class="badge pass">installed</span> SMPL + SMPL-X ready';
+    btn.hidden = true;
+  } else {
+    const zips = s.zips.filter((z) => z.detected !== "unrecognized");
+    $("#bm-status").textContent = zips.length
+      ? `${zips.length} model zip(s) found — ready to install`
+      : (s.hint || "missing");
+    btn.hidden = !zips.length;
+  }
+}
+
+$("#bm-install").onclick = async () => {
+  $("#bm-status").textContent = "installing…";
+  try {
+    await api("/api/bodymodels/install", { method: "POST" });
+  } catch (err) { alert("Install failed: " + err.message); }
+  refreshBodyModels();
+};
+
 // ---- boot --------------------------------------------------------------------
 
 refreshJobs();
 loadMotions();
 loadPreviews();
+refreshCloud();
+refreshBodyModels();
 setInterval(() => { refreshJobs(); if (selectedJob) showJob(selectedJob); }, 2500);
+setInterval(refreshCloud, 30000);

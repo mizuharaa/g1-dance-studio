@@ -30,6 +30,36 @@
     </section>
 
     <section>
+      <h2>Cloud GPU <span id="cloud-dot" class="dot off" title="disconnected"></span></h2>
+      <p id="cloud-status" class="hint">not configured</p>
+      <details id="cloud-details">
+        <summary>Connection settings</summary>
+        <form id="cloud-form">
+          <label><input type="radio" name="transport" value="ssh"> SSH (from GreenNode Connect dialog)</label>
+          <div class="transport-fields" id="fields-ssh" hidden>
+            <input id="ssh-host" placeholder="host">
+            <input id="ssh-port" placeholder="port (e.g. 22)">
+            <input id="ssh-user" placeholder="user">
+            <input id="ssh-key" placeholder="path to key file (recommended)">
+            <input id="ssh-pass" type="password" placeholder="password (only if no key)">
+          </div>
+          <label><input type="radio" name="transport" value="jupyter"> Jupyter / tunnel URL (plan B)</label>
+          <div class="transport-fields" id="fields-jupyter" hidden>
+            <input id="jup-url" placeholder="https://…trycloudflare.com">
+            <input id="jup-token" type="password" placeholder="token">
+          </div>
+          <button type="submit">Save &amp; test</button>
+        </form>
+      </details>
+    </section>
+
+    <section>
+      <h2>Body models</h2>
+      <p id="bm-status" class="hint">checking&hellip;</p>
+      <button id="bm-install" hidden>Install from downloaded zips</button>
+    </section>
+
+    <section>
       <h2>Jobs</h2>
       <ul id="job-list" class="clickable-list"><li class="empty">No jobs yet</li></ul>
     </section>
