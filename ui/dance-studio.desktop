@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Optional app-menu entry. To install for this user (no sudo):
+#   cp ~/g1-dance/ui/dance-studio.desktop ~/.local/share/applications/
+Type=Application
+Name=G1 Dance Studio
+Comment=Turn a dance video into a balanced dance on the Unitree G1
+Exec=/home/alois/g1-dance/scripts/dance-studio
+Terminal=false
+Categories=Development;Robotics;

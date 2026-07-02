@@ -69,7 +69,25 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
       end-to-end with progress + preview
 - [ ] Phase 8 — Hardening: error handling, docs, repeatability, second/third dance
 
-## Current status (2026-06-12 midday)
+## Current status (2026-07-02)
+
+**Phase 7 skeleton built and verified headlessly** (desktop app per 2026-07-02 decision):
+`ui/server.py` (FastAPI engine over pipeline/store.py job model: create job from
+path/upload, job list + stage status, vet report via vet_motion.py subprocess with
+mtime cache, previews with HTTP-Range serving, deploy-gate placeholder that only
+records requests — refuses without typed "DEPLOY" phrase, never contacts robot),
+`ui/static/` (plain HTML/CSS/JS: job list, stage progress bars, vet report table,
+preview player, deploy confirm dialog), `ui/desktop.py` (uvicorn thread + pywebview
+Qt window), `scripts/dance-studio` launcher, `ui/dance-studio.desktop` (optional,
+copy to ~/.local/share/applications). Deps added to `g1dance` env: fastapi, uvicorn,
+python-multipart, pywebview, qtpy, PySide6 (NOTE: `pywebview[qt]` extra does NOT
+install Qt — qtpy+PySide6 needed explicitly). All endpoints curl-verified incl. vet
+of dance1_subject2_seg.csv (PASS) and 206 Partial Content on preview MP4.
+**Not yet done: visual test of the pywebview window (user: run `scripts/dance-studio`).**
+Stage implementations (extract/retarget/train/verify/export) are still stubs — jobs
+queue at "extract".
+
+## Status as of 2026-06-12 (prior)
 
 Phases 0–3 done. Working: `pipeline/playback_csv.py` (--view/--render, MUJOCO_GL=egl
 works on the Intel iGPU), `pipeline/vet_motion.py` (tiered gate: hard = excursion/
@@ -88,10 +106,10 @@ self-contained); conda needs `-c conda-forge --override-channels` (Anaconda ToS)
 1. When GMR/whole_body_tracking/unitree_mujoco clones land (background loop running):
    pin commit SHAs in decision log; read whole_body_tracking csv_to_npz.py + train
    API to confirm interfaces and W&B dependency surface.
-2. Start Phase 7 UI skeleton early (DESKTOP app per 2026-07-02 decision: pywebview
-   window + local FastAPI engine): pick video → stage list → vet report (JSON from
-   vet_motion.py) → preview MP4 player → deploy gate placeholder. UI grows with each
-   backend stage.
+2. ~~Phase 7 UI skeleton~~ DONE 2026-07-02 (see Current status). Remaining Phase 7:
+   user visual test (`scripts/dance-studio`), then wire real stage implementations
+   into pipeline/stages/ as Phases 4–6 land; add a runner thread/queue to ui/server.py
+   so created jobs actually execute stages instead of waiting at "extract".
 3. BLOCKED on user: GreenNode notebook access (Jupyter URL/token or SSH) → provision
    GVHMR + Isaac Lab 2.1.0 envs there (fallback mjlab), benchmark training on
    data/dance1_subject2_seg.csv. Also need (timing-flexible): SMPL-X registration

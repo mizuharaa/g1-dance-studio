@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>G1 Dance Studio</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>G1 Dance Studio</h1>
+  <span class="tagline">video &rarr; balanced dance on the Unitree G1</span>
+</header>
+
+<main>
+  <aside>
+    <section>
+      <h2>New dance</h2>
+      <form id="new-job-form">
+        <input type="file" id="video-file" accept="video/*">
+        <button type="submit">Create job</button>
+      </form>
+      <p class="hint">Pick a reference dance video. One dancer, whole body
+      visible, camera still, 20&ndash;40&nbsp;s.</p>
+    </section>
+
+    <section>
+      <h2>Jobs</h2>
+      <ul id="job-list" class="clickable-list"><li class="empty">No jobs yet</li></ul>
+    </section>
+
+    <section>
+      <h2>Previews</h2>
+      <ul id="preview-list" class="clickable-list"></ul>
+    </section>
+  </aside>
+
+  <section id="detail">
+    <section id="stage-panel">
+      <h2>Pipeline <span id="job-title"></span></h2>
+      <div id="stages"><p class="empty">Select or create a job to see its stages.</p></div>
+      <pre id="job-log" hidden></pre>
+    </section>
+
+    <section id="vet-panel">
+      <h2>Motion vetting</h2>
+      <div class="row">
+        <select id="vet-select"></select>
+        <button id="vet-run">Run checks</button>
+      </div>
+      <div id="vet-report"></div>
+    </section>
+
+    <section id="preview-panel">
+      <h2>Simulation preview</h2>
+      <video id="preview-video" controls hidden></video>
+      <p id="preview-hint" class="hint">Pick a preview on the left.</p>
+    </section>
+
+    <section id="deploy-panel">
+      <h2>Deploy to robot</h2>
+      <p class="hint">Requires a verified policy, robot secured on the gantry and
+      your explicit confirmation. <strong>Not implemented yet</strong> &mdash; this
+      button only records the request.</p>
+      <button id="deploy-btn" class="danger" disabled>Deploy&hellip;</button>
+      <p id="deploy-result" class="hint"></p>
+    </section>
+  </section>
+</main>
+
+<dialog id="deploy-dialog">
+  <h2>Confirm deployment</h2>
+  <p>This will (in a later version) send the policy to the robot.
+     Type <code>DEPLOY</code> to confirm:</p>
+  <input id="deploy-phrase" autocomplete="off">
+  <div class="row">
+    <button id="deploy-cancel">Cancel</button>
+    <button id="deploy-confirm" class="danger">Confirm</button>
+  </div>
+</dialog>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

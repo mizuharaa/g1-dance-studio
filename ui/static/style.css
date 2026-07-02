@@ -1,0 +1,80 @@
+:root {
+  --bg: #14161a; --panel: #1e2128; --panel2: #262a33; --text: #e6e8ec;
+  --dim: #9aa1ad; --accent: #4da3ff; --ok: #3ecf6f; --warn: #e6b03c;
+  --fail: #e5534b; --border: #333844;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.45 system-ui, sans-serif;
+}
+header {
+  display: flex; align-items: baseline; gap: 14px;
+  padding: 14px 22px; border-bottom: 1px solid var(--border);
+}
+h1 { margin: 0; font-size: 20px; }
+h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase;
+     letter-spacing: .06em; color: var(--dim); }
+.tagline { color: var(--dim); font-size: 13px; }
+
+main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px 22px; }
+aside section, #detail > section {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;
+}
+
+.clickable-list { list-style: none; margin: 0; padding: 0; }
+.clickable-list li {
+  padding: 7px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px;
+  background: var(--panel2);
+}
+.clickable-list li:hover { outline: 1px solid var(--accent); }
+.clickable-list li.selected { outline: 2px solid var(--accent); }
+.clickable-list li .sub { display: block; color: var(--dim); font-size: 12px; }
+.empty { color: var(--dim); font-style: italic; }
+.hint { color: var(--dim); font-size: 13px; }
+.row { display: flex; gap: 8px; align-items: center; }
+
+button {
+  background: var(--accent); color: #08111e; border: 0; border-radius: 6px;
+  padding: 7px 14px; font-weight: 600; cursor: pointer;
+}
+button:disabled { background: var(--panel2); color: var(--dim); cursor: not-allowed; }
+button.danger { background: var(--fail); color: #fff; }
+input, select {
+  background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 9px; width: 100%;
+}
+form button { margin-top: 8px; }
+
+.stage { display: grid; grid-template-columns: 90px 1fr 110px; gap: 10px;
+         align-items: center; margin-bottom: 8px; }
+.stage .name { font-weight: 600; }
+.bar { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
+.bar div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.state { font-size: 12px; text-align: right; color: var(--dim); }
+.state.done { color: var(--ok); }
+.state.running { color: var(--accent); }
+.state.failed { color: var(--fail); }
+
+table.vet { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+table.vet td, table.vet th { padding: 6px 8px; border-bottom: 1px solid var(--border);
+                             text-align: left; }
+.badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+.badge.pass { background: var(--ok); color: #06210f; }
+.badge.fail { background: var(--fail); color: #fff; }
+.badge.warn { background: var(--warn); color: #211703; }
+.verdict { font-size: 16px; font-weight: 700; margin-top: 10px; }
+
+video { width: 100%; max-height: 420px; border-radius: 8px; background: #000; }
+pre#job-log {
+  background: #0d0f12; border-radius: 8px; padding: 10px; font-size: 12px;
+  max-height: 180px; overflow: auto; color: var(--dim);
+}
+dialog {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px; width: 380px;
+}
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog .row { margin-top: 14px; justify-content: flex-end; }
+dialog input { margin-top: 8px; }
