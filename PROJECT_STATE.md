@@ -432,6 +432,19 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   a3c1cb3223b4b2d13 extended: full-day runbook docs/ROBOT_DAY_PLAN.md + ground-scope auth
   + telemetry capture. STRETCH MILESTONE: Thriller on the ground, repeatably — earned
   stage by stage, not assumed.
+- 2026-07-04 (night): **Thriller policy STAGED for robot day + 2 safety catches.**
+  data/policies/thriller/: policy.onnx, policy_meta.json (COMPLETE PD spec: per-joint
+  kp 14.3–99.1, kd 0.91–6.31, effort 5–139Nm, default_joint_pos 29dof, action_scale
+  incl 0.074 wrists/0.35 knees, ζ=2 overdamped), thriller_deploy.csv/.npz.
+  **(a) ROBOT MUST USE THESE SIM GAINS, NOT stock Unitree gains** — stock would put the
+  policy out-of-distribution → fall. Bundle carries them; start scripts must assert.
+  **(b) ACTIVATION LURCH HAZARD fixed** — clip frame-0 differed from standby default
+  pose by up to 39°(elbow)/38°(knee); controller holds default in standby with no
+  auto-ramp → would lurch on R1+A. thriller_deploy has a 2.5s cosine ramp from default
+  into the dance (frame-0 delta 0.000), re-verified 100% in-engine. **Deploy bundle uses
+  thriller_deploy, NOT thriller_show.** Gantry candidate = attempt-1 (98.4% held-out,
+  gantry-safe: base_lin_vel≈0 in-distribution). attempt-2 (→≥99% for ground-free) still
+  training (~1150/4000). Details forwarded to deploy-kit agent a3c1cb3223b4b2d13.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
