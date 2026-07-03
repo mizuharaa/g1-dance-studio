@@ -373,6 +373,12 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   deltas to tighten tracking (mpkpe was 0.17m) and push survival ≥99%, then re-run the
   held-out gate. Gate pass threshold updated 100%→99% to match the standard (documented,
   user-authorized; gantry is the compensating control).
+- 2026-07-04 (01:25 ICT): **SHOW-READY BAR SET (user): >=99%% held-out survival**
+  (mjlab_heldout_v1) then gantry. Thriller a1 = 98.4%% (below bar) → **attempt 2 running**
+  (W&B 55kbaa8i, action_rate_l2 -0.2 delta, same show cut, parallel with long-dance).
+  Held-out gate = cloud/heldout_eval.py (256 env, seed 90001, nominal+push) + signed by
+  pipeline/mjlab_verify.py. On converge: export → heldout → >=99%% = sim-verified else
+  attempt 3 (last of 3). policy_meta.json/interface spec delivered to sim-exam agent.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just

@@ -55,3 +55,21 @@ sessions. Trainings survive laptop reboots (they run in tmux on the box).
 - **COST CALIBRATION (final, captured before kill):** ~2040 iters/hr GPU-shared
   (faster solo); **~8,900 VND per 1000 iters**; a converging dance (~3000 iters) ≈
   **27k VND ≈ $1.04 compute**. Box-hours ≈8h ≈ 145k VND of 1.5M cap.
+
+## 2026-07-04 ~01:25 ICT — Thriller ATTEMPT 2 (tighten to ≥99% held-out)
+
+- **Show-ready bar (user via coordinator):** ≥99% held-out survival (mjlab_heldout_v1)
+  then gantry. Attempt 1 hit 98.4% (~127/128 under noise+shoves, mpkpe 0.17m) — strong
+  but below bar.
+- **train-thriller-a2 LAUNCHED** (W&B 55kbaa8i): same cleaned 49.3s show cut
+  (thriller_show.npz), minimal recipe delta = **action_rate_l2 weight -0.1 → -0.2**
+  (smoothness/stability targeting the occasional falls; NOT over-tuning — single delta).
+  4096 envs, 4000-iter cap. Running IN PARALLEL with dance2-long (share GPU ~2x slower
+  each; parallel wall-clock ≤ sequential for eventual box deletion, and gets the
+  show-critical result sooner).
+- **Held-out gate tooling ready**: cloud/heldout_eval.py on box (256 envs, held-out
+  seed 90001, nominal + push conditions), pipeline/mjlab_verify.py laptop-side signer.
+  Post-convergence plan: export (per-joint action_scale honored via mjlab exporter) →
+  heldout_eval → if ≥99% survival = sim-verified; else attempt 3 (last).
+- Watchdog + auto-render now cover BOTH train-dance2-long and train-thriller-a2.
+- Box-hours ~8.5h ≈ 155k VND of 1.5M cap.
