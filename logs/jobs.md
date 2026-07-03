@@ -40,3 +40,18 @@ Benchmark run:  https://wandb.ai/luong-alois-vng-group/mjlab/runs/40g4byo3
 ## Resume after a dead session
 ssh to box; `bash cloud/run_job.sh list` shows all job states; tmux ls for live
 sessions. Trainings survive laptop reboots (they run in tmux on the box).
+
+## 2026-07-04 ~01:00 ICT — killed ROGUE duplicate benchmark
+
+- A SECOND train-dance1-seg was found running (created 17:40, iter ~600/30000) — NOT
+  mine. Different invocation: `train.py --registry-name wandb-registry-motions/
+  dance1_subject2_seg` + `cat .wandb_key`, direct train.py (not job_train.sh), NO
+  iteration cap. Launched by another agent following the old registry-based interface.
+  It was SHARING the 4090 with the useful long-dance → each at ~half speed.
+- KILLED it (cost calibration already captured; benchmark purpose done). Verified:
+  only pid 14290 = train-dance2-long remains on GPU (2030 MiB, solo). Long-dance now
+  runs ~2x faster. Note for coordinator: some agent relaunches the benchmark via the
+  registry path — should stop doing that; benchmark is DONE.
+- **COST CALIBRATION (final, captured before kill):** ~2040 iters/hr GPU-shared
+  (faster solo); **~8,900 VND per 1000 iters**; a converging dance (~3000 iters) ≈
+  **27k VND ≈ $1.04 compute**. Box-hours ≈8h ≈ 145k VND of 1.5M cap.
