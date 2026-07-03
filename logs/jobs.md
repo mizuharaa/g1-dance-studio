@@ -93,3 +93,24 @@ sessions. Trainings survive laptop reboots (they run in tmux on the box).
   Unoise(-0.5,+0.5) [tracking_env_cfg]. On gantry feet-off-ground base_lin_vel~0, well
   within that noise band → in-distribution. Current policy IS gantry-safe. (Real free-stand
   later needs the onboard estimator feeding base_lin_vel — DLIO/LiDAR+IMU, per derisk doc.)
+
+## 2026-07-04 ~02:30 ICT — GROUND UNLOCKED: attempt-2 = 100% held-out
+
+- **Thriller attempt-2 CLEARS THE >=99% GROUND BAR at 100%.** Autopilot exported the
+  iter-1500 a2 checkpoint and ran the held-out gate on the DEPLOYABLE motion
+  (thriller_deploy): **nominal 256/256 (100%), push 256/256 (100%), signed verdict PASS**.
+  The action_rate_l2 -0.2 delta worked (a1 98.4% → a2 100%).
+- **Trade-off noted**: a2 mpkpe 0.221m (nominal) vs a1 0.168m — a2 survives more but
+  tracks looser (action-rate penalty = more stable, less crisp). Both are valid; a2's
+  100% survival is what gates GROUND, a1's tighter tracking is the crisper-looking fallback.
+- **STAGED**: data/policies/thriller/ PRIMARY = a2 (ground-ready), policy.onnx swapped;
+  a1 preserved at data/policies/thriller_a1_fallback/. Shared: policy_meta.json (PD
+  gains etc — policy-independent), thriller_deploy.{csv,npz} (2.5s activation ramp).
+  See data/policies/thriller/STAGED.txt.
+- **Autopilot bug fixed + relaunched**: original fired early at iter 1500 on an SSH/tmux
+  blip (a2 was actually still running). v2 requires status=done confirmed twice; now
+  waiting for a2's TRUE final (iter 4000) → verifies final checkpoint → if it holds >=99%
+  with tighter mpkpe than 0.221m, hot-swaps the primary before morning. Writes
+  data/policies/thriller_a2_final/RESULT.txt.
+- Long-dance train-dance2-long at 4446/6000, reward 33.6 — converging, verdict soon.
+- Box-hours ~9.5h ≈ 173k VND of 1.5M cap.

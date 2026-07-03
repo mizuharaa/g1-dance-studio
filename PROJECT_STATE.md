@@ -528,6 +528,14 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   free should flip to GO) + writes MORNING STATUS atop ROBOT_DAY_PLAN.md. 207 tests green
   (pipeline-orphan merged: venue z-grounding, monitor cost-freeze-on-delete, desktop
   stale-port).
+- 2026-07-04 (02:30 ICT): **GROUND STAGE UNLOCKED — Thriller attempt-2 = 100%% held-out**
+  (256/256 nominal AND push, signed PASS, on the deployable motion). action_rate_l2 -0.2
+  delta took a1 98.4%% → a2 100%%. STAGED as primary at data/policies/thriller/ (a1 kept as
+  fallback at thriller_a1_fallback/). Trade-off: a2 mpkpe 0.221m (looser but 100%% stable)
+  vs a1 0.168m (crisper, 98.4%%). Autopilot relaunched (bug fixed: fired early at iter 1500
+  on SSH blip) to verify a2's FINAL checkpoint and hot-swap if tighter. GROUND policy
+  ready for robot day. Long-dance ~4446/6000 converging. **MAIN: tell deploy-kit to
+  rebuild the FULL-scope bundle (gen_config --full) — ground-free preflight now unlockable.**
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just

@@ -16,13 +16,21 @@ log() { echo "[$(date -u +%H:%M:%S)] $*" >> "$OUT/overnight.log"; }
 
 log "overnight autopilot started; waiting for train-thriller-a2 to finish"
 
-# 1. Wait for attempt-2 to reach a terminal state (done/failed) or vanish.
+# 1. Wait for attempt-2 to reach a terminal state. Require the status file to say
+#    done/failed, confirmed twice — a transient SSH/tmux blip must NOT trigger a
+#    premature export (that bug fired the first run at iter 1500).
+CONFIRM=0
 while true; do
   ST=$($SSH "cat $D/jobs/train-thriller-a2.status.json 2>/dev/null" 2>/dev/null)
-  echo "$ST" | grep -qE '"state":"(done|failed)"' && { log "a2 terminal: $ST"; break; }
-  $SSH "tmux has-session -t job-train-thriller-a2 2>/dev/null" 2>/dev/null || { log "a2 tmux gone; proceeding"; break; }
+  if echo "$ST" | grep -qE '"state":"(done|failed)"'; then
+    CONFIRM=$((CONFIRM+1)); log "a2 terminal signal $CONFIRM/2: $ST"
+    [ "$CONFIRM" -ge 2 ] && break
+  else
+    CONFIRM=0
+  fi
   sleep 120
 done
+OUT="$HOME/g1-dance/data/policies/thriller_a2_final"; mkdir -p "$OUT"
 
 # 2. Pick the latest checkpoint of attempt-2.
 CKPT=$($SSH "ls -t $D/cloud/logs/rsl_rl/g1_tracking/*_train-thriller-a2/model_*.pt 2>/dev/null | head -1")
