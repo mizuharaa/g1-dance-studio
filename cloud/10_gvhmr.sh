@@ -33,14 +33,16 @@ fi
 # requirements.txt (incl. its own torch and a matching pytorch3d wheel).
 log "installing GVHMR python deps from requirements.txt (first run ~10 min)"
 # chumpy and cython_bbox (SMPL-era packages) predate modern pip build
-# isolation and fail to even build metadata — install them last,
-# --no-build-isolation, against already-present numpy/Cython/setuptools.
+# isolation and fail to even build metadata. cython_bbox additionally needs a
+# C compiler the box doesn't have — and NOTHING in GVHMR imports it (verified
+# by grep 2026-07-03), so it is skipped outright. chumpy is pure-python and
+# needed only to unpickle legacy SMPL pkl files.
 grep -vE "^(chumpy|cython_bbox)" "$REPO/requirements.txt" > /tmp/gvhmr-reqs.txt
 "$PY" -m pip install -q "numpy==1.23.5" "setuptools>=68,<70" Cython 2>&1 | tail -1
 "$PY" -m pip install -q -r /tmp/gvhmr-reqs.txt 2>&1 | tail -3 \
     || die "GVHMR requirements install failed"
-"$PY" -m pip install -q --no-build-isolation chumpy cython_bbox 2>&1 | tail -2 \
-    || die "chumpy/cython_bbox install failed (even with --no-build-isolation)"
+"$PY" -m pip install -q --no-build-isolation chumpy 2>&1 | tail -2 \
+    || die "chumpy install failed (even with --no-build-isolation)"
 "$PY" -m pip install -q -e "$REPO" --no-deps 2>&1 | tail -2 \
     || die "GVHMR pip install failed"
 
@@ -62,11 +64,15 @@ fi
 # ~2 GB, cached under $HF_HOME on the mount.
 CKPTS="$REPO/inputs/checkpoints"
 if [ ! -e "$CKPTS/gvhmr/gvhmr_siga24_release.ckpt" ]; then
-    log "fetching GVHMR checkpoints from HuggingFace (one-time, ~2 GB)"
+    log "fetching GVHMR checkpoints from HuggingFace (one-time, ~5 GB)"
+    # NB_DATA must reach the python child as a real env var — expandvars on an
+    # unexported name silently keeps the literal '$NB_DATA' and the download
+    # lands in a directory literally named '$NB_DATA' (bit us 2026-07-03).
+    export NB_DATA
     "$PY" - <<'EOF' || echo "WARNING: checkpoint download failed — laptop can sync them instead (see report)"
 from huggingface_hub import snapshot_download
 import os
-dest = os.path.expandvars("$NB_DATA/repos/GVHMR/inputs/checkpoints")
+dest = os.path.join(os.environ["NB_DATA"], "repos/GVHMR/inputs/checkpoints")
 snapshot_download(repo_id="camenduru/GVHMR", local_dir=dest,
                   allow_patterns=["gvhmr/*", "hmr2/*", "vitpose/*", "dpvo/*", "yolo/*"])
 print("checkpoints ready:", dest)
