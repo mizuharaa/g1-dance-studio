@@ -154,6 +154,20 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   client venues may differ → NEW OPEN QUESTION: typical show stage size + floor surface;
   vet gate limits should become per-venue parameters, not constants.
 
+- 2026-07-03: **Phase 5 provisioning IN PROGRESS** on g1dance-gpu
+  (root@103.245.250.152:46936, key .secrets/greennode_ssh_key; app cloud.json
+  configured, connection verified green). Box facts: image torch 2.5.1+cu124 lives
+  in /opt/conda (python 3.11); /usr/bin/python3 = 3.10 with broken ensurepip
+  (venvs: create --without-pip + get-pip.py — lib.sh ensure_venv310); no apt, no
+  rsync, no ffmpeg (static ffmpeg + extracted AppImage tmux into $NB_DATA/bin);
+  ~/.bashrc early-exits non-interactive ⇒ use absolute paths over SSH (bare `tmux`
+  not found cost us a false "session ended" alarm). GVHMR needs its own pinned
+  stack (torch 2.3.0+cu121 + cp310 pytorch3d wheel) in an isolated py3.10 venv;
+  chumpy needs --no-build-isolation. Body models (2.6 GB) + dance1_subject2_seg.csv
+  pushed to the network volume (uplink ~12 MB/s). Launch commands pinned:
+  csv_to_npz + train.py both run from $NB_DATA/envs/isaaclab python with --headless;
+  registry_name = luong-alois-vng-group-org/wandb-registry-motions/<collection>.
+
 ## Phase checklist
 
 - [x] Phase 0 — Workspace, persistence, hardware audit
