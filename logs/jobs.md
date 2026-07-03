@@ -114,3 +114,18 @@ sessions. Trainings survive laptop reboots (they run in tmux on the box).
   data/policies/thriller_a2_final/RESULT.txt.
 - Long-dance train-dance2-long at 4446/6000, reward 33.6 — converging, verdict soon.
 - Box-hours ~9.5h ≈ 173k VND of 1.5M cap.
+
+## 2026-07-04 ~03:00 ICT — LONG-DANCE VERDICT: recipe validated
+
+- **train-dance2-long CONVERGED + VERIFIED.** Done at iter 5999/6000, reward 34.62.
+  In-engine full-motion eval (67.2s / 3359 frames @ 50fps):
+  - CLEAN (4 env): 100% completion, joint err **0.099 rad** (tighter than Thriller's 0.117)
+  - NOISE (64 env): 100% completion, 0.099 rad
+  **→ The longer-horizon training recipe (single-clip + adaptive-kernel 6) WORKS.**
+  A 67s dance performs end-to-end with better tracking than the 49s Thriller.
+  Product 2-3min target de-risked on the training side (only constraint = in-area
+  choreography, already flagged: stock traveling mocap caps window length at ~62s in 2m).
+  Registered as dance "Dance2-Long" (draft).
+- Thriller a2 at 3794/4000 (reward 30.4, climbing) — final-checkpoint autopilot waiting
+  for its true completion to verify + hot-swap if tighter than 0.221m mpkpe.
+- Box-hours ~10h ≈ 182k VND of 1.5M cap.
