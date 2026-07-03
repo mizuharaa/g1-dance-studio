@@ -102,11 +102,17 @@ RENDER.dashboard = function () {
   const sys = S.system, cost = sys && sys.cost;
   const byStatus = { "show-ready": 0, "sim-verified": 0, "draft": 0 };
   S.dances.forEach(d => byStatus[d.status] = (byStatus[d.status] || 0) + 1);
-  const active = (sys && sys.jobs || []).filter(j => j.running)[0];
+  const allJobs = (sys && sys.jobs || []);
+  const isLive = j => (j.live ?? j.running) === true;
+  const active = allJobs.filter(isLive)[0];  // only a genuinely-running job is "active"
   const capPct = cost ? Math.round((cost.cap_fraction || 0) * 1000) / 10 : 0;
-  const progRows = (sys && sys.jobs || []).map(j => {
+  const progRows = [...allJobs].sort((a, b) => (isLive(b) ? 1 : 0) - (isLive(a) ? 1 : 0)).map(j => {
+    const live = isLive(j);
     const pct = j.max_iteration ? Math.round(100 * j.iteration / j.max_iteration) : 0;
-    return `<div class="prog-row"><div class="nm"><span class="badge b-train">${esc(shortJob(j.name))}</span></div><div class="bar"><i style="width:${pct}%"></i></div><div class="pct">${j.iteration ? (j.iteration / 1000).toFixed(1) + "K" : "—"}${j.max_iteration ? "/" + (j.max_iteration / 1000).toFixed(0) + "K" : ""}</div></div>`;
+    const tag = live
+      ? `<span class="badge b-train">${esc(shortJob(j.name))}</span>`
+      : `<span class="badge" style="opacity:.6">${esc(shortJob(j.name))} · ${esc(j.state || "finished")}</span>`;
+    return `<div class="prog-row"${live ? "" : ' style="opacity:.5"'}><div class="nm">${tag}</div><div class="bar"><i style="width:${pct}%"></i></div><div class="pct">${j.iteration ? (j.iteration / 1000).toFixed(1) + "K" : "—"}${j.max_iteration ? "/" + (j.max_iteration / 1000).toFixed(0) + "K" : ""}</div></div>`;
   }).join("") || `<p class="muted" style="font-size:12.5px">No training job is running right now.</p>`;
 
   $("#dashboard").innerHTML = `

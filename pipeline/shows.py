@@ -166,11 +166,76 @@ def list_dances() -> list[Dance]:
     return out
 
 
+def _norm_name(name: str) -> str:
+    """Normalize a dance name for identity: case-insensitive, whitespace-collapsed.
+    So "Thriller" and "thriller" are the SAME logical dance (they were duplicating)."""
+    return " ".join((name or "").strip().lower().split())
+
+
 def find_dance(name: str) -> Dance | None:
+    target = _norm_name(name)
     for d in list_dances():
-        if d.name == name:
+        if _norm_name(d.name) == target:
             return d
     return None
+
+
+def _richness(d: Dance) -> float:
+    """How complete a dance record is — used to pick the survivor when de-duping.
+    A policy-bearing, sim-verified, show-cut record beats an empty seeded draft."""
+    score = 0.0
+    if d.policy_path:
+        score += 100
+    if d.policy_sha256:
+        score += 50
+    if d.sim_exam:
+        score += 40
+    score += {"show-ready": 30, "sim-verified": 20, "draft": 0}.get(d.status, 0)
+    if d.vet:
+        score += 10
+    if d.preview:
+        score += 5
+    if d.motion_csv:
+        score += 3
+    score += (d.duration_s or 0) * 0.01  # tiebreak: longer / show-cut
+    return score
+
+
+def dedupe_dances() -> int:
+    """Merge library entries that are the same logical dance (normalized name).
+
+    Keeps the richest record, back-fills its missing fields from the duplicates
+    (so an attached policy is never lost), and removes the rest. Returns the count
+    removed. Safe/idempotent: a library with no duplicates is left untouched.
+    """
+    import shutil
+    groups: dict[str, list[Dance]] = {}
+    for d in list_dances():
+        groups.setdefault(_norm_name(d.name), []).append(d)
+    removed = 0
+    merge_fields = ("policy_path", "policy_sha256", "sim_exam", "motion_csv",
+                    "vet", "preview", "duration_s", "source_job", "incident")
+    for dupes in groups.values():
+        if len(dupes) < 2:
+            continue
+        dupes.sort(key=_richness, reverse=True)
+        keeper, losers = dupes[0], dupes[1:]
+        changed = False
+        for loser in losers:
+            for fld in merge_fields:
+                if not getattr(keeper, fld) and getattr(loser, fld):
+                    setattr(keeper, fld, getattr(loser, fld))
+                    changed = True
+            # never let a de-dupe downgrade status
+            if DANCE_STATUSES.index(loser.status) > DANCE_STATUSES.index(keeper.status):
+                keeper.status = loser.status
+                changed = True
+        if changed:
+            keeper.save()
+        for loser in losers:
+            shutil.rmtree(loser.dir, ignore_errors=True)
+            removed += 1
+    return removed
 
 
 class VerdictError(ValueError):
@@ -453,6 +518,8 @@ def seed_initial_dances() -> None:
     """
     from . import store  # deferred: avoid import cycle at module load
     from .config import PROJECT_ROOT
+
+    dedupe_dances()  # one-time cleanup of any duplicates from prior restarts/merges
 
     if find_dance("test-segment") is None:
         csv = DATA_DIR / "dance1_subject2_seg.csv"

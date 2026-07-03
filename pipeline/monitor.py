@@ -128,20 +128,40 @@ def parse_gather(raw: str) -> dict:
         except (json.JSONDecodeError, ValueError):
             continue
 
+    def _live(name: str) -> bool:
+        # tmux sessions on the box are named "job-<name>"; a job is genuinely
+        # running iff its session exists. A status.json state=="running" is NOT
+        # trusted on its own: a SIGKILL'd job never writes its terminal status,
+        # so a stale log/"running" lingers with no session (this is exactly what
+        # made retired jobs show as "Active Training" forever).
+        return f"job-{name}" in sessions or name in sessions
+
+    def _state(name: str, live: bool, st: dict) -> str:
+        if live:
+            return "running"
+        s = st.get("state")
+        if s in ("done", "failed"):
+            return s
+        if s == "running":       # claims running but no session → was killed
+            return "stopped"
+        return "finished"        # log exists, no session, no clean terminal status
+
     jobs: list[dict] = []
     lparts = re.split(r"@@FILE (\S+)@@", logs_txt)
     for name, body in zip(lparts[1::2], lparts[2::2]):
         job = parse_job_log(name, body)
         st = statuses.get(name) or {}
-        job["state"] = st.get("state", "unknown")
+        live = _live(name)
+        job["live"] = live
+        job["running"] = live  # back-compat alias, now tied to true liveness
+        job["state"] = _state(name, live, st)
         job["started_at"] = st.get("started_at")
-        job["running"] = name in sessions or st.get("state") == "running"
         jobs.append(job)
     # A status-only job (no train log — e.g. a finished gvhmr/install) is worth
-    # surfacing only while it's still running; otherwise it's just noise here.
+    # surfacing only while it's still genuinely running.
     for name, st in statuses.items():
-        if name not in {j["name"] for j in jobs} and name in sessions:
-            jobs.append({"name": name, "state": st.get("state", "unknown"),
+        if name not in {j["name"] for j in jobs} and _live(name):
+            jobs.append({"name": name, "state": "running", "live": True,
                          "running": True, "started_at": st.get("started_at")})
 
     return {"gpu": gpu, "tmux_sessions": sessions, "jobs": jobs}
