@@ -366,6 +366,13 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   Builder dispatched.
   Findings routed: base_lin_vel not measurable on real G1 (deploy needs state estimator);
   action_scale is PER-JOINT (0.074 wrists), not scalar 0.5 — exporter must emit the vector.
+- 2026-07-04: **SHOW-READY STANDARD SET (user decision):** a dance is sim-verified at
+  **≥99% held-out survival** (mjlab_heldout_v1: held-out seeds + obs noise + shoves),
+  THEN gantry-first robot day is the real gate. Thriller attempt 1 hit 98.4% (strong,
+  shove-robust, but below bar) → **retrain attempt 2** (of ≤3) with recipe conditional
+  deltas to tighten tracking (mpkpe was 0.17m) and push survival ≥99%, then re-run the
+  held-out gate. Gate pass threshold updated 100%→99% to match the standard (documented,
+  user-authorized; gantry is the compensating control).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
