@@ -282,6 +282,17 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   → product backlog (already recorded). NOTE: the currently-training Thriller motion was
   vetted under the OLD ungrounded logic — harmless (sim exam is the real deploy gate),
   but future motions get the corrected grounding.
+- 2026-07-04 (00:30 ICT): **THRILLER a1 SUCCESS (attempt 1) + LONG-DANCE STARTED.**
+  Thriller converged (reward ~31.4, 100%% in-engine full-motion completion clean AND
+  under 64-env sensor noise, joint err 0.117 rad), policy exported to
+  data/policies/thriller/policy.onnx, dance registered 'draft' (id 20260704-18f65bbd).
+  Show-ready WITHHELD: independent sim2sim gate (pipeline/sim_exam.py) can't run on
+  mjlab policies yet — obs-adapter gap (Isaac vs mjlab 160-dim) handed to deploy-kit
+  agent; in-engine eval is the interim signal (data/policies/thriller/in_engine_eval.json).
+  COST: ~$1/dance compute (2040 it/hr, ~3000 it to converge). Benchmark stopped
+  (validated). Long-dance train-dance2-long running (62.2s window of dance2, adaptive
+  kernel 6). **PRODUCT FINDING: 2-3min in-area dances need in-place choreography —
+  stock traveling mocap caps at ~62s within the 2m radius.** Box ~131k/1.5M VND.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just

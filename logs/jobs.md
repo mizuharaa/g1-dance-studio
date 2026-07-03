@@ -54,3 +54,28 @@
   previews_progress/<job>_iter<N>.mp4. Launched in tmux (render-bench, render-thriller).
   Pull to laptop data/previews/progress/. Repeat every ~500-1000 iters for a "robot right
   now" clip. Checkpoints save every 500 iters under cloud/logs/rsl_rl/g1_tracking/<ts>_<job>/.
+
+## 2026-07-04 00:30 ICT — Thriller a1 CONVERGED + exported + in-engine verified; long-dance started
+
+- **Thriller a1 CONVERGED** (W&B yhx35nb1): reward plateau 30.6-32.7 over ~1500 iters,
+  max 32.75, ep-len 477/500. Stopped at iter ~3143 (no point running to 10k). Best
+  checkpoint model_3000.pt → exported ONNX (obs[160]+time_step, opset 18) →
+  data/policies/thriller/{policy.onnx, model_3000.pt}.
+- **IN-ENGINE eval** (mjlab play cfg, start@0, full 49.3s / 2464 frames):
+  - CLEAN (4 env): 100% full-motion completion, joint_pos err 0.118 rad
+  - PUSH/NOISE (64 env, IMU+encoder corruption): 100% completion, err 0.117 rad
+  NOTE: same-engine, NOT independent sim2sim. Dance registered 'draft' (id
+  20260704-18f65bbd), policy attached; show-ready withheld pending signed sim_exam.
+  sim_exam.py obs-adapter gap (Isaac layout vs mjlab 160-dim) handed to deploy-kit agent.
+  Verdict: data/policies/thriller/in_engine_eval.json.
+- **COST CALIBRATION** (from W&B timing): ~2040 iters/hr (GPU-shared; solo faster).
+  ≈8,900 VND/1000-iter. A Thriller-class dance (~3000 iters to converge) ≈ **27k VND
+  ≈ $1.04 of compute**. Box-hours so far ≈7.2h ≈ 131k VND of 1.5M cap.
+- **Benchmark train-dance1-seg STOPPED** at ~3900 iters (stack-validation + cost-calib
+  done; W&B ue5nw8u1, reward ~27). No reason to run to 30k.
+- **LONG-DANCE train-dance2-long STARTED**: dance2_subject4 longest clean window =
+  62.2s (of 225.7s; longer windows exceed the 2m area → excursion 1.47m at the cap).
+  Show-prepped to 67.2s, vet PASS. Recipe delta: --adaptive-kernel-size 6 (long-seq).
+  4096 envs, 6000-iter cap. **PRODUCT FINDING: stock LAFAN1 can't yield a 2-3min
+  in-area window — real long show dances must be choreographed to stay within 2m.**
+- Watchdog re-armed for dance2-long; auto-render loop repointed to it.

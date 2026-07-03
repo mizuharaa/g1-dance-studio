@@ -7,7 +7,7 @@ BOX="root@103.245.250.152"; PORT=46936
 SSH="ssh -i $KEY -p $PORT -o ConnectTimeout=15 $BOX"
 LOCAL=$HOME/g1-dance/data/previews/progress
 mkdir -p "$LOCAL"
-declare -A MOTION=( [train-dance1-seg]=dance1_subject2_seg.npz [train-thriller-a1]=thriller_show.npz )
+declare -A MOTION=( [train-dance2-long]=dance2_long.npz )
 while true; do
   for JOB in "${!MOTION[@]}"; do
     $SSH "tmux has-session -t job-$JOB 2>/dev/null" || continue
