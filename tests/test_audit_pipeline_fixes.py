@@ -58,3 +58,75 @@ def test_deploy_footprint_radius_is_the_real_bound():
         (cx, cy), r = minimal_enclosing_circle(xy)
         recentered = xy - np.array([cx, cy])
         assert _max_radial(recentered) <= r + 1e-6
+
+
+# ---- Finding: library import trusts dance.json wholesale (HIGH, security) ----
+import io
+import json as _json
+import tarfile as _tarfile
+from pathlib import Path as _Path
+
+import pipeline.library as lib
+from pipeline import shows as _shows
+
+
+def _make_archive(path, dances):
+    """dances: {id: dance_record_dict}. Builds a dance_library/v1 .tar.gz."""
+    buf = {}
+    buf["manifest.json"] = _json.dumps(
+        {"schema": lib.SCHEMA, "exported_at": 0, "dances": list(dances)}).encode()
+    for did, rec in dances.items():
+        buf[f"dances/{did}/dance.json"] = _json.dumps(rec).encode()
+    with _tarfile.open(path, "w:gz") as tar:
+        for name, data in buf.items():
+            ti = _tarfile.TarInfo(name)
+            ti.size = len(data)
+            tar.addfile(ti, io.BytesIO(data))
+
+
+def _redirect(monkeypatch, tmp_path):
+    monkeypatch.setattr(_shows, "DANCES_DIR", tmp_path / "dances")
+    (tmp_path / "dances").mkdir()
+    monkeypatch.setattr(lib, "DATA_DIR", tmp_path)
+
+
+def test_import_forces_draft_and_strips_trust_fields(tmp_path, monkeypatch):
+    _redirect(monkeypatch, tmp_path)
+    arc = tmp_path / "a.tar.gz"
+    _make_archive(arc, {"legit": {
+        "id": "legit", "name": "Evil", "status": "show-ready",
+        "sim_exam": {"verdict": "pass"}, "policy_sha256": "deadbeef",
+        "repeatability": {"consecutive_clean": 99}}})
+    got = lib.import_library(arc)
+    assert got == ["legit"]
+    rec = _json.loads((tmp_path / "dances" / "legit" / "dance.json").read_text())
+    assert rec["status"] == "draft"                     # never trust show-ready
+    for f in ("sim_exam", "policy_sha256", "repeatability"):
+        assert f not in rec                             # authorization fields stripped
+
+
+def test_import_rejects_traversal_id(tmp_path, monkeypatch):
+    _redirect(monkeypatch, tmp_path)
+    arc = tmp_path / "a.tar.gz"
+    _make_archive(arc, {"../evil": {"id": "../evil", "name": "x", "status": "draft"}})
+    got = lib.import_library(arc)
+    assert got == []                                    # skipped, not imported
+    assert not (tmp_path / "evil").exists()             # nothing written outside
+
+
+def test_import_rejects_member_count_bomb(tmp_path, monkeypatch):
+    _redirect(monkeypatch, tmp_path)
+    monkeypatch.setattr(lib, "_MAX_MEMBERS", 2)
+    arc = tmp_path / "a.tar.gz"
+    _make_archive(arc, {"a": {"id": "a", "name": "a"}, "b": {"id": "b", "name": "b"}})
+    with pytest.raises(ValueError, match="too many entries"):
+        lib.import_library(arc)
+
+
+def test_import_rejects_size_bomb(tmp_path, monkeypatch):
+    _redirect(monkeypatch, tmp_path)
+    monkeypatch.setattr(lib, "_MAX_UNCOMPRESSED_BYTES", 50)
+    arc = tmp_path / "a.tar.gz"
+    _make_archive(arc, {"a": {"id": "a", "name": "a", "notes": "x" * 500}})
+    with pytest.raises(ValueError, match="uncompressed size"):
+        lib.import_library(arc)
