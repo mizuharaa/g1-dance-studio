@@ -48,10 +48,15 @@ ensure_tmux() {
     log "tmux missing — trying apt"
     apt_try tmux && return 0
     log "no apt access — installing a static tmux build into $NB_DATA/bin"
-    # nelsonenzo/tmux-appimage provides a self-contained static binary
-    if curl -fsSL -o "$NB_DATA/bin/tmux" \
+    # nelsonenzo/tmux-appimage provides a self-contained binary, but AppImages
+    # need FUSE, which containers lack — extract it and link the inner binary.
+    if curl -fsSL -o "$NB_DATA/bin/tmux.appimage" \
         "https://github.com/nelsonenzo/tmux-appimage/releases/latest/download/tmux.appimage"; then
-        chmod +x "$NB_DATA/bin/tmux"
+        chmod +x "$NB_DATA/bin/tmux.appimage"
+        (cd "$NB_DATA/bin" && ./tmux.appimage --appimage-extract >/dev/null 2>&1 \
+            && ln -sf "$PWD/squashfs-root/usr/bin/tmux" tmux)
+        "$NB_DATA/bin/tmux" -V >/dev/null 2>&1 \
+            || die "extracted tmux does not run"
     else
         die "could not install tmux (apt denied, static download failed)"
     fi
@@ -61,7 +66,26 @@ ensure_tmux() {
 # (Isaac Lab & GVHMR both want torch; re-downloading 3 GB per env is waste).
 ensure_venv() { # ensure_venv <name>
     local venv="$NB_DATA/envs/$1"
-    [ -x "$venv/bin/python" ] || python3 -m venv --system-site-packages "$venv"
+    # The image's torch lives in /opt/conda (its system python3 has no pip and
+    # a broken venv module) — base the venv on conda python so
+    # --system-site-packages exposes the image's CUDA torch.
+    local base=/opt/conda/bin/python
+    [ -x "$base" ] || base=python3
+    [ -x "$venv/bin/python" ] || "$base" -m venv --system-site-packages "$venv"
+    echo "$venv"
+}
+
+# Isolated python3.10 venv (no system site-packages) for stacks that need
+# exact pinned wheels (GVHMR: torch 2.3.0+cu121, pytorch3d cp310). The system
+# python3.10 has a broken ensurepip, so create --without-pip and bootstrap pip.
+ensure_venv310() { # ensure_venv310 <name>
+    local venv="$NB_DATA/envs/$1"
+    if [ ! -x "$venv/bin/pip" ]; then
+        /usr/bin/python3 -m venv --without-pip "$venv" \
+            || die "python3.10 venv creation failed"
+        curl -fsSL https://bootstrap.pypa.io/get-pip.py | "$venv/bin/python" - -q \
+            || die "pip bootstrap failed"
+    fi
     echo "$venv"
 }
 

@@ -14,9 +14,11 @@ cd "$(dirname "$0")" || exit 1
 layout
 
 REPO="$NB_DATA/repos/GVHMR"
-VENV="$(ensure_venv gvhmr)"
+# GVHMR needs its own pinned stack (torch 2.3.0+cu121 + pytorch3d cp310 wheel),
+# which conflicts with the image's torch 2.5.1/py3.11 — isolated py3.10 venv.
+VENV="$(ensure_venv310 gvhmr)"
 PY="$VENV/bin/python"
-log "venv: $VENV (torch from image via system-site-packages)"
+log "venv: $VENV (isolated py3.10, GVHMR-pinned torch)"
 
 # -- repo ------------------------------------------------------------------
 if [ ! -d "$REPO/.git" ]; then
@@ -27,8 +29,13 @@ else
 fi
 
 # -- python deps -------------------------------------------------------------
-log "installing GVHMR python deps (cached under the mount)"
-"$PY" -m pip install -q -e "$REPO" 2>&1 | tail -2 || die "GVHMR pip install failed"
+# GVHMR's setup.py declares no dependencies — the real ones are pinned in
+# requirements.txt (incl. its own torch and a matching pytorch3d wheel).
+log "installing GVHMR python deps from requirements.txt (first run ~10 min)"
+"$PY" -m pip install -q -r "$REPO/requirements.txt" 2>&1 | tail -3 \
+    || die "GVHMR requirements install failed"
+"$PY" -m pip install -q -e "$REPO" --no-deps 2>&1 | tail -2 \
+    || die "GVHMR pip install failed"
 
 # -- body models (synced from laptop, license-gated) --------------------------
 BM="$NB_DATA/body_models"

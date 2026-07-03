@@ -42,15 +42,14 @@ if [ ! -d "$WBT/.git" ]; then
 fi
 
 # -- attempt: Isaac Lab 2.1.0 ---------------------------------------------------
-VENV="$(ensure_venv isaaclab)"
+# Isaac Sim 4.5 ships cp310-only wheels; the image's conda python is 3.11 but
+# /usr/bin/python3 is 3.10 — build this env on it (isolated, pip-bootstrapped).
+VENV="$(ensure_venv310 isaaclab)"
 PY="$VENV/bin/python"
 
 if "$PY" -c 'import isaaclab' 2>/dev/null; then
     log "Isaac Lab already importable — skipping install"
 else
-    if [ "$PYV" != "3.10" ]; then
-        log "WARNING: Isaac Sim 4.5 pip wheels want python 3.10, image has $PYV — attempting anyway"
-    fi
     log "installing Isaac Sim 4.5 pip wheels (~10 GB, one-time; cached on mount)"
     if ! "$PY" -m pip install -q "isaacsim[all,extscache]==4.5.0" \
             --extra-index-url https://pypi.nvidia.com 2> "$NB_DATA/logs/isaacsim_pip.err"; then
