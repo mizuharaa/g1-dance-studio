@@ -2,6 +2,20 @@
 
 **Read this top to bottom the night before. Print the one-pager: `docs/ROBOT_DAY_CHECKLIST.md`.**
 
+---
+## ☀️ MORNING — START HERE (in order, don't skip)
+1. **Laptop wired to the robot** (Ethernet, 192.168.123.x). `cat /sys/class/net/enp0s31f6/carrier` → `1`, then `ping -c2 192.168.123.164` replies.
+2. `export CONFIRMED_BY_HUMAN=alois` and `cd ~/g1-dance`, then `scripts/preflight_robot_day --stage gantry` → expect **GO**.
+3. **Stage 0a — get the controller onto PC2** (never done before; most likely time-sink — do it early). See below.
+4. **Stage 0 — health check** (motors, remote, gantry rigged, battery). Robot on the gantry, feet ~5 cm off the ground.
+5. **Verify the robot's standby pose matches the sim** (joint-calibration check) — a real fall risk if skipped. See Stage 0.
+6. **Stage 1 — gantry**, and do **Step 3a (kill→damping)** FIRST. Then gantry tracking.
+7. Gates → tethered → free → push, each earned. Remote in hand all day; abort at the first weirdness.
+
+If anything is red, work the **First 30 minutes** table at the bottom before proceeding.
+
+---
+
 This is a STAGED day. Between every stage there is a MANDATORY gate. Having a whole
 day does NOT mean skipping a gate — it means doing every stage thoroughly and stopping
 at the first weirdness. A tired operator with all day is exactly who skips a gate; the
@@ -46,12 +60,56 @@ deploy/02_push_bundle.sh --dance thriller --yes-push      # real (needs robot on
 
 ---
 
+## Stage 0a — Network + controller on PC2 (do this FIRST, ~20–40 min, the likely time-sink)
+The controller has **never been installed on the robot** — budget time and do it before anything else.
+
+**Network (each session):** laptop↔robot is the Ethernet cable (interface `enp0s31f6`).
+```
+cat /sys/class/net/enp0s31f6/carrier      # must be 1 (cable seated, robot on)
+ping -c2 192.168.123.164                   # PC2 must reply
+ssh unitree@192.168.123.164                # answer the ROS prompt: 1
+```
+If `carrier` is 0: re-seat the cable, confirm the robot is powered. If ping fails: check the laptop is on 192.168.123.2. (See `~/robot/RUNBOOK.md` §0–1 — read-only.)
+
+**Install the controller (software only — never starts a motor):**
+```
+export CONFIRMED_BY_HUMAN=alois
+deploy/01_pc2_install.sh                    # DRY-RUN — read every line
+deploy/01_pc2_install.sh --yes-install      # real (needs the LAN up)
+```
+What it does: verifies Docker on PC2, pulls `qiayuanl/unitree:jazzy`, clones the controller repo.
+**Likely snag — the robot LAN has no internet, so `docker pull` on PC2 may fail.** Fallback (pull on the laptop, ship the image over the LAN):
+```
+docker pull qiayuanl/unitree:jazzy                              # on the laptop (has internet)
+docker save qiayuanl/unitree:jazzy | ssh unitree@192.168.123.164 'docker load'
+```
+**GATE → health check:** `ssh unitree@192.168.123.164 'docker image inspect qiayuanl/unitree:jazzy'` succeeds AND the controller repo is present on PC2.
+
 ## Stage 0 — Health check (robot on, ~30 min, read-only)
 Power on, secure on the gantry frame first. Verify: all 29 motors report in LowState,
 firmware versions noted, both Inspire hand services up (read `~/robot` runbook, don't
 modify it), battery full, remote paired and B-damping tested.
-**GATE → gantry:** all 29 motors healthy, remote damping works, robot hanging feet ~5 cm
-off the ground, straps rated + locked.
+
+### Joint-calibration check — DO NOT SKIP (a real fall risk)
+The policy assumes the robot's joint zeros equal the sim `default_joint_pos`. If the real
+offsets differ by tens of degrees, every target is wrong from frame 0 and it can fall.
+With the robot in **standby (damping hold), feet off the ground**, in the env that has the
+Unitree SDK (per `~/robot/RUNBOOK.md`, e.g. `conda activate tv`):
+```
+python deploy/check_joint_calibration.py \
+  --meta data/policies/thriller/policy_meta.json --iface enp0s31f6 --threshold-deg 8
+```
+Exit 0 = GO (standby pose matches sim). Non-zero = a joint is off → **do NOT run the
+policy**; recalibrate/re-zero or investigate the offset first.
+
+### Initial-pose match on activation
+`thriller_deploy.csv` starts with a 2.5 s ramp **from the sim default pose** — so the robot
+must actually be AT (or damped near) that standby pose when you arm, or the ramp begins from
+the wrong place. The joint-calibration check above confirms this; if it passed, you're good.
+If the robot is holding some other posture, put it back to standby before arming.
+
+**GATE → gantry:** all 29 motors healthy, remote damping works, **joint-calibration check
+GO**, robot hanging feet ~5 cm off the ground, straps rated + locked.
 
 ## Stage 1 — Gantry (feet off ground)
 On the robot day: confirm the controller loads the SIM gains (policy_meta.json), then
@@ -77,6 +135,17 @@ With feet off the ground and the controller running in damping hold:
 Then arm playback on the remote and watch feet-off tracking: do the joints follow the
 reference smoothly? Pull telemetry: `deploy/pull_telemetry.sh --dance thriller --stage gantry --yes-pull`.
 Compare commanded vs actual against the sim.
+
+### State-estimator (DLIO) sanity — needed before ground, check it here
+The policy consumes `base_lin_vel`, which the real robot must supply from its onboard
+estimator (LiDAR-inertial odometry). On the gantry, true base velocity ≈ 0 — which is
+**expected and in-distribution** (training noise ±0.5 m/s covers it), so the gantry run is
+safe regardless. BUT verify the estimator OUTPUT isn't garbage: check the estimator/odometry
+topic reads a near-zero, non-diverging velocity while hanging (LiDAR odometry can drift when
+there's little translation or the gantry frame is in view). If it reports large or growing
+velocity on the gantry, that's a **ground-free blocker** — note it; it's the reason the
+obs-restricted fallback policy exists (`docs/sim2real_derisk.md`). Do NOT trust ground
+free-standing until the estimator is confirmed sane.
 
 **GATE → ground-tethered (ALL required):** tracking looks like the sim; no buzzing/oscillation;
 Step 3a done and recorded; you know whether kill→damping works. Repeat gantry until boring.
@@ -139,6 +208,20 @@ python deploy/gen_config.py --dance thriller \
   --verdict data/policies/thriller/heldout_verdict.json     # no --gantry => full, if >=99%
 deploy/02_push_bundle.sh --dance thriller --yes-push
 ```
+
+## First 30 minutes — quick troubleshooting
+| Symptom | Immediate action |
+|---|---|
+| `carrier` = 0 / can't ping PC2 | Re-seat the Ethernet cable; confirm robot powered; laptop on 192.168.123.2. (`~/robot/RUNBOOK.md` §1) |
+| `ssh unitree@…164` hangs | LAN down — check carrier; power-cycle if needed. Answer the ROS prompt **1**. |
+| `docker pull` fails on PC2 | No internet on robot LAN — use the laptop `docker save … | ssh … 'docker load'` fallback (Stage 0a). |
+| Laptop↔PC2 DDS not talking (nothing on `rt/lowstate`) | Wrong network interface — use `enp0s31f6`; both ends must share the CycloneDDS iface (`~/robot` sets this). |
+| Joint-calibration check = NO-GO | Do **not** run the policy. Re-zero/recalibrate the robot or investigate the offset. A tens-of-degrees error = guaranteed bad motion. |
+| Controller won't leave damping | The `SIM_GAINS_LOADED` attestation isn't set, or gains didn't load — confirm the controller loaded `policy_meta.json` gains (NOT stock). It refuses to arm otherwise (by design). |
+| Wrong/stock gains loaded | Stop. Reconfigure the controller to the bundle's `policy_meta.json` PD gains (low, overdamped ζ=2). Stock gains → instability/fall. |
+| Policy output NaN / robot buzzes or oscillates | Remote-damp immediately. Suspect gains, joint mismatch, or obs (base_lin_vel). Do not re-arm until diagnosed. |
+| Step 3a: robot does NOT damp on `kill_now` | The remote stays your ONLY stop all day. **Do not go slack-line / ground-free.** Investigate before any future ground work. |
+| Estimator reports large/growing velocity on gantry | Ground-free blocker. Gantry is still fine (base_lin_vel≈0 is expected). Note it; consider the obs-restricted fallback later. |
 
 ## Abort ladder (memorize)
 1. **Remote B-damping** — always, first, your hand never leaves it.
