@@ -256,6 +256,184 @@ $("#bm-install").onclick = async () => {
   refreshBodyModels();
 };
 
+// ============================ SHOW MODE ======================================
+// Operator console: dance library -> pre-show checklist -> record-only deploy.
+
+let currentDance = null;   // dance object shown in the run panel
+let currentShow = null;    // active show (performance) object
+
+function setMode(mode) {
+  const show = mode === "show";
+  $("#studio-main").hidden = show;
+  $("#show-main").hidden = !show;
+  $("#mode-studio").classList.toggle("active", !show);
+  $("#mode-show").classList.toggle("active", show);
+  localStorage.setItem("g1.mode", mode);
+  if (show) { refreshDances(); refreshShowHistory(); }
+}
+$("#mode-studio").onclick = () => setMode("studio");
+$("#mode-show").onclick = () => setMode("show");
+
+function statusBadge(d) {
+  const cls = { "draft": "warn", "sim-verified": "pass", "show-ready": "pass" };
+  return `<span class="badge ${cls[d.status] || "warn"}">${d.status}</span>`;
+}
+
+function repeatBadge(d) {
+  const r = d.repeatability || {};
+  const n = r.consecutive_clean || 0, t = d.repeatability_target || 3;
+  const cls = n >= t ? "pass" : n > 0 ? "warn" : "fail";
+  return `<span class="badge ${cls}" title="consecutive clean sim runs">` +
+         `${n}/${t} clean</span>`;
+}
+
+async function refreshDances() {
+  const dances = await api("/api/dances");
+  const box = $("#dance-cards");
+  box.innerHTML = dances.length ? "" :
+    '<p class="empty">No dances registered yet. Train one in Studio mode.</p>';
+  for (const d of dances) {
+    const card = document.createElement("div");
+    card.className = "dance-card";
+    card.innerHTML = `
+      <h3>${d.name}</h3>
+      <p class="sub">${d.duration_s ? d.duration_s.toFixed(1) + " s" : "—"}</p>
+      <p>${statusBadge(d)} ${repeatBadge(d)}</p>
+      <p class="sub">${d.policy_path ? "policy ready" : "policy pending"}</p>`;
+    card.onclick = () => openDance(d);
+    box.appendChild(card);
+  }
+}
+
+function openDance(d) {
+  currentDance = d;
+  currentShow = null;
+  $("#show-library").hidden = true;
+  $("#show-history-panel").hidden = true;
+  $("#show-run").hidden = false;
+  $("#show-dance-name").innerHTML = `${d.name} ${statusBadge(d)} ${repeatBadge(d)}`;
+  const v = $("#show-preview");
+  if (d.preview) { v.src = d.preview; v.hidden = false; } else v.hidden = true;
+  $("#show-start-box").hidden = false;
+  $("#checklist-box").hidden = true;
+  $("#show-deploy-result").textContent = "";
+}
+
+$("#show-back").onclick = () => {
+  $("#show-run").hidden = true;
+  $("#show-library").hidden = false;
+  $("#show-history-panel").hidden = false;
+  refreshDances(); refreshShowHistory();
+};
+
+$("#show-start").onclick = async () => {
+  const operator = $("#operator-name").value.trim();
+  if (!operator) return alert("Enter the operator name first.");
+  if (!currentDance) return;
+  try {
+    currentShow = await api("/api/shows", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dance_id: currentDance.id, operator }),
+    });
+    $("#show-start-box").hidden = true;
+    $("#checklist-box").hidden = false;
+    renderChecklist();
+  } catch (err) { alert("Could not start show: " + err.message); }
+};
+
+function renderChecklist() {
+  const s = currentShow;
+  const spec = s.checklist_spec;
+  const done = Object.keys(s.steps).length;
+  $("#checklist-progress").innerHTML = spec.map((st) =>
+    `<span class="chip ${st.key in s.steps ? "done" : st.key === s.next_step ? "now" : ""}">` +
+    `${st.title}</span>`).join("");
+  const stepBox = $("#checklist-step"), deployBox = $("#show-deploy-box");
+  if (s.checklist_complete) {
+    stepBox.hidden = true;
+    deployBox.hidden = false;
+    return;
+  }
+  deployBox.hidden = true;
+  stepBox.hidden = false;
+  const st = spec.find((x) => x.key === s.next_step);
+  $("#step-title").textContent = `${done + 1}/${spec.length} — ${st.title}`;
+  $("#step-detail").textContent = st.detail;
+  $("#step-value").hidden = st.kind !== "number";
+  $("#step-confirm").textContent = st.kind === "number" ? "Record" : "Confirm";
+}
+
+$("#step-confirm").onclick = async () => {
+  const s = currentShow;
+  const spec = s.checklist_spec.find((x) => x.key === s.next_step);
+  const value = spec.kind === "number" ? $("#step-value").value : true;
+  if (spec.kind === "number" && value === "") return alert("Enter the value first.");
+  try {
+    currentShow = await api(`/api/shows/${s.id}/steps/${spec.key}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: spec.kind === "number" ? value : true }),
+    });
+    $("#step-value").value = "";
+    renderChecklist();
+  } catch (err) { alert("Step refused: " + err.message); }
+};
+
+$("#show-deploy").onclick = () => {
+  if (!currentShow) return;
+  $("#deploy-phrase").value = "";
+  $("#deploy-dialog").showModal();
+  // Reuse the studio dialog but reroute its confirm to the show endpoint.
+  $("#deploy-confirm").dataset.target = "show";
+};
+
+const studioDeployConfirm = $("#deploy-confirm").onclick;
+$("#deploy-confirm").onclick = async () => {
+  if ($("#deploy-confirm").dataset.target !== "show") return studioDeployConfirm();
+  delete $("#deploy-confirm").dataset.target;
+  try {
+    const r = await api(`/api/shows/${currentShow.id}/deploy`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm_phrase: $("#deploy-phrase").value }),
+    });
+    currentShow = r.show;
+    $("#show-deploy-result").textContent = r.note;
+  } catch (err) {
+    $("#show-deploy-result").textContent = "Refused: " + err.message;
+  }
+  $("#deploy-dialog").close();
+};
+
+for (const btn of document.querySelectorAll("button.outcome")) {
+  btn.onclick = async () => {
+    if (!currentShow) return;
+    try {
+      await api(`/api/shows/${currentShow.id}/outcome`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result: btn.dataset.result,
+                               notes: $("#outcome-notes").value }),
+      });
+      $("#show-back").click();
+    } catch (err) { alert("Could not record outcome: " + err.message); }
+  };
+}
+
+async function refreshShowHistory() {
+  const list = await api("/api/shows");
+  const ul = $("#show-history");
+  ul.innerHTML = list.length ? "" : '<li class="empty">No shows yet</li>';
+  for (const s of list) {
+    const when = new Date(s.created_at * 1000).toLocaleString();
+    const result = s.outcome ? s.outcome.result :
+                   s.deploy ? "deployed (record-only)" :
+                   s.checklist_complete ? "checklist done" : "checklist incomplete";
+    const li = document.createElement("li");
+    li.innerHTML = `${s.dance_name} — ${result}` +
+      `<span class="sub">${when} · operator: ${s.operator}` +
+      `${s.outcome && s.outcome.notes ? " · " + s.outcome.notes : ""}</span>`;
+    ul.appendChild(li);
+  }
+}
+
 // ---- boot --------------------------------------------------------------------
 
 refreshJobs();
@@ -263,5 +441,8 @@ loadMotions();
 loadPreviews();
 refreshCloud();
 refreshBodyModels();
-setInterval(() => { refreshJobs(); if (selectedJob) showJob(selectedJob); }, 2500);
+setMode(localStorage.getItem("g1.mode") || "studio");
+setInterval(() => {
+  if (!$("#studio-main").hidden) { refreshJobs(); if (selectedJob) showJob(selectedJob); }
+}, 2500);
 setInterval(refreshCloud, 30000);

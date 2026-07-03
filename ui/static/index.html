@@ -9,9 +9,13 @@
 <header>
   <h1>G1 Dance Studio</h1>
   <span class="tagline">video &rarr; balanced dance on the Unitree G1</span>
+  <nav id="mode-switch">
+    <button id="mode-studio" class="mode active">Studio</button>
+    <button id="mode-show" class="mode">Show</button>
+  </nav>
 </header>
 
-<main>
+<main id="studio-main">
   <aside>
     <section>
       <h2>New dance</h2>
@@ -102,6 +106,56 @@
       <button id="deploy-btn" class="danger" disabled>Deploy&hellip;</button>
       <p id="deploy-result" class="hint"></p>
     </section>
+  </section>
+</main>
+
+<!-- ============================ SHOW MODE ============================ -->
+<!-- Sparse, big-type operator console. One dance, one checklist, one gate. -->
+<main id="show-main" hidden>
+  <section id="show-library" class="show-panel">
+    <h2>Dance library</h2>
+    <div id="dance-cards" class="dance-cards"></div>
+  </section>
+
+  <section id="show-run" class="show-panel" hidden>
+    <button id="show-back" class="quiet">&larr; back to library</button>
+    <h2 id="show-dance-name"></h2>
+    <video id="show-preview" controls hidden></video>
+
+    <div id="show-start-box">
+      <input id="operator-name" placeholder="Operator name" autocomplete="name">
+      <button id="show-start" class="big">Start pre-show check</button>
+    </div>
+
+    <div id="checklist-box" hidden>
+      <div id="checklist-progress"></div>
+      <div id="checklist-step" class="check-step">
+        <h3 id="step-title"></h3>
+        <p id="step-detail"></p>
+        <input id="step-value" type="number" min="0" max="100" hidden
+               placeholder="battery %">
+        <button id="step-confirm" class="big">Confirm</button>
+      </div>
+      <div id="show-deploy-box" hidden>
+        <p class="allclear">Checklist complete.</p>
+        <button id="show-deploy" class="big danger">Deploy dance&hellip;</button>
+        <p id="show-deploy-result" class="hint"></p>
+        <div id="outcome-box">
+          <h3>After the performance</h3>
+          <div class="row">
+            <button class="outcome" data-result="clean">Clean run</button>
+            <button class="outcome" data-result="aborted">Aborted</button>
+            <button class="outcome" data-result="incident">Incident</button>
+          </div>
+          <input id="outcome-notes" placeholder="notes (optional)">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="show-history-panel" class="show-panel">
+    <h2>Show history</h2>
+    <ul id="show-history" class="clickable-list"></ul>
   </section>
 </main>
 
