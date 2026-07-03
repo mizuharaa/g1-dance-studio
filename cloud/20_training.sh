@@ -42,6 +42,11 @@ if [ ! -d "$WBT/.git" ]; then
 fi
 
 # -- attempt: Isaac Lab 2.1.0 ---------------------------------------------------
+if [ "${1:-}" = "mjlab" ]; then
+    log "mjlab requested explicitly - skipping Isaac Lab attempt"
+else
+
+
 # Isaac Sim 4.5 ships cp310-only wheels; the image's conda python is 3.11 but
 # /usr/bin/python3 is 3.10 — build this env on it (isolated, pip-bootstrapped).
 VENV="$(ensure_venv310 isaaclab)"
@@ -69,6 +74,8 @@ else
             || log "WARNING: whole_body_tracking install into isaac env failed"
         report "isaac_ready" "Isaac Lab 2.1.0 + whole_body_tracking installed"
     fi
+fi
+
 fi
 
 # -- fallback: mjlab (run with: bash 20_training.sh mjlab) ------------------------
