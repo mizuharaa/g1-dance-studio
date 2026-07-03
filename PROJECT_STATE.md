@@ -193,6 +193,14 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   full-auto params; (2) resume recipe workflow; (3) relaunch both worktree builds;
   (4) then merge + adversarial safety review + app audit as budget allows.
   User's 18h token-burn window noted; full-auto params unchanged.
+- 2026-07-03 (22:30 ICT): **PHASE 5 TRAINING STARTED — mjlab path.** Isaac Lab is
+  permanently dead on this image; mjlab 1.5.0 is the trainer (task
+  Mjlab-Tracking-Flat-Unitree-G1). Critical interface notes now in logs/jobs.md:
+  mjlab has its own csv_to_npz (no Isaac Sim), takes LOCAL motion files
+  (--env.commands.motion.motion-file), W&B registry optional, ONNX exporter exists,
+  push randomization built-in. Benchmark job train-dance1-seg RUNNING in tmux on the
+  box (started 22:25 ICT). Startup monitor armed. Next: capture it/s + W&B URL →
+  cost math; auto-chain Thriller per full-auto params (thriller_g1.csv already on box).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
