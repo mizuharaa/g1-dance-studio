@@ -323,6 +323,22 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   torso base frame — velocimeter includes ω×r lever-arm; replicate exactly or good
   policies false-fail. base_lin_vel is not directly measurable on hardware (sim2real
   gap → flag at deploy).
+- 2026-07-04: **Sim-exam mjlab obs adapter VERIFIED** (157/160 dims exact vs a real
+  mjlab obs sample; the 3 base_lin_vel dims off ≤0.11 m/s but within the policy's
+  training noise ±0.5, so safe). Obs order confirmed: command 58 / anchor_pos_b 3 /
+  anchor_ori_b 6 / base_lin_vel 3 (velocimeter @ imu_in_pelvis) / base_ang_vel 3 /
+  joint_pos 29 / joint_vel 29 / actions 29; anchor torso_link; no projected-gravity.
+  policy_meta.json (per-joint kp/kd, default pose, joint order) emitted. 135 tests green.
+- 2026-07-04: **Real signed exam on Thriller = FAIL, but DIAGNOSED FALSE-FAIL** — the
+  exam's plain unitree_mujoco G1 has armature=0.01 on 9 joints while mjlab uses per-joint
+  armatures (0.0036–0.025+) with stiff gains matched to them, so the PD loop is unstable
+  on the exam model (collapses at 1.18s). NOT a bad policy (mjlab in-engine = 100%).
+  Thriller correctly stays DRAFT (gate working). **FIX DISPATCHED: reconcile exam
+  actuator/armature model with mjlab (from policy_meta.json + recipe armature values),
+  then re-run.** This blocks true show-ready.
+- 2026-07-04: **Sim2real finding (robot-day):** base_lin_vel is not directly measurable
+  on the real G1 — deployed controller needs a state estimator for it, else robustness
+  gap. Record in deploy/robot-day docs.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
