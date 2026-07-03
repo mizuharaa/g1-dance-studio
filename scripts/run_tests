@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Run the pipeline test suite headless (no robot, no cloud box, no GPU).
+set -e
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate g1dance
+cd "$(dirname "$0")/.."
+exec python -m pytest "$@"
