@@ -59,7 +59,7 @@ const STATUS_BADGE = {
 };
 
 // ---------- global state ----------
-const S = { system: null, dances: [], jobs: [], stageOrder: ["extract", "retarget", "train", "verify", "export"], selJob: null, cur: "dashboard", danceFilter: "all", search: "" };
+const S = { system: null, dances: [], jobs: [], setlists: [], stageOrder: ["extract", "retarget", "train", "verify", "export"], selJob: null, cur: "dashboard", danceFilter: "all", search: "", showTab: "perform", showMode: "live", selSetlist: null };
 
 // ---------- navigation ----------
 const TITLES = { dashboard: ["Dashboard", "Overview of your studio"], library: ["Library", "Your trained dances"], studio: ["Create", "Video → balanced robot dance"], show: ["Show Mode", "Operator console"], system: ["System", "Cloud GPU & training"], settings: ["Settings", "Connections & safety"] };
@@ -81,6 +81,7 @@ async function refreshSystem() {
 }
 async function refreshDances() { try { S.dances = await api("/api/dances"); const n = S.dances.length; const b = $("#navDanceCount"); b.textContent = n; b.classList.toggle("hidden", !n); } catch { } }
 async function refreshJobs() { try { S.jobs = await api("/api/jobs"); } catch { } }
+async function refreshSetlists() { try { S.setlists = await api("/api/setlists"); } catch { } }
 
 function renderFooter() {
   const sys = S.system, g = sys && sys.gpu, cost = sys && sys.cost;
@@ -168,23 +169,40 @@ RENDER.library = function () {
 function danceCard(d) {
   const meta = d.status === "show-ready" ? `${(d.repeatability && d.repeatability.consecutive_clean) || 0}/${d.repeatability_target} clean runs`
     : d.policy_path ? "policy attached" : d.motion_csv ? "motion vetted" : "in progress";
-  return `<div class="dcard" data-open-dance="${esc(d.id)}"><div class="dthumb ${thumbFor(d.id)}"><div class="play">${ICON.play}</div>${d.duration_s ? `<span class="dur">${fmtDur(d.duration_s)}</span>` : ""}</div><div class="dbody"><div class="dn">${esc(d.name)} ${STATUS_BADGE[d.status] || ""}</div><div class="dm">${d.duration_s ? fmtDur(d.duration_s) + " · " : ""}${esc(meta)}</div></div></div>`;
+  return `<div class="dcard" data-open-dance="${esc(d.id)}"><div class="dthumb ${thumbFor(d.id)}"><div class="play">${ICON.play}</div>${d.duration_s ? `<span class="dur">${fmtDur(d.duration_s)}</span>` : ""}${d.audio ? '<span class="aud-badge" title="has music">♪</span>' : ""}</div><div class="dbody"><div class="dn">${esc(d.name)} ${STATUS_BADGE[d.status] || ""}</div><div class="dm">${d.duration_s ? fmtDur(d.duration_s) + " · " : ""}${esc(meta)}</div></div></div>`;
 }
 
 async function openDance(id) {
   let d; try { d = await api("/api/dances/" + id); } catch (e) { return toast(e.message, "err"); }
-  const prev = d.preview ? (d.preview.startsWith("/") ? d.preview : "/previews/" + d.preview.split("/").pop()) : null;
+  // prefer the music-muxed preview when the dance has audio
+  const muxed = d.audio && d.audio.muxed_preview;
+  const prev = muxed || (d.preview ? (d.preview.startsWith("/") ? d.preview : "/previews/" + d.preview.split("/").pop()) : null);
   const vetRows = d.vet && d.vet.checks ? Object.entries(d.vet.checks).map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:right">${v.pass === false ? '<span class="badge b-warn">CHECK</span>' : '<span class="badge b-ready">PASS</span>'}</td></tr>`).join("") : "";
+  const audioRow = d.audio
+    ? `<div class="music-cue"><div style="flex:1">${svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')} <b>${d.audio.source === "placeholder_click_track" ? "Placeholder track" : "Music attached"}</b> · delay ${d.audio.align ? d.audio.align.audio_delay_s : "?"}s</div><audio controls src="/api/dances/${esc(d.id)}/audio-file" style="height:30px"></audio><button class="btn btn-ghost btn-sm" id="dMusic">Replace</button><button class="btn btn-ghost btn-sm" id="dMusicX">Remove</button></div>`
+    : `<div class="row" style="margin:8px 0"><button class="btn btn-ghost btn-sm" id="dMusic">${svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')} Attach music…</button><span class="muted" style="font-size:11.5px;align-self:center">silent — add a track for shows</span></div>`;
   const bg = el(`<div class="modal-bg"><div class="modal" style="max-width:560px">
-    <h3>${esc(d.name)} ${STATUS_BADGE[d.status] || ""}</h3>
+    <h3>${esc(d.name)} ${STATUS_BADGE[d.status] || ""} ${d.audio ? '<span class="aud-inline">♪</span>' : ""}</h3>
     <p>${d.duration_s ? fmtDur(d.duration_s) + " · " : ""}${d.policy_path ? "policy attached" : "no policy yet"} · ${(d.repeatability && d.repeatability.consecutive_clean) || 0}/${d.repeatability_target} clean sim runs</p>
-    ${prev ? `<video class="preview" src="${esc(prev)}" controls muted onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'empty',innerHTML:'preview unavailable'}))"></video>` : `<div class="empty" style="padding:24px">No preview rendered yet</div>`}
+    ${prev ? `<video class="preview" src="${esc(prev)}" controls ${muxed ? "" : "muted"} onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'empty',innerHTML:'preview unavailable'}))"></video>` : `<div class="empty" style="padding:24px">No preview rendered yet</div>`}
+    ${audioRow}
     ${vetRows ? `<div class="section-title">Vetting</div><table>${vetRows}</table>` : ""}
     <div class="row"><button class="btn btn-ghost" id="dClose">Close</button>${d.status === "draft" && !d.policy_path ? `<button class="btn btn-ghost" id="dAttach">Attach policy…</button>` : ""}</div>
   </div></div>`);
   $("#modalRoot").appendChild(bg);
   $("#dClose", bg).onclick = () => bg.remove();
   bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+  const reopen = async () => { bg.remove(); await refreshDances(); if (RENDER[S.cur]) RENDER[S.cur](); openDance(id); };
+  const mBtn = $("#dMusic", bg);
+  if (mBtn) mBtn.onclick = async () => {
+    const choice = await modal({ title: "Attach music", body: "Path to a music file (project-relative or absolute), or leave blank to generate a placeholder click track to preview sync.", input: "data/audio/…/song.mp3 (or blank)", confirmLabel: "Attach" });
+    if (choice == null) return;
+    const body = choice.trim() ? { source_path: choice.trim() } : { bpm: 118 };
+    try { await api("/api/dances/" + id + "/audio", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); toast("Music attached", "ok"); reopen(); }
+    catch (e) { toast(e.message, "err"); }
+  };
+  const mX = $("#dMusicX", bg);
+  if (mX) mX.onclick = async () => { try { await api("/api/dances/" + id + "/audio", { method: "DELETE" }); toast("Music removed", "info"); reopen(); } catch (e) { toast(e.message, "err"); } };
   const at = $("#dAttach", bg);
   if (at) at.onclick = async () => {
     const p = await modal({ title: "Attach a trained policy", body: "Path to the exported policy file (project-relative). Attaching resets verification — the sim-exam must run again.", input: "data/policies/…/policy.onnx" });
@@ -263,41 +281,189 @@ async function uploadFile(file) {
 }
 
 RENDER.show = async function () {
-  let shows = []; try { shows = await api("/api/shows"); } catch { }
-  const ready = S.dances.filter(d => d.status === "show-ready");
-  const hist = shows.filter(s => s.closed).slice(0, 8);
-  const target = (S.dances[0] && S.dances[0].repeatability_target) || 3;
+  await Promise.all([refreshSetlists(), (async () => { try { S.showsCache = await api("/api/shows"); } catch { S.showsCache = []; } })()]);
+  const tabs = [["perform", "Perform"], ["setlists", "Set Lists"], ["timeline", "Timeline"]];
+  const modeToggle = `<div class="mode-toggle ${S.showMode}">
+    <button class="mt-btn ${S.showMode === "live" ? "on" : ""}" data-showmode="live">● Live</button>
+    <button class="mt-btn ${S.showMode === "rehearsal" ? "on" : ""}" data-showmode="rehearsal">▷ Rehearsal</button></div>`;
+  const banner = S.showMode === "rehearsal"
+    ? `<div class="rehearsal-banner">${svg('<path d="M8 5v14l11-7z"/>')}<b>REHEARSAL MODE</b> — dry run. Outcomes are logged separately and never change a dance's show-ready status.</div>` : "";
   $("#show").innerHTML = `
+    <div class="show-head">
+      <div class="subtabs">${tabs.map(([k, l]) => `<button class="subtab ${S.showTab === k ? "on" : ""}" data-showtab="${k}">${l}</button>`).join("")}</div>
+      ${modeToggle}
+    </div>
+    ${banner}
+    <div id="showBody"></div>`;
+  ({ perform: showPerform, setlists: showSetlists, timeline: showTimeline }[S.showTab] || showPerform)();
+};
+function outcomeBadge(r) { return r === "clean" ? '<span class="badge b-ready">Clean</span>' : r === "aborted" ? '<span class="badge b-warn">Aborted</span>' : r === "incident" ? '<span class="badge" style="background:var(--danger-dim);color:#fecaca">Incident</span>' : "—"; }
+const esE_STOP_HINT = `<div class="hint" style="margin-top:16px">${svg('<path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/>')}This robot has no hardware torque-cut e-stop — only the damping remote and the power switch. Keep the remote in hand for every performance.</div>`;
+
+function showPerform() {
+  const ready = S.dances.filter(d => d.status === "show-ready");
+  const hist = (S.showsCache || []).filter(s => s.closed).slice(0, 10);
+  const target = (S.dances[0] && S.dances[0].repeatability_target) || 3;
+  $("#showBody").innerHTML = `
     <div class="grid g-2" style="align-items:start">
       <div>
         <div class="section-title" style="margin-top:0">Show-ready dances</div>
-        ${ready.length ? ready.map(d => `<div class="dcard" style="cursor:pointer" data-start-show="${esc(d.id)}"><div class="dthumb ${thumbFor(d.id)}" style="height:120px"><div class="play">${ICON.play}</div>${d.duration_s ? `<span class="dur">${fmtDur(d.duration_s)}</span>` : ""}</div><div class="dbody"><div class="dn">${esc(d.name)} ${STATUS_BADGE[d.status]}</div><div class="dm">${(d.repeatability && d.repeatability.consecutive_clean) || 0}/${d.repeatability_target} clean runs · tap to start a show</div></div></div>`).join("")
+        ${ready.length ? ready.map(d => `<div class="dcard" style="cursor:pointer" data-start-show="${esc(d.id)}"><div class="dthumb ${thumbFor(d.id)}" style="height:120px"><div class="play">${ICON.play}</div>${d.duration_s ? `<span class="dur">${fmtDur(d.duration_s)}</span>` : ""}${d.audio ? '<span class="aud-badge" title="has music">♪</span>' : ""}</div><div class="dbody"><div class="dn">${esc(d.name)} ${STATUS_BADGE[d.status]}</div><div class="dm">${(d.repeatability && d.repeatability.consecutive_clean) || 0}/${d.repeatability_target} clean runs · tap to ${S.showMode === "rehearsal" ? "rehearse" : "start a show"}</div></div></div>`).join("")
       : `<div class="empty"><div class="ei">${svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>')}</div><h3>No show-ready dances yet</h3><p>A dance becomes show-ready after it passes the signed sim-exam and ${target} clean runs.</p></div>`}
       </div>
       <div>
         <div class="section-title" style="margin-top:0">Show history</div>
-        ${hist.length ? `<table><thead><tr><th>Dance</th><th>Operator</th><th>Result</th></tr></thead>${hist.map(s => `<tr><td><b>${esc(s.dance_name || "")}</b></td><td>${esc(s.operator || "")}</td><td>${outcomeBadge(s.outcome && s.outcome.result)}</td></tr>`).join("")}</table>` : `<p class="muted" style="font-size:12.5px">No performances recorded yet.</p>`}
-        <div class="hint" style="margin-top:16px">${svg('<path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/>')}This robot has no hardware torque-cut e-stop — only the damping remote and the power switch. Keep the remote in hand for every performance.</div>
+        ${hist.length ? `<table><thead><tr><th>Dance</th><th>Operator</th><th>Mode</th><th>Result</th></tr></thead>${hist.map(s => `<tr><td><b>${esc(s.dance_name || "")}</b></td><td>${esc(s.operator || "")}</td><td>${s.mode === "rehearsal" ? '<span class="badge b-draft">Rehearsal</span>' : '<span class="badge b-verified">Live</span>'}</td><td>${outcomeBadge(s.outcome && s.outcome.result)}</td></tr>`).join("")}</table>` : `<p class="muted" style="font-size:12.5px">No performances recorded yet.</p>`}
+        ${esE_STOP_HINT}
       </div>
     </div>`;
-};
-function outcomeBadge(r) { return r === "clean" ? '<span class="badge b-ready">Clean</span>' : r === "aborted" ? '<span class="badge b-warn">Aborted</span>' : r === "incident" ? '<span class="badge" style="background:var(--danger-dim);color:#fecaca">Incident</span>' : "—"; }
+}
 
+function showSetlists() {
+  const sel = S.selSetlist && S.setlists.find(s => s.id === S.selSetlist);
+  $("#showBody").innerHTML = `
+    <div class="grid" style="grid-template-columns:280px 1fr;gap:18px;align-items:start">
+      <div class="card">
+        <div class="card-h"><h3>Set Lists</h3><button class="btn btn-primary btn-sm" id="newSetlist" style="margin-left:auto">+ New</button></div>
+        ${S.setlists.length ? S.setlists.map(sl => `<div class="setlist-row ${S.selSetlist === sl.id ? "sel" : ""}" data-setlist="${esc(sl.id)}"><div style="flex:1"><b>${esc(sl.name)}</b><div class="jm">${sl.count} dance${sl.count === 1 ? "" : "s"} · ${fmtDur(sl.total_runtime_s)}</div></div>${sl.show_ready ? '<span class="badge b-ready">Ready</span>' : sl.count ? '<span class="badge b-warn">Blocked</span>' : '<span class="badge b-draft">Empty</span>'}</div>`).join("") : `<p class="muted" style="font-size:12.5px">No set-lists yet. Create one to sequence a show.</p>`}
+      </div>
+      <div id="setlistEditor">${sel ? setlistEditor(sel) : `<div class="empty"><div class="ei">${svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 4v16"/>')}</div><h3>Select or create a set-list</h3><p>Arrange several show-ready dances into one performance with gaps and music.</p></div>`}</div>
+    </div>`;
+}
+
+function setlistEditor(sl) {
+  const dmap = Object.fromEntries(S.dances.map(d => [d.id, d]));
+  const rows = sl.items.map((it, i) => `
+    <div class="sl-item ${it.show_ready ? "" : "blocked"}">
+      <div class="sl-ord">${i + 1}</div>
+      <div class="sl-main"><b>${esc(it.name)}</b> ${it.present ? (STATUS_BADGE[it.status] || "") : '<span class="badge b-warn">missing</span>'} ${it.has_audio ? '<span class="aud-inline">♪</span>' : ""}<div class="jm">${it.duration_s ? fmtDur(it.duration_s) : "—"}${it.note ? " · " + esc(it.note) : ""}</div></div>
+      <div class="sl-gap">${i < sl.items.length - 1 ? `<input class="field sl-gapf" style="width:56px" value="${it.gap_after_s}" data-idx="${i}" title="gap after (s)"><span class="jm">s gap</span>` : ""}</div>
+      <div class="sl-ctl">
+        <button class="btn btn-ghost btn-sm" data-slmove="${i}:-1" ${i === 0 ? "disabled" : ""}>↑</button>
+        <button class="btn btn-ghost btn-sm" data-slmove="${i}:1" ${i === sl.items.length - 1 ? "disabled" : ""}>↓</button>
+        <button class="btn btn-ghost btn-sm" data-slremove="${i}">✕</button>
+      </div></div>`).join("") || `<p class="muted" style="font-size:12.5px">Empty — add dances below.</p>`;
+  const addable = S.dances.filter(d => !sl.items.some(it => it.dance_id === d.id));
+  return `
+    <div class="card">
+      <div class="card-h"><h3>${esc(sl.name)}</h3>
+        <span class="badge ${sl.show_ready ? "b-ready" : sl.count ? "b-warn" : "b-draft"}" style="margin-left:auto">${sl.show_ready ? "Show-ready" : sl.count ? sl.blockers.length + " not ready" : "empty"}</span>
+        <button class="btn btn-ghost btn-sm" id="renameSetlist">Rename</button>
+        <button class="btn btn-ghost btn-sm" id="deleteSetlist">Delete</button>
+      </div>
+      <div class="sl-list">${rows}</div>
+      <div class="sl-total">Total runtime <b>${fmtDur(sl.total_runtime_s)}</b> · ${sl.count} number${sl.count === 1 ? "" : "s"}${sl.blockers.length ? ` · <span style="color:var(--warn)">${sl.blockers.map(b => esc(b.name) + " (" + esc(b.reason) + ")").join(", ")}</span>` : ""}</div>
+      <div class="row" style="margin-top:12px">
+        ${addable.length ? `<select class="field" id="addDanceSel" style="flex:1"><option value="">+ Add a dance…</option>${addable.map(d => `<option value="${esc(d.id)}">${esc(d.name)} (${d.status})</option>`).join("")}</select>` : `<span class="muted" style="font-size:12px">All dances added.</span>`}
+        <button class="btn btn-primary" data-run-setlist="${esc(sl.id)}" ${sl.show_ready ? "" : "disabled title='every dance must be show-ready'"}>${S.showMode === "rehearsal" ? "Rehearse set →" : "Run set →"}</button>
+      </div>
+    </div>`;
+}
+
+function showTimeline() {
+  const sel = S.selSetlist && S.setlists.find(s => s.id === S.selSetlist);
+  if (!sel) { $("#showBody").innerHTML = `<div class="empty"><div class="ei">${svg('<path d="M3 12h18M3 6h18M3 18h18"/>')}</div><h3>Pick a set-list</h3><p>Go to Set Lists, choose one, then view its timeline here.</p></div>`; return; }
+  const total = sel.total_runtime_s || 1;
+  const blocks = sel.items.map((it, i) => {
+    const w = Math.max(4, 100 * (it.duration_s || 0) / total);
+    const gapw = i < sel.items.length - 1 ? 100 * (it.gap_after_s || 0) / total : 0;
+    return `<div class="tl-block ${it.show_ready ? "" : "blocked"}" style="width:${w}%" title="${esc(it.name)} · ${fmtDur(it.duration_s)}"><b>${esc(it.name)}</b><span>${fmtDur(it.duration_s)}${it.has_audio ? " ♪" : ""}</span></div>${gapw ? `<div class="tl-gap" style="width:${gapw}%" title="${it.gap_after_s}s gap"></div>` : ""}`;
+  }).join("");
+  $("#showBody").innerHTML = `
+    <div class="card">
+      <div class="card-h"><div class="ico">${svg('<path d="M3 12h18M3 6h18M3 18h18"/>')}</div><h3>${esc(sel.name)} — timeline</h3><span class="badge b-verified" style="margin-left:auto">${fmtDur(sel.total_runtime_s)} total</span></div>
+      ${sel.count ? `<div class="timeline">${blocks}</div><div class="tl-legend"><span><i class="tl-sw"></i>dance</span><span><i class="tl-sw gap"></i>gap/transition</span><span>♪ = has music</span></div>` : `<p class="muted" style="font-size:12.5px">This set-list is empty.</p>`}
+      ${sel.blockers.length ? `<div class="hint" style="color:var(--warn);margin-top:14px">${svg('<path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/>')}Not runnable yet: ${sel.blockers.map(b => esc(b.name)).join(", ")} ${sel.blockers.length === 1 ? "is" : "are"} not show-ready.</div>` : ""}
+    </div>`;
+}
+
+// ---- show-mode event handlers ----
 document.addEventListener("click", async (e) => {
-  const ss = e.target.closest("[data-start-show]"); if (!ss) return;
-  const operator = await modal({ title: "Start a show", body: "Enter the operator name running this performance.", input: "Operator name", confirmLabel: "Begin checklist" });
-  if (!operator) return;
-  try { const show = await api("/api/shows", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dance_id: ss.dataset.startShow, operator }) }); runChecklist(show); }
-  catch (err) { toast(err.message, "err"); }
+  const tb = e.target.closest("[data-showtab]"); if (tb) { S.showTab = tb.dataset.showtab; RENDER.show(); return; }
+  const mm = e.target.closest("[data-showmode]"); if (mm) { S.showMode = mm.dataset.showmode; RENDER.show(); return; }
+  const slr = e.target.closest("[data-setlist]"); if (slr) { S.selSetlist = slr.dataset.setlist; showSetlists(); return; }
+  if (e.target.id === "newSetlist") {
+    const name = await modal({ title: "New set-list", body: "Name this show.", input: "e.g. Friday Night Set", confirmLabel: "Create" });
+    if (!name) return;
+    try { const sl = await api("/api/setlists", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) }); S.selSetlist = sl.id; await refreshSetlists(); showSetlists(); } catch (err) { toast(err.message, "err"); }
+    return;
+  }
+  const mv = e.target.closest("[data-slmove]"); if (mv) { const [i, dir] = mv.dataset.slmove.split(":").map(Number); return reorderSetlist(i, dir); }
+  const rm = e.target.closest("[data-slremove]"); if (rm) return reorderSetlist(+rm.dataset.slremove, 0, true);
+  if (e.target.id === "renameSetlist") { const n = await modal({ title: "Rename set-list", input: "New name" }); if (n) { try { await api("/api/setlists/" + S.selSetlist, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: n }) }); await refreshSetlists(); showSetlists(); } catch (err) { toast(err.message, "err"); } } return; }
+  if (e.target.id === "deleteSetlist") { const ok = await modal({ title: "Delete set-list?", body: "This removes the set-list (the dances themselves are untouched).", confirmLabel: "Delete", danger: true }); if (ok) { try { await api("/api/setlists/" + S.selSetlist, { method: "DELETE" }); S.selSetlist = null; await refreshSetlists(); showSetlists(); } catch (err) { toast(err.message, "err"); } } return; }
+  const rs = e.target.closest("[data-run-setlist]"); if (rs) return runSetlist(rs.dataset.runSetlist);
+  const ss = e.target.closest("[data-start-show]");
+  if (ss) {
+    const operator = await modal({ title: `Start ${S.showMode === "rehearsal" ? "a rehearsal" : "a show"}`, body: "Enter the operator name.", input: "Operator name", confirmLabel: "Begin checklist" });
+    if (!operator) return;
+    try { const show = await api("/api/shows", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dance_id: ss.dataset.startShow, operator, mode: S.showMode }) }); runChecklist(show); }
+    catch (err) { toast(err.message, "err"); }
+  }
 });
+document.addEventListener("change", async (e) => {
+  if (e.target.id === "addDanceSel" && e.target.value) {
+    const sl = S.setlists.find(s => s.id === S.selSetlist); if (!sl) return;
+    const items = sl.items.map(it => ({ dance_id: it.dance_id, gap_after_s: it.gap_after_s, note: it.note })).concat([{ dance_id: e.target.value, gap_after_s: 8 }]);
+    await saveSetlistItems(items);
+  }
+  if (e.target.classList && e.target.classList.contains("sl-gapf")) {
+    const sl = S.setlists.find(s => s.id === S.selSetlist); if (!sl) return;
+    const idx = +e.target.dataset.idx, v = parseFloat(e.target.value);
+    if (isNaN(v) || v < 0) { toast("Gap must be a non-negative number", "err"); return; }
+    const items = sl.items.map((it, i) => ({ dance_id: it.dance_id, gap_after_s: i === idx ? v : it.gap_after_s, note: it.note }));
+    await saveSetlistItems(items);
+  }
+});
+async function reorderSetlist(idx, dir, remove = false) {
+  const sl = S.setlists.find(s => s.id === S.selSetlist); if (!sl) return;
+  let items = sl.items.map(it => ({ dance_id: it.dance_id, gap_after_s: it.gap_after_s, note: it.note }));
+  if (remove) items.splice(idx, 1);
+  else { const j = idx + dir; if (j < 0 || j >= items.length) return;[items[idx], items[j]] = [items[j], items[idx]]; }
+  await saveSetlistItems(items);
+}
+async function saveSetlistItems(items) {
+  try { await api("/api/setlists/" + S.selSetlist, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items }) }); await refreshSetlists(); showSetlists(); }
+  catch (err) { toast(err.message, "err"); }
+}
+
+// sequential set-list runner: walk each number through its own checklist
+async function runSetlist(id) {
+  const sl = S.setlists.find(s => s.id === id); if (!sl || !sl.show_ready) return toast("Every dance must be show-ready", "err");
+  const operator = await modal({ title: `${S.showMode === "rehearsal" ? "Rehearse" : "Run"} “${sl.name}”`, body: `${sl.count} numbers · ${fmtDur(sl.total_runtime_s)}. You'll run each number's pre-show checklist in order.`, input: "Operator name", confirmLabel: "Start set" });
+  if (!operator) return;
+  for (let i = 0; i < sl.items.length; i++) {
+    const it = sl.items[i];
+    const go2 = await modal({ title: `Number ${i + 1}/${sl.count}: ${it.name}`, body: `${fmtDur(it.duration_s)}${it.has_audio ? " · ♪ music" : ""}. ${i > 0 ? "Previous number done. " : ""}Start this number's checklist?`, confirmLabel: "Checklist →" });
+    if (go2 == null) { toast("Set stopped by operator", "info"); break; }
+    try {
+      const show = await api("/api/shows", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dance_id: it.dance_id, operator, mode: S.showMode, setlist_id: id }) });
+      await new Promise(res => runChecklist(show, res));
+    } catch (err) { toast(err.message, "err"); break; }
+  }
+  RENDER.show();
+}
 
 // pre-show checklist wizard (server-enforced order; deploy stays typed-DEPLOY record-only)
-function runChecklist(show) {
+function runChecklist(show, onDone) {
   const spec = show.checklist_spec;
-  const bg = el(`<div class="modal-bg"><div class="modal" style="max-width:560px"><h3>Pre-show checklist — ${esc(show.dance_name)}</h3><p>Operator: ${esc(show.operator)}. Complete every step in order to unlock deploy.</p><div id="clBody"></div></div></div>`);
+  const dance = S.dances.find(d => d.id === show.dance_id);
+  const rehearsal = show.mode === "rehearsal";
+  const finish = (bg) => { bg.remove(); if (onDone) onDone(); else RENDER.show(); };
+  const head = rehearsal ? `<div class="rehearsal-tag">▷ REHEARSAL — dry run, not a live performance</div>` : "";
+  const music = dance && dance.audio ? `<div class="music-cue">${svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')}<div style="flex:1"><b>Music ready</b> — starts ${dance.audio.align ? dance.audio.align.audio_delay_s + "s" : ""} into the performance, on the go signal.</div><audio controls src="/api/dances/${esc(dance.id)}/audio-file" style="height:30px"></audio></div>` : "";
+  const bg = el(`<div class="modal-bg"><div class="modal ${rehearsal ? "rehearsal" : ""}" style="max-width:560px">${head}<h3>Pre-show checklist — ${esc(show.dance_name)}</h3><p>Operator: ${esc(show.operator)}. Complete every step in order to unlock deploy.</p>${music}<div id="clBody"></div></div></div>`);
   $("#modalRoot").appendChild(bg);
-  bg.onclick = (e) => { if (e.target === bg) { bg.remove(); RENDER.show(); } };
+  bg.onclick = (e) => { if (e.target === bg) finish(bg); };
+  const drawOutcome = (sh) => {
+    $("#clBody", bg).innerHTML = `<div class="deploy-lock"><div class="dl-ic" style="background:var(--ok-dim)">${svg('<path d="m5 12 4 4L19 6"/>', "var(--ok)")}</div><b style="font-size:14px">${rehearsal ? "Rehearsal" : "Performance"} authorized (recorded)</b><p style="font-size:12px;color:var(--text-faint);margin:6px 0 12px">Record how it went to close this ${rehearsal ? "rehearsal" : "show"}.</p><div class="row"><button class="btn btn-ghost" data-outcome="clean">Clean ✓</button><button class="btn btn-ghost" data-outcome="aborted">Aborted</button><button class="btn btn-danger" data-outcome="incident">Incident</button></div></div>`;
+    $$("[data-outcome]", bg).forEach(b => b.onclick = async () => {
+      try { await api(`/api/shows/${sh.id}/outcome`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ result: b.dataset.outcome }) }); toast(`Outcome recorded: ${b.dataset.outcome}${rehearsal ? " (rehearsal)" : ""}`, b.dataset.outcome === "clean" ? "ok" : "info"); await refreshDances(); finish(bg); }
+      catch (err) { toast(err.message, "err"); }
+    });
+  };
   const draw = (sh) => {
+    if (sh.deploy) return drawOutcome(sh);
     const done = sh.steps || {};
     $("#clBody", bg).innerHTML = `<div class="checklist">` + spec.map(step => {
       const isDone = !!done[step.key];
@@ -314,9 +480,9 @@ function runChecklist(show) {
     });
     const dep = $("#deployBtn", bg);
     if (dep) dep.onclick = async () => {
-      const phrase = await modal({ title: "Deploy to robot", body: "This is <b>record-only</b> — nothing is sent to the robot. Type DEPLOY to record the authorization.", input: "type DEPLOY", confirmLabel: "Deploy", danger: true });
+      const phrase = await modal({ title: rehearsal ? "Rehearsal cue" : "Deploy to robot", body: "This is <b>record-only</b> — nothing is sent to the robot. Type DEPLOY to record the authorization.", input: "type DEPLOY", confirmLabel: rehearsal ? "Cue" : "Deploy", danger: !rehearsal });
       if (phrase == null) return;
-      try { await api(`/api/shows/${sh.id}/deploy`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm_phrase: phrase }) }); toast("Deploy recorded (no robot contact)", "ok"); bg.remove(); RENDER.show(); }
+      try { const r = await api(`/api/shows/${sh.id}/deploy`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm_phrase: phrase }) }); toast(rehearsal ? "Rehearsal cued (no robot contact)" : "Deploy recorded (no robot contact)", "ok"); drawOutcome(r.show || sh); }
       catch (err) { toast(err.message, "err"); }
     };
   };
