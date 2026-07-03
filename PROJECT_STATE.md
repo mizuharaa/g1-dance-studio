@@ -201,6 +201,12 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   push randomization built-in. Benchmark job train-dance1-seg RUNNING in tmux on the
   box (started 22:25 ICT). Startup monitor armed. Next: capture it/s + W&B URL →
   cost math; auto-chain Thriller per full-auto params (thriller_g1.csv already on box).
+- 2026-07-03 (22:40 ICT): **BENCHMARK LEARNING + THRILLER ATTEMPT 1 RUNNING**
+  (details/W&B URLs in logs/jobs.md). Recipe applied to Thriller motion first
+  (velocity-limit retarget + show blends; new tools pipeline/prep_motion.py and
+  retarget_gvhmr.py --velocity-limit). Converter bug #777 ruled out. Next
+  milestones: a1 curve verdict (~1h), benchmark cost calibration, policy export
+  → sim exam (deploy-kit's pipeline/sim_exam.py) on whichever converges first.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
