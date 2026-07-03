@@ -17,11 +17,13 @@ shell scripts (01_pc2_install.sh, 02_push_bundle.sh, 10_gantry_test.sh).
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
+
+from pipeline.exam_verdict import authorize, full_sha256
 
 KIT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = KIT_DIR.parent
@@ -29,26 +31,26 @@ PROJECT_ROOT = KIT_DIR.parent
 PC2_HOST = "192.168.123.164"
 PC2_USER = "unitree"
 CONTROLLER_IMAGE = "qiayuanl/unitree:jazzy"
+DANCE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")  # finding #31: no shell metachars to PC2
 
 
 def sha256(p: Path) -> str:
-    return hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+    return full_sha256(p)  # full 64-hex identity (finding #32)
 
 
 def find_passing_exam(policy_sha: str, motion_sha: str, exam_dir: Path) -> Path | None:
+    """Return an exam file that AUTHORIZES this exact policy+motion, or None.
+
+    Findings #0/#7/#19/#21: authorization is derived from phase contents AND an HMAC
+    signature — never the self-declared ``verdict`` string, never an empty-dict phase.
+    """
     for f in sorted(exam_dir.glob("exam_*.json")):
         try:
             v = json.loads(f.read_text())
         except json.JSONDecodeError:
             continue
-        if (
-            v.get("schema") == "sim_exam/v1"
-            and v.get("verdict") == "pass"
-            and v.get("policy_sha256") == policy_sha
-            and v.get("motion_sha256") == motion_sha
-            and v.get("push") is not None
-            and v.get("repeatability") is not None
-        ):
+        ok, _reason = authorize(v, policy_sha=policy_sha, motion_sha=motion_sha)
+        if ok:
             return f
     return None
 
@@ -64,6 +66,8 @@ def main() -> int:
     )
     args = ap.parse_args()
 
+    if not DANCE_RE.match(args.dance):
+        raise SystemExit(f"ABORT: --dance {args.dance!r} must match {DANCE_RE.pattern} (finding #31)")
     for f in (args.policy, args.motion):
         if not f.exists():
             raise SystemExit(f"ABORT: {f} does not exist")
@@ -84,34 +88,25 @@ def main() -> int:
     shutil.copy2(args.motion, out / "motion.csv")
     shutil.copy2(exam, out / "exam_verdict.json")
 
-    manifest = {
-        "schema": "deploy_bundle/v1",
-        "dance": args.dance,
-        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "policy": {"file": "policy.onnx", "sha256": p_sha},
-        "motion": {
-            "file": "motion.csv",
-            "sha256": m_sha,
-            "duration_s": verdict["nominal"]["duration_s"],
-        },
-        "exam": {"file": "exam_verdict.json", "verdict": verdict["verdict"]},
-        "controller": {"image": CONTROLLER_IMAGE, "notes": "see deploy/README.md"},
-        "target": {"pc2": PC2_HOST, "user": PC2_USER},
-    }
-    (out / "bundle.json").write_text(json.dumps(manifest, indent=1))
+    # controller.env: launch parameters as REVIEWED DATA (findings #8/#20). start_mode
+    # is fixed to damping here and asserted by the start script — not hand-editable.
     (out / "controller.env").write_text(
         f"DANCE={args.dance}\nPOLICY=policy.onnx\nMOTION=motion.csv\n"
-        f"CONTROLLER_IMAGE={CONTROLLER_IMAGE}\nCONTROL_HZ=50\n"
+        f"CONTROLLER_IMAGE={CONTROLLER_IMAGE}\nCONTROL_HZ=50\nSTART_MODE=damping\n"
     )
-    # In-container entrypoint used by 10_gantry_test.sh. The exact controller
-    # launch line is pinned on robot day against the controller README (runbook
-    # step 3) — until then this refuses to run, which is itself an interlock.
+    # In-container entrypoint used by 10_gantry_test.sh. Asserts start_mode=damping from
+    # controller.env; the launch line is filled in and LAUNCH_LINE_VERIFIED touched on
+    # robot day (runbook step 3). Until then it refuses — itself an interlock.
     start = out / "start_controller_damping_hold.sh"
     start.write_text(
         "#!/usr/bin/env bash\n"
         "# Runs INSIDE qiayuanl/unitree:jazzy on PC2. Contract: load policy, hold\n"
         "# damping; motion playback is armed only by the operator's remote sequence.\n"
         "set -euo pipefail\n"
+        "source /bundle/controller.env\n"
+        "if [ \"${START_MODE:-}\" != \"damping\" ]; then\n"
+        "  echo 'REFUSING: controller.env START_MODE is not damping.'; exit 79\n"
+        "fi\n"
         "if [ ! -f /bundle/LAUNCH_LINE_VERIFIED ]; then\n"
         "  echo 'REFUSING: controller launch line not verified on robot day yet.'\n"
         "  echo 'See docs/ROBOT_DAY_RUNBOOK.md step 3 — then touch LAUNCH_LINE_VERIFIED'\n"
@@ -124,8 +119,33 @@ def main() -> int:
         "exit 78\n"
     )
     start.chmod(0o755)
+
+    # Hash-pin EVERY bundle file (findings #8/#19): policy, motion, exam, controller.env,
+    # start script — so 02_push_bundle.sh can detect any post-generation tampering.
+    files = {
+        name: full_sha256(out / name)
+        for name in ("policy.onnx", "motion.csv", "exam_verdict.json",
+                     "controller.env", "start_controller_damping_hold.sh")
+    }
+    manifest = {
+        "schema": "deploy_bundle/v1",
+        "dance": args.dance,
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "policy": {"file": "policy.onnx", "sha256": p_sha},
+        "motion": {
+            "file": "motion.csv",
+            "sha256": m_sha,
+            "duration_s": verdict["nominal"]["duration_s"],
+        },
+        # NOT the self-declared string: authorization was re-derived above via authorize().
+        "exam": {"file": "exam_verdict.json", "authorized": True},
+        "files_sha256": files,
+        "controller": {"image": CONTROLLER_IMAGE, "notes": "see deploy/README.md"},
+        "target": {"pc2": PC2_HOST, "user": PC2_USER},
+    }
+    (out / "bundle.json").write_text(json.dumps(manifest, indent=1))
     print(f"bundle ready: {out}")
-    print(f"  policy {p_sha}  motion {m_sha}  exam {exam.name} (pass)")
+    print(f"  policy {p_sha[:16]}…  motion {m_sha[:16]}…  exam {exam.name} (authorized)")
     print("next: deploy/02_push_bundle.sh --dance", args.dance)
     return 0
 

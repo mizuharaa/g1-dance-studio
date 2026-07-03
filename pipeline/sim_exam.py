@@ -59,6 +59,7 @@ import mujoco
 import numpy as np
 
 from pipeline.config import PROJECT_ROOT, THIRD_PARTY
+from pipeline.exam_verdict import MIN_PUSH_FORCE_N, full_sha256, sign_verdict
 
 CSV_FPS = 30.0
 CTRL_HZ = 50.0
@@ -70,6 +71,15 @@ ANCHOR_ORI_FAIL = 0.8  # mirrors bad_anchor_ori termination (rad, geodesic)
 PUSH_DURATION_S = 0.1
 PUSH_RECOVERY_S = 2.0
 PUSH_RECOVER_ERR_M = 0.25
+# --- absolute fall gate (finding #4): reference-relative errors alone let a policy
+# that half-collapses in sync with a tilted dance pose pass. These are hard,
+# world-frame, reference-INDEPENDENT limits.
+ABS_TILT_FAIL_RAD = 0.7  # torso axis vs world-up; ~40 deg — beyond any upright dance pose
+ABS_MIN_TORSO_Z_M = 0.45  # torso world height floor; below this it is going down
+# --- nominal tracking-quality floor (findings #5, #18): "stayed upright" is not
+# "performed the dance". A PASS must actually track the reference.
+NOMINAL_MEAN_JOINT_ERR_MAX = 0.30  # rad, mean over 29 joints
+NOMINAL_MEAN_ANCHOR_ERR_MAX = 0.30  # m, mean torso position error
 
 
 def _resolve_third_party() -> Path:
@@ -369,6 +379,13 @@ class ExamEnv:
             mujoco.mj_step(self.model, self.data)
 
     # ---- per-tick metrics ----
+    def _abs_tilt_rad(self) -> float:
+        """Angle between the torso's local +z axis and world up — reference-independent."""
+        r = np.zeros(9)
+        mujoco.mju_quat2Mat(r, self.data.xquat[self.anchor_id])
+        up_local = r.reshape(3, 3)[:, 2]  # torso z-axis in world frame
+        return float(np.arccos(np.clip(up_local[2], -1.0, 1.0)))
+
     def metrics(self, tick: int) -> dict:
         i = min(tick, self.motion.ticks - 1)
         anchor_pos_err = float(np.linalg.norm(self.data.xpos[self.anchor_id] - self.motion.anchor_pos[i]))
@@ -376,13 +393,23 @@ class ExamEnv:
         ori_err = _quat_geodesic(self.data.xquat[self.anchor_id], self.motion.anchor_quat_wxyz[i])
         joint_err = float(np.mean(np.abs(self.joint_pos() - self.motion.joint_pos[i][self.csv_to_policy])))
         excursion = float(np.linalg.norm(self.data.qpos[0:2] - self.motion.root_pos[0][:2]))
+        # absolute, reference-independent fall detection (finding #4)
+        abs_tilt = self._abs_tilt_rad()
+        torso_z = float(self.data.xpos[self.anchor_id][2])
+        abs_fall = abs_tilt > ABS_TILT_FAIL_RAD or torso_z < ABS_MIN_TORSO_Z_M
         return {
             "anchor_pos_err": anchor_pos_err,
             "anchor_z_err": anchor_z_err,
             "anchor_ori_err": ori_err,
             "joint_err": joint_err,
             "excursion": excursion,
-            "failed": anchor_z_err > ANCHOR_Z_FAIL_M or ori_err > ANCHOR_ORI_FAIL,
+            "abs_tilt_rad": abs_tilt,
+            "torso_z_m": torso_z,
+            "failed": (
+                anchor_z_err > ANCHOR_Z_FAIL_M
+                or ori_err > ANCHOR_ORI_FAIL
+                or abs_fall  # hard floor, independent of the reference
+            ),
         }
 
 
@@ -406,14 +433,20 @@ def run_nominal(env: ExamEnv, seed: int = 0, jitter: float = 0.0, frames_out: li
             survived = t
             break
     dur = T / CTRL_HZ
+    mean_joint = float(np.mean(joint_errs))
+    mean_anchor = float(np.mean(errs))
+    # PASS requires: survived the whole motion, stayed in the dance area, AND actually
+    # tracked the reference (findings #5/#18 — upright-but-wrong must not certify).
+    tracked = mean_joint <= NOMINAL_MEAN_JOINT_ERR_MAX and mean_anchor <= NOMINAL_MEAN_ANCHOR_ERR_MAX
     return {
-        "pass": survived == T and max_exc <= EXCURSION_LIMIT_M,
+        "pass": survived == T and max_exc <= EXCURSION_LIMIT_M and tracked,
         "survived_s": round(survived / CTRL_HZ, 2),
         "duration_s": round(dur, 2),
         "excursion_m": round(max_exc, 3),
-        "mean_anchor_pos_err_m": round(float(np.mean(errs)), 4),
+        "mean_anchor_pos_err_m": round(mean_anchor, 4),
         "max_anchor_pos_err_m": round(float(np.max(errs)), 4),
-        "mean_joint_err_rad": round(float(np.mean(joint_errs)), 4),
+        "mean_joint_err_rad": round(mean_joint, 4),
+        "tracked": tracked,
     }
 
 
@@ -447,13 +480,16 @@ def run_push_test(env: ExamEnv, num_pushes: int, force_n: float, seed: int = 0) 
                 recovered += 1
             pending = None
     rate = recovered / applied if applied else 0.0
+    # a push suite below the force floor cannot certify robustness (finding #22)
+    meaningful = force_n >= MIN_PUSH_FORCE_N
     return {
         "num_pushes": applied,
         "recovered": recovered,
         "recovery_rate": round(rate, 3),
         "force_n": force_n,
+        "min_force_n": MIN_PUSH_FORCE_N,
         "fell": fell,
-        "pass": not fell and rate >= 0.8,
+        "pass": not fell and rate >= 0.8 and applied > 0 and meaningful,
     }
 
 
@@ -474,7 +510,7 @@ def run_repeatability(env: ExamEnv, runs: int) -> dict:
 
 # --------------------------------------------------------------------------- main
 def sha256(p: Path) -> str:
-    return hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+    return full_sha256(p)  # full 64-hex identity (finding #32)
 
 
 def main() -> int:
@@ -528,6 +564,18 @@ def main() -> int:
         imageio.mimsave(video_path, frames, fps=25, macro_block_size=1)
         print(f"[sim_exam] video: {video_path} ({len(frames)} frames)")
 
+    # Honest verdict (finding #21): a skipped phase can NEVER read as "pass". Only
+    # a complete exam with all phases run+passed is "pass"; a complete exam with a
+    # real failure is "fail"; a deliberately partial exam is "incomplete".
+    complete = push is not None and repeat is not None
+    all_passed = nominal["pass"] and (push is not None and push["pass"]) and (repeat is not None and repeat["pass"])
+    if not complete:
+        verdict_str = "incomplete"
+    elif all_passed:
+        verdict_str = "pass"
+    else:
+        verdict_str = "fail"
+
     verdict = {
         "schema": "sim_exam/v1",
         "dance": args.dance or motion_path.stem,
@@ -540,15 +588,18 @@ def main() -> int:
         "nominal": nominal,
         "push": push,
         "repeatability": repeat,
-        "verdict": "pass" if nominal["pass"] and (push is None or push["pass"]) and (repeat is None or repeat["pass"]) else "fail",
+        "verdict": verdict_str,
         "video": video_path,
         "wall_s": round(time.time() - t0, 1),
     }
+    # HMAC-sign so downstream can tell a genuine verdict from a hand-edit (finding #0).
+    verdict = sign_verdict(verdict)
     out = Path(args.json_out) if args.json_out else PROJECT_ROOT / "data" / "exports" / f"exam_{verdict['dance']}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(verdict, indent=1))
-    print(f"[sim_exam] VERDICT: {verdict['verdict'].upper()} -> {out}")
-    return 0 if verdict["verdict"] == "pass" else 1
+    print(f"[sim_exam] VERDICT: {verdict_str.upper()} -> {out}")
+    # exit: 0 only on a genuine complete pass; 2 for incomplete; 1 for fail (finding #21)
+    return {"pass": 0, "fail": 1, "incomplete": 2}[verdict_str]
 
 
 if __name__ == "__main__":

@@ -435,6 +435,20 @@ def record_outcome(show_id: str, payload: dict = Body(...)) -> dict:
     show.closed = True
     show.save()
     show.log(f"outcome recorded: {result} — show closed")
+    # finding #9: a live incident/abort must demote the dance and reset the clean streak,
+    # so re-promotion to show-ready requires a fresh, deliberate re-examination.
+    if result in ("incident", "aborted"):
+        try:
+            dance = shows.load_dance(show.dance_id)
+        except (FileNotFoundError, ValueError):
+            dance = None
+        if dance is not None:
+            dance.repeatability["consecutive_clean"] = 0
+            dance.incident = {"show_id": show.id, "result": result, "at": time.time()}
+            if dance.status == "show-ready":
+                dance.status = "sim-verified"
+            dance.save()
+            show.log(f"dance '{dance.name}' demoted + streak reset after {result}")
     return _show_dict(show)
 
 

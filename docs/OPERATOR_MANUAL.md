@@ -12,10 +12,15 @@ checklist in the app, start the performance, and stay ready to stop it.
 
 ## The golden rules
 
-1. **You hold the e-stop for the entire performance.** Thumb on the button,
-   eyes on the robot. If anything looks wrong — press it. A stopped show is a
-   minor problem; a robot falling into an audience is not. Never hand the
-   e-stop to anyone else mid-show.
+1. **You hold the stop control (the robot's remote) for the entire performance.**
+   Thumb on the damping/B button, eyes on the robot. If anything looks wrong — press it.
+   A stopped show is a minor problem; a robot falling into an audience is not. Never
+   hand it to anyone else mid-show.
+   > Honest note (safety review #14): this is the Unitree remote's **damping command**,
+   > not a physical power-cut e-stop — this G1 has no torque-cutting button. It makes the
+   > robot go limp/damped, which is the right emergency response, but it is not a power
+   > kill. The only guaranteed torque removal is the battery/power switch — know where it
+   > is before the show.
 2. **2 meters.** The dance area is a circle of 2 m radius on hard flat ground.
    Nobody and nothing inside it while the robot dances. No exceptions —
    the dance was safety-checked for exactly this space.
@@ -52,7 +57,7 @@ checklist in the app, start the performance, and stay ready to stop it.
 |---|---|
 | Robot staggers, recovers | Let it finish; note it in the outcome. |
 | Robot staggers repeatedly / drifts out of the area | E-stop. Record "aborted". |
-| Robot falls | E-stop immediately (cuts motor torque). Keep people away. Photograph the scene, record "incident" with details. Do not restart without the team's OK. |
+| Robot falls | Hit the remote damping button immediately (robot goes limp — this is NOT a power cut; use the power/battery switch if it must be fully dead). Keep people away. Photograph the scene, record "incident" with details. Do not restart without the team's OK. |
 | Robot won't respond to the app | Do not improvise. E-stop, power off, contact the team. |
 | Audience member enters the area | E-stop first, apologize later. |
 

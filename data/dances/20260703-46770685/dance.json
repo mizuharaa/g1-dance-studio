@@ -1,0 +1,23 @@
+{
+  "id": "20260703-46770685",
+  "name": "test-segment",
+  "created_at": 1783093840.0667894,
+  "updated_at": 1783093840.0668428,
+  "status": "draft",
+  "duration_s": 28.8,
+  "motion_csv": "data/dance1_subject2_seg.csv",
+  "policy_path": null,
+  "preview": null,
+  "vet": null,
+  "sim_exam": null,
+  "source_job": null,
+  "notes": "LAFAN1 dance1_subject2 deployable window \u2014 canonical benchmark motion. Policy: training in progress.",
+  "policy_sha256": null,
+  "incident": null,
+  "repeatability": {
+    "consecutive_clean": 0,
+    "total_runs": 0,
+    "last_run_at": null,
+    "history": []
+  }
+}

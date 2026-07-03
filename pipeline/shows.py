@@ -40,6 +40,10 @@ DANCE_STATUSES = ("draft", "sim-verified", "show-ready")
 # show-ready ("works every time", not "worked once").
 REPEATABILITY_TARGET = 3
 
+# Battery floor (%) enforced at the pre-show checklist (findings #13/#29): below this
+# there is no safe actuation margin for a full performance — do not start.
+BATTERY_FLOOR_PCT = 30
+
 # Pre-show checklist, in mandatory order. kind: "confirm" = operator must
 # explicitly confirm; "number" = operator enters a value (e.g. battery %).
 CHECKLIST_STEPS: list[dict] = [
@@ -90,6 +94,8 @@ class Dance:
     sim_exam: dict | None = None       # latest sim-exam verdict summary
     source_job: str | None = None      # pipeline job id this dance came from
     notes: str = ""
+    policy_sha256: str | None = None    # full sha of the exam-passed policy (finding #24/#27)
+    incident: dict | None = None        # last live incident/abort that demoted it (finding #9)
     # Repeatability: updated by the sim-exam tool via POST /api/dances/{id}/sim-runs
     # (JSON contract in docs/show_mode_contracts.md).
     repeatability: dict = field(default_factory=lambda: {
@@ -263,6 +269,12 @@ def complete_step(show: Show, step: str, value=None) -> Show:
             raise ValueError(f"step '{step}' needs a numeric value")
         if not 0 <= record["value"] <= 100:
             raise ValueError(f"step '{step}' value must be between 0 and 100")
+        # findings #13/#29: the documented do-not-start battery floor must be ENFORCED,
+        # not merely advisory, or a show can be started below actuation margin.
+        if step == "battery" and record["value"] < BATTERY_FLOOR_PCT:
+            raise ValueError(
+                f"battery {record['value']:.0f}% is below the {BATTERY_FLOOR_PCT}% floor — do not start"
+            )
     else:
         if value is not True:
             raise ValueError(f"step '{step}' needs an explicit confirmation")

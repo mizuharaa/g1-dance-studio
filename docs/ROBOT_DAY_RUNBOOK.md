@@ -46,6 +46,24 @@ feet clearance ~5 cm, nothing within a 2.5 m radius. E-stop battery checked.
 - The contract may not be weakened: load policy → HOLD DAMPING → operator arms.
   If the controller cannot hold damping on start, STOP — session over, redesign.
 
+## Step 3a — MANDATORY: verify command-loss → damping BEFORE any ground use (safety review #1/#11/#12)
+> These cannot be verified in software — they are gates you must clear on the gantry.
+- **SIGKILL behavior (#1):** with the robot HANGING (feet off ground) and holding
+  damping, run `deploy/kill_now.sh`. Observe: does the low-level actually bleed to a
+  safe damping posture, or does it hold last-commanded torque / lurch? Time it.
+  `kill_now.sh` now SIGTERMs first (grace window) then SIGKILLs — confirm the SIGTERM
+  path lets the controller damp. **If the robot does NOT reliably reach damping on
+  controller loss, the ONLY trusted stop is the hardware remote — do not go to ground.**
+- **Comms-loss deadman (#11/#12):** unplug/kill the laptop↔PC2 link mid-damping-hold.
+  The robot must reach damping on its own (an on-Jetson watchdog), because `kill_now.sh`
+  rides that same SSH link and is useless if it drops. If no such on-robot watchdog
+  exists, treat comms loss as an UNMITIGATED hazard and keep runs short + e-stop ready.
+- **NaN/overrun → damping (#12):** confirm (from the controller README / a bench test)
+  that non-finite policy output or a missed control tick forces damping *inside the
+  controller*, independent of the operator watching logs. Record the answer; if it does
+  not, that is a stop-ship for unattended/show use.
+- Record all three outcomes in `docs/gantry_test_log.md`. None verified → gantry-only.
+
 ## Step 4 — bundle push
 - `./02_push_bundle.sh --dance <dance>` (dry-run, read it) then `--yes-push`.
 - Integrity check runs automatically (sha256 vs manifest, exam verdict re-check).
@@ -81,7 +99,14 @@ feet clearance ~5 cm, nothing within a 2.5 m radius. E-stop battery checked.
 - Unset the session var: `unset CONFIRMED_BY_HUMAN`.
 
 ## Abort ladder (memorize before step 5)
-1. Hardware e-stop (hand) — always first choice while motors are armed.
-2. `deploy/kill_now.sh` — kills the controller container, robot falls to damping.
-3. Remote damping command (robot remote, per ~/robot/RUNBOOK.md re-arm notes).
-4. Robot power switch.
+1. **Remote B-damping (in hand)** — first choice while motors are armed. NOTE (#14):
+   on this tether-free G1 there is NO physical torque-cutting e-stop button — the
+   "e-stop" IS the Unitree remote's B/damping command. It commands damping; it does
+   not hard-cut motor power. Do not describe or rely on it as a power kill.
+2. `deploy/kill_now.sh` — SIGTERM→SIGKILL the controller container. Robot reaching
+   damping afterward is only ASSUMED until verified in Step 3a. Rides the SSH link —
+   useless if PC2 comms are down (that is exactly why Step 3a's deadman matters).
+3. Robot power switch / battery — the only guaranteed torque removal. Know where it is.
+
+Ground rule: never let #2 be your primary stop until Step 3a has proven it works.
+The remote (#1) and power (#3) are the trustworthy layers.
