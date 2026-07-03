@@ -409,12 +409,47 @@ class ExamEnv:
         # CSV order == mujoco joint-definition order (playback_csv.py invariant)
         mj_names = [mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, j) for j in range(1, model.njnt)]
         self.csv_to_policy = np.array([mj_names.index(nm) for nm in policy.joint_names])
+        # --- reconcile rotor inertia with the training engine (mjlab) --------------
+        # The exported PD gains follow mjlab's relation kp = armature * (2*pi*10)^2,
+        # but the plain unitree_mujoco XML ships a flat dof_armature (0.01 on 9 joints).
+        # Stiff kp (up to ~99) on the wrong inertia leaves the explicit PD under-damped,
+        # so a GOOD policy collapses in ~1 s (false fail). Recover each actuated joint's
+        # true rotor inertia from the gains it was tuned for and write it onto the model,
+        # matching mjlab's BuiltinPositionActuator dynamics. This is faithful, not tuned:
+        # the recovered values snap to the real G1 motor armatures (5020/7520/4010),
+        # asserted below so a mis-scaled meta can't silently pass through.
+        kp = getattr(policy, "kp", None)
+        if kp is not None:
+            w0 = 2.0 * np.pi * 10.0  # 10 Hz natural frequency (mjlab robots/g1.py)
+            known = np.array([0.0036097, 0.0042500, 0.0072194, 0.0101775, 0.0251019])
+            for i in range(self.n):
+                arm = float(kp[i]) / (w0 * w0)
+                if np.min(np.abs(known - arm)) > 0.02 * max(arm, 1e-6):
+                    raise ValueError(
+                        f"armature recovered from kp[{i}]={kp[i]:.3f} is {arm:.5f}, which "
+                        f"does not match any known G1 motor armature {known.tolist()} — "
+                        "policy_meta kp is likely mis-scaled; refusing to run the exam."
+                    )
+                self.model.dof_armature[self.vadr[i]] = arm
         self.anchor_id = mujoco.mj_name2id(
             model, mujoco.mjtObj.mjOBJ_BODY, getattr(policy, "anchor_body_name", "torso_link")
         )
         self.torso_id = self.anchor_id
         self.ctrl_lo = model.actuator_ctrlrange[:, 0]
         self.ctrl_hi = model.actuator_ctrlrange[:, 1]
+        # --- reconcile the IMU sensor with mjlab -----------------------------------
+        # mjlab's obs velocity terms are a velocimeter/gyro at site `imu_in_pelvis`,
+        # offset (0.04525, 0, -0.08339) from the pelvis, NOT the root-body velocity.
+        # The velocimeter includes the omega x r lever-arm term, which is large during
+        # dynamic dancing — omitting it feeds the policy a wrong velocity and it slowly
+        # drifts (upright but off-choreography). Move the model's pelvis IMU site to the
+        # mjlab offset and read the true site velocity (mj_objectVelocity) for the vel
+        # terms, so the observation matches the training engine.
+        imu_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "imu")
+        if imu_id >= 0:
+            model.site_pos[imu_id] = np.array([0.04525, 0.0, -0.08339])
+        self.imu_site_id = imu_id
+        self._imu_vel6 = np.zeros(6)  # scratch: [ang(3), lin(3)] in site frame
         # DR snapshots (finding #6): restore these before re-randomizing each run so
         # perturbations never accumulate across the shared model.
         self._friction0 = model.geom_friction.copy()
@@ -499,24 +534,20 @@ class ExamEnv:
             return r.reshape(3, 3).T @ (mo.anchor_pos[i] - self.data.xpos[self.anchor_id])
         if term == "motion_anchor_ori_b":
             return _mat_first_two_cols_b(mo.anchor_quat_wxyz[i], self.data.xquat[self.anchor_id])
-        if term == "base_lin_vel":
-            r = np.zeros(9)
-            mujoco.mju_quat2Mat(r, self.data.qpos[3:7])
-            return r.reshape(3, 3).T @ self.data.qvel[0:3]
-        if term == "base_ang_vel":
-            return self.data.qvel[3:6].copy()  # free joint ang vel is body-frame
-        # mjlab IMU terms (task Mjlab-Tracking-Flat-Unitree-G1): the builtin IMU
-        # sensor reports base-frame linear/angular velocity — same physical quantity
-        # as base_lin_vel/base_ang_vel here. CONVENTION TO CONFIRM against mjlab
-        # src/mjlab/tasks/tracking/mdp (imu sensor site & any gravity term); if mjlab
-        # measures at a non-torso IMU site or includes projected gravity, this needs
-        # the site offset. Flagged in deploy_kit_built.md.
-        if term == "imu_lin_vel":
-            r = np.zeros(9)
-            mujoco.mju_quat2Mat(r, self.data.qpos[3:7])
-            return r.reshape(3, 3).T @ self.data.qvel[0:3]
-        if term == "imu_ang_vel":
-            return self.data.qvel[3:6].copy()
+        # mjlab velocity terms = velocimeter/gyro at the pelvis IMU site (with lever
+        # arm), in the site frame. mj_objectVelocity(flg_local=1) returns [ang, lin].
+        if term in ("base_lin_vel", "imu_lin_vel", "base_ang_vel", "imu_ang_vel"):
+            if self.imu_site_id >= 0:
+                mujoco.mj_objectVelocity(
+                    self.model, self.data, mujoco.mjtObj.mjOBJ_SITE,
+                    self.imu_site_id, self._imu_vel6, 1)
+                ang, lin = self._imu_vel6[0:3], self._imu_vel6[3:6]
+            else:  # no IMU site: fall back to root-body velocity (no lever arm)
+                r = np.zeros(9)
+                mujoco.mju_quat2Mat(r, self.data.qpos[3:7])
+                ang = self.data.qvel[3:6]
+                lin = r.reshape(3, 3).T @ self.data.qvel[0:3]
+            return (lin if term.endswith("lin_vel") else ang).copy()
         if term == "joint_pos":
             return self.joint_pos() - self.policy.default_pos
         if term == "joint_vel":
@@ -699,6 +730,33 @@ def run_repeatability(env: ExamEnv, runs: int, dr: dict | None = None) -> dict:
 
 
 # --------------------------------------------------------------------------- main
+def static_pose_hold_ok(env: "ExamEnv", seconds: float = 2.0) -> bool:
+    """Faithfulness pre-check: can the exam model even HOLD the policy's default pose?
+
+    If a rigid PD hold of a valid standing pose collapses, the exam model is not
+    dynamically equivalent to the training engine (foot-contact geometry, mass, or
+    actuator model) and WILL false-fail every good policy. In that case the exam must
+    not report a policy verdict — a "fail" here means the harness is broken, not the
+    policy. Returns True iff the robot stays upright for `seconds`.
+    """
+    pol = env.policy
+    if getattr(pol, "default_pos", None) is None or getattr(pol, "kp", None) is None:
+        return True  # stub/unknown policy: nothing to check, don't block
+    d = env.data
+    env.reset(seed=0)
+    d.qpos[7:] = pol.default_pos
+    mujoco.mj_forward(env.model, d)
+    d.qpos[2] -= float(d.xpos[:, 2].min())  # settle feet onto the floor
+    mujoco.mj_forward(env.model, d)
+    for _ in range(int(seconds / SIM_DT)):
+        tau = pol.kp * (pol.default_pos - env.joint_pos()) - pol.kd * env.joint_vel()
+        d.ctrl[env.aadr] = np.clip(tau, env.ctrl_lo[env.aadr], env.ctrl_hi[env.aadr])
+        mujoco.mj_step(env.model, d)
+        if env._abs_tilt_rad() > ABS_TILT_FAIL_RAD or float(d.xpos[env.anchor_id][2]) < ABS_MIN_TORSO_Z_M:
+            return False
+    return True
+
+
 def sha256(p: Path) -> str:
     return full_sha256(p)  # full 64-hex identity (finding #32)
 
@@ -728,6 +786,15 @@ def main() -> int:
 
     print(f"[sim_exam] {args.policy} vs {motion_path.name}: {motion.ticks} ticks "
           f"({motion.ticks / CTRL_HZ:.1f}s) @ {CTRL_HZ:.0f}Hz, anchor={anchor}")
+
+    # Faithfulness gate: refuse to score a policy on a model that can't even hold a
+    # static pose (it would false-fail everything). This is NOT a policy verdict.
+    model_faithful = static_pose_hold_ok(env)
+    if not model_faithful:
+        print("[sim_exam] WARNING: exam model FAILS the static pose-hold self-check — "
+              "the plain unitree_mujoco G1 is not dynamically equivalent to the mjlab "
+              "training model, so it false-fails every policy. Verdict = INVALID "
+              "(a harness fidelity problem, NOT a policy failure). See docs/exam_physics_fix.md.")
 
     frames: list | None = None
     renderer = None
@@ -759,7 +826,11 @@ def main() -> int:
     # real failure is "fail"; a deliberately partial exam is "incomplete".
     complete = push is not None and repeat is not None
     all_passed = nominal["pass"] and (push is not None and push["pass"]) and (repeat is not None and repeat["pass"])
-    if not complete:
+    if not model_faithful:
+        # Broken exam model: never "pass" (safe), and not "fail" either (which would be
+        # misread as a bad policy). "invalid" tells a human to fix the harness.
+        verdict_str = "invalid"
+    elif not complete:
         verdict_str = "incomplete"
     elif all_passed:
         verdict_str = "pass"
@@ -775,6 +846,7 @@ def main() -> int:
         "motion_sha256": sha256(motion_path),
         "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "control_hz": CTRL_HZ,
+        "model_faithful": model_faithful,
         "nominal": nominal,
         "push": push,
         "repeatability": repeat,
