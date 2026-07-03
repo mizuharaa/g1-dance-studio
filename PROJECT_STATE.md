@@ -120,12 +120,20 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   (6) also available: A40 family up to 8×48GB — relevant if 24GB VRAM ever binds;
   (7) custom container images ARE selectable (besides the fixed PyTorch 2.5.1 image) —
   softens the Isaac Lab risk from the earlier research.
-- 2026-07-02 (night): **Billing model ANSWERED (user):** notebook charges the FULL
-  MONTH upfront at creation; refund of the remainder on DELETE. ⇒ Cost strategy:
-  stopping saves nothing — create the notebook when entering a GPU-intensive phase,
-  keep it for the phase, DELETE it at phase end to reclaim credit (data survives on
-  the Network Volume + laptop syncs). Budget note: creation needs ≥16.16M VND
-  (~$623+VAT) of credit available even if most is later refunded.
+- 2026-07-02 (night): Billing model per user: full month upfront, refund on delete.
+  **SUPERSEDED 2026-07-03** ↓
+- 2026-07-03: **GreenNode internal-team terms (user, from GreenNode directly):**
+  25% off for internal teams; **pay-as-you-go, no subscription package**; billing
+  runs from instance CREATION to DELETION; usable immediately, charges **reconciled
+  at end of month (effectively postpaid)** ⇒ the 0-credit balance is NO LONGER a
+  blocker — provisioning can start now. Cost anchor: 16.08M VND/mo ÷ 730 h ≈
+  22,000 VND/h, minus 25% ≈ **16,500 VND/h ≈ $0.64/h** for the 1×4090 flavor
+  (assuming pro-rata; confirm). Strategy unchanged: DELETE (not stop) at phase end.
+  OPEN questions sent back to GreenNode: (1) is the hourly rate the monthly price
+  pro-rated, and does the console's unlabeled price mean monthly? (2) is the 25%
+  + postpaid flag already active on alois@vng.com.vn (console showed prepaid/0
+  credits on 2026-07-02)? (3) does STOP pause compute billing or only DELETE ends
+  it? (4) VAT treatment for internal teams.
 - 2026-07-02 (night): **Body models INSTALLED** — user delivered SMPL v1.1.0 +
   SMPL-X v1.1 zips; pipeline/body_models.py verified all 9 model files, GMR symlink
   done (ready=true). Password rotation: user declined for now ("no need").
