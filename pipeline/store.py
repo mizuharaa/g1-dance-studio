@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -27,6 +28,20 @@ from pathlib import Path
 from .config import JOBS_DIR, STAGE_ORDER
 
 STAGE_STATES = ("pending", "running", "done", "failed", "skipped", "blocked")
+
+
+class CorruptJobError(Exception):
+    """A job.json is unreadable/unparseable. Raised by load_job; list_jobs skips
+    these so one bad file can't brick startup or the whole job list (audit HIGH)."""
+
+
+def _durable_write(path: Path, text: str) -> None:
+    """Write + fsync so a power loss can't leave a zero-length state file
+    (audit MEDIUM: atomic-but-not-durable). The caller os.replace()s afterward."""
+    with open(path, "w") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
 
 
 @dataclass
@@ -80,7 +95,7 @@ class Job:
             "stages": {k: asdict(v) for k, v in self.stages.items()},
         }
         tmp = self.dir / "job.json.tmp"
-        tmp.write_text(json.dumps(payload, indent=2))
+        _durable_write(tmp, json.dumps(payload, indent=2))
         os.replace(tmp, self.dir / "job.json")
 
 
@@ -99,19 +114,32 @@ def new_job(name: str, input: dict | None = None) -> Job:
 
 
 def load_job(job_id: str) -> Job:
-    payload = json.loads((JOBS_DIR / job_id / "job.json").read_text())
-    return Job(
-        id=payload["id"],
-        name=payload["name"],
-        created_at=payload["created_at"],
-        stages={k: StageStatus(**v) for k, v in payload["stages"].items()},
-        input=payload.get("input", {}),
-    )
+    path = JOBS_DIR / job_id / "job.json"
+    try:
+        payload = json.loads(path.read_text())
+        return Job(
+            id=payload["id"],
+            name=payload["name"],
+            created_at=payload["created_at"],
+            stages={k: StageStatus(**v) for k, v in payload["stages"].items()},
+            input=payload.get("input", {}),
+        )
+    except FileNotFoundError:
+        raise
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        raise CorruptJobError(f"{job_id}: {e}") from e
 
 
 def list_jobs() -> list[Job]:
+    """All jobs, newest first. A single corrupt/truncated job.json is skipped
+    (logged to stderr) instead of aborting the whole list — otherwise one bad
+    file bricks app startup and /api/jobs (audit HIGH)."""
     jobs = []
     for d in sorted(JOBS_DIR.iterdir(), reverse=True):
-        if (d / "job.json").exists():
+        if not (d / "job.json").exists():
+            continue
+        try:
             jobs.append(load_job(d.name))
+        except CorruptJobError as e:
+            print(f"store: skipping corrupt job {e}", file=sys.stderr)
     return jobs

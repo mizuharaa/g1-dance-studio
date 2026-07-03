@@ -89,7 +89,9 @@ def _ssh_argv(cfg: dict, command: str) -> list[str]:
     if s.get("key_path"):
         argv += ["-i", str(Path(s["key_path"]).expanduser())]
     if s.get("password"):
-        argv = ["sshpass", "-p", s["password"], *argv]
+        # sshpass -e reads the password from the SSHPASS env var, NOT argv, so it
+        # never appears in the process table / `ps` output (audit MEDIUM security).
+        argv = ["sshpass", "-e", *argv]
     return [*argv, f"{s.get('user', 'root')}@{s['host']}", command]
 
 
@@ -101,6 +103,9 @@ def _run_ssh(cfg: dict, command: str, timeout: int = 30) -> tuple[int, str, str]
     # The desktop launcher exports LD_LIBRARY_PATH=$CONDA_PREFIX/lib for Qt; that
     # breaks the system ssh binary (OpenSSL version mismatch). Scrub it here.
     env = {k: v for k, v in os.environ.items() if k != "LD_LIBRARY_PATH"}
+    pw = cfg.get("ssh", {}).get("password")
+    if pw:
+        env["SSHPASS"] = pw  # consumed by `sshpass -e`, kept out of argv/ps
     proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
                           env=env)
     return proc.returncode, proc.stdout, proc.stderr

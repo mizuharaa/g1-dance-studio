@@ -17,6 +17,9 @@ from pathlib import Path
 MIN_SECONDS = 15
 MAX_SECONDS = 240
 ADVISORY_MIN_HEIGHT = 720
+# Sane aspect band: 9:16 portrait (0.56) to 21:9 ultrawide (2.33), with margin.
+MIN_ASPECT = 0.4
+MAX_ASPECT = 2.5
 
 
 def probe(path: Path) -> dict:
@@ -50,6 +53,10 @@ def validate(path: Path) -> dict:
 
     duration = float(meta.get("format", {}).get("duration")
                      or video.get("duration") or 0)
+    if duration <= 0:  # don't misreport a duration-less/corrupt file as "0.0s too short"
+        raise RuntimeError(
+            "could not read the video's duration — the file may be corrupt or "
+            "truncated; try re-exporting it")
     if duration < MIN_SECONDS:
         raise RuntimeError(
             f"video is {duration:.1f}s — too short, the pipeline needs at "
@@ -63,8 +70,21 @@ def validate(path: Path) -> dict:
     width, height = int(video.get("width", 0)), int(video.get("height", 0))
     r_fps, avg_fps = _fps(video, "r_frame_rate"), _fps(video, "avg_frame_rate")
 
+    # HARD: degenerate or extreme geometry is unusable footage — reject locally in
+    # seconds rather than burning a paid cloud cycle (audit MEDIUM). The old advisory
+    # used AND so 1920x400 / 4000x100 slipped through with no signal at all.
+    if width <= 0 or height <= 0:
+        raise RuntimeError(
+            f"video has invalid dimensions ({width}x{height}) — unreadable geometry")
+    aspect = width / height
+    if not (MIN_ASPECT <= aspect <= MAX_ASPECT):
+        raise RuntimeError(
+            f"video aspect ratio {aspect:.2f} ({width}x{height}) is extreme — a "
+            "full-body dance needs a roughly normal frame (portrait to landscape), "
+            "not a sliver")
+
     advisories = []
-    if min(width, height) and height < ADVISORY_MIN_HEIGHT and width < 1280:
+    if height < ADVISORY_MIN_HEIGHT or width < 1280:  # EITHER dim small = advise
         advisories.append(f"resolution {width}x{height} is below 720p — pose "
                           "extraction quality may suffer")
     if r_fps and avg_fps and abs(r_fps - avg_fps) / max(r_fps, avg_fps) > 0.01:

@@ -38,6 +38,11 @@ STATIC_DIR = Path(__file__).parent / "static"
 PREVIEWS_DIR = DATA_DIR / "previews"
 VET_SCRIPT = PROJECT_ROOT / "pipeline" / "vet_motion.py"
 
+# Upload guard rails (audit HIGH: unbounded upload + double copy exhausts disk).
+MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024   # 2 GB — a 4-min clip fits comfortably
+MIN_FREE_DISK_BYTES = 3 * 1024 * 1024 * 1024  # keep 3 GB headroom for state writes
+_UPLOAD_CHUNK = 1024 * 1024
+
 app = FastAPI(title="G1 Dance Studio")
 
 # Vet runs load MuJoCo and FK every frame (~seconds); cache per (path, mtime).
@@ -59,11 +64,12 @@ def _worker_loop() -> None:
             job = store.load_job(job_id)
             _runner.run_job(job)
         except Exception:
+            tb = traceback.format_exc()
+            print(f"job-worker error on {job_id}:\n{tb}", file=sys.stderr)
             try:
-                store.load_job(job_id).log(
-                    f"worker error:\n{traceback.format_exc()}")
+                store.load_job(job_id).log(f"worker error:\n{tb}")
             except Exception:
-                pass
+                pass  # already logged to stderr above — never lose the trace silently
         finally:
             _job_queue.task_done()
 
@@ -88,8 +94,18 @@ def _reconcile_jobs() -> None:
 
 @app.on_event("startup")
 def _start_worker() -> None:
-    _reconcile_jobs()
-    shows.seed_initial_dances()
+    # A bad job.json or a seeding hiccup must NEVER prevent the worker thread from
+    # starting (audit HIGH: one corrupt record bricked the whole app). Guard each.
+    try:
+        _reconcile_jobs()
+    except Exception:
+        print(f"startup: _reconcile_jobs failed:\n{traceback.format_exc()}",
+              file=sys.stderr)
+    try:
+        shows.seed_initial_dances()
+    except Exception:
+        print(f"startup: seed_initial_dances failed:\n{traceback.format_exc()}",
+              file=sys.stderr)
     threading.Thread(target=_worker_loop, name="job-worker", daemon=True).start()
     threading.Thread(target=_system_refresh_loop, name="system-monitor",
                      daemon=True).start()
@@ -135,12 +151,20 @@ def job_detail(job_id: str) -> dict:
     return d
 
 
-def _create_job(name: str, src: Path) -> store.Job:
-    """Create a job from an input file: .csv = robot motion, else video."""
+def _create_job(name: str, src: Path, *, move: bool = False) -> store.Job:
+    """Create a job from an input file: .csv = robot motion, else video.
+
+    move=True relocates src into the job dir (rename) instead of copying — used
+    for uploads so a big file isn't written to disk twice (audit HIGH)."""
     kind = "csv" if src.suffix.lower() == ".csv" else "video"
+    size = src.stat().st_size
     job = store.new_job(name, input={"type": kind, "source": str(src)})
-    shutil.copyfile(src, job.dir / ("input.csv" if kind == "csv" else "input.mp4"))
-    job.log(f"input {kind}: {src} ({src.stat().st_size} bytes)")
+    dest = job.dir / ("input.csv" if kind == "csv" else "input.mp4")
+    if move:
+        shutil.move(str(src), dest)   # rename within data/ — no second full copy
+    else:
+        shutil.copyfile(src, dest)
+    job.log(f"input {kind}: {src.name} ({size} bytes)")
     _job_queue.put(job.id)
     return job
 
@@ -157,16 +181,35 @@ def create_job(payload: dict = Body(...)) -> dict:
 
 @app.post("/api/jobs/upload")
 async def create_job_upload(video: UploadFile) -> dict:
-    """Create a job from a browser-style file upload."""
-    # BUG-1: the client controls filename — keep only its basename so a name
-    # like "../../evil.sh" cannot escape the videos directory.
+    """Create a job from a browser-style file upload.
+
+    Guards (audit HIGH): the client controls the filename → keep only its
+    basename so '../../evil.sh' can't escape the dir; cap the size and check free
+    disk while streaming so a multi-GB file can't fill the operator's laptop; and
+    hand the temp file to the job by MOVE so it isn't copied to disk twice."""
     safe_name = Path(video.filename or "upload").name
-    tmp = DATA_DIR / "videos" / f"upload-{int(time.time())}-{safe_name}"
-    tmp.parent.mkdir(parents=True, exist_ok=True)
-    with open(tmp, "wb") as f:
-        shutil.copyfileobj(video.file, f)
-    name = Path(safe_name).stem
-    return _job_dict(_create_job(name, tmp))
+    videos_dir = DATA_DIR / "videos"
+    videos_dir.mkdir(parents=True, exist_ok=True)
+    free = shutil.disk_usage(videos_dir).free
+    if free < MIN_FREE_DISK_BYTES:
+        raise HTTPException(507, "not enough free disk space to accept an upload")
+    tmp = videos_dir / f"upload-{int(time.time())}-{safe_name}"
+    written = 0
+    try:
+        with open(tmp, "wb") as f:
+            while chunk := await video.read(_UPLOAD_CHUNK):
+                written += len(chunk)
+                if written > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        413, f"upload exceeds the {MAX_UPLOAD_BYTES // (1024**3)} GB "
+                             "limit — trim the clip to the segment to learn")
+                if written > free - MIN_FREE_DISK_BYTES:
+                    raise HTTPException(507, "upload would fill the disk — aborted")
+                f.write(chunk)
+    except BaseException:
+        tmp.unlink(missing_ok=True)  # never leave a partial/oversized file behind
+        raise
+    return _job_dict(_create_job(Path(safe_name).stem, tmp, move=True))
 
 
 @app.post("/api/jobs/{job_id}/retry")
@@ -361,6 +404,49 @@ def register_dance(payload: dict = Body(...)) -> dict:
               ("duration_s", "motion_csv", "policy_path", "preview", "notes",
                "source_job") if k in payload}
     return _dance_dict(shows.new_dance(name, **fields))
+
+
+@app.post("/api/dances/{dance_id}/policy")
+def attach_policy(dance_id: str, payload: dict = Body(...)) -> dict:
+    """Attach a trained policy to an existing dance (audit HIGH workflow gap).
+
+    The register-first flow had no way to set policy_path after creation, stranding
+    a trained policy before it could be exam-verified. Attaching a policy resets the
+    dance's verification state (the exam ran on a different policy) — re-run the exam."""
+    _load_dance_or_404(dance_id)
+    policy = (payload.get("policy_path") or "").strip()
+    if not policy:
+        raise HTTPException(400, "policy_path is required")
+    try:
+        return _dance_dict(shows.attach_policy(dance_id, policy,
+                                               notes=payload.get("notes")))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/library/export")
+def library_export() -> FileResponse:
+    """Download the whole dance library as one portable .tar.gz (audit HIGH:
+    disaster recovery — a laptop failure otherwise loses weeks of training)."""
+    from pipeline import library
+    archive = library.export_library()
+    return FileResponse(archive, media_type="application/gzip",
+                        filename=archive.name)
+
+
+@app.post("/api/library/import")
+def library_import(payload: dict = Body(...)) -> dict:
+    """Restore dances from an archive path on disk (round-trips with export)."""
+    from pipeline import library
+    src = (payload.get("archive_path") or "").strip()
+    if not src:
+        raise HTTPException(400, "archive_path is required")
+    try:
+        ids = library.import_library(Path(src).expanduser(),
+                                     overwrite=bool(payload.get("overwrite")))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"imported": ids, "count": len(ids)}
 
 
 @app.post("/api/dances/{dance_id}/promote")

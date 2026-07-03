@@ -8,6 +8,7 @@ Usage: python find_window.py motion.csv [--out segment.csv] [--min-seconds 20]
 """
 
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,13 @@ MIN_PELVIS_HEIGHT_M = 0.35
 
 
 def longest_window(m):
+    """Longest contiguous window whose root XY stays within MAX_EXCURSION of the
+    window start and whose pelvis never drops below the floorwork limit.
+
+    NOTE: the z test is absolute (floor at z=0), so the caller must pass a
+    GROUNDED motion (see pipeline.grounding). The retarget stage and this
+    module's CLI ground before calling; callers with raw retarget output must
+    ground first or the floorwork check is meaningless (audit HIGH)."""
     xy = m[:, 0:2]
     z_ok = m[:, 2] >= MIN_PELVIS_HEIGHT_M
     best = (0, 0)
@@ -45,7 +53,16 @@ def main():
     ap.add_argument("--min-seconds", type=float, default=20.0)
     args = ap.parse_args()
 
-    m = np.loadtxt(args.csv, delimiter=",")
+    # Runs as a standalone script too — import via the absolute package so a
+    # relative import doesn't blow up the CLI.
+    root = Path(__file__).resolve().parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from pipeline.grounding import ground_motion, have_model
+    from pipeline.motion_io import load_motion_csv
+    m = load_motion_csv(args.csv)
+    if have_model():
+        m, _ = ground_motion(m)  # window's z test is absolute — ground first
     s, e = longest_window(m)
     dur = (e - s + 1) / CSV_FPS
     print(f"{args.csv}: best window frames {s}..{e} = {dur:.1f}s "

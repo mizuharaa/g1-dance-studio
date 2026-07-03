@@ -71,10 +71,13 @@ def test_ssh_argv_key_auth():
     assert any("BatchMode=yes" in a for a in argv)  # key auth keeps BatchMode
 
 
-def test_ssh_argv_password_uses_sshpass_and_drops_batchmode():
+def test_ssh_argv_password_uses_sshpass_env_not_argv():
+    # audit MEDIUM security: the password must NOT appear in argv (process table).
+    # sshpass -e reads it from the SSHPASS env var instead.
     argv = cloud._ssh_argv(
         {"ssh": {"host": "h", "password": "pw"}}, "true")
-    assert argv[:3] == ["sshpass", "-p", "pw"]
+    assert argv[:2] == ["sshpass", "-e"]
+    assert "pw" not in argv                          # secret never in the argument list
     assert not any("BatchMode" in a for a in argv)
     assert argv[-2] == "root@h"                     # default user root
 

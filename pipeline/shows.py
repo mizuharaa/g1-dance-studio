@@ -76,7 +76,10 @@ CHECKLIST_KEYS = [s["key"] for s in CHECKLIST_STEPS]
 
 def _atomic_write(path: Path, payload: dict) -> None:
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(payload, indent=2))
+    with open(tmp, "w") as f:  # fsync so power loss can't leave a 0-byte record
+        f.write(json.dumps(payload, indent=2))
+        f.flush()
+        os.fsync(f.fileno())
     os.replace(tmp, path)
 
 
@@ -274,6 +277,30 @@ def promote(dance: Dance, to_status: str) -> Dance:
                     "cannot promote: policy file changed since the passing exam "
                     "(sha mismatch) — re-run the sim exam on the current policy")
         dance.status = to_status
+        dance.save()
+        return dance
+
+
+def attach_policy(dance_id: str, policy_path: str, *, notes: str | None = None) -> Dance:
+    """Attach a trained policy to an already-registered dance (audit HIGH workflow gap).
+
+    The register-first / seeded-dance flow had NO way to set policy_path after
+    creation, stranding a trained policy before it could ever be exam-verified.
+    Attaching a (new) policy invalidates any prior verification: the sim exam ran
+    against a different policy, so we reset the streak, clear the pinned sha and
+    verdict, and demote to draft. The operator must re-run the sim exam."""
+    with _record_lock(DANCES_DIR / dance_id):
+        dance = load_dance(dance_id)
+        if not _abs(policy_path).is_file():
+            raise ValueError(f"policy file not found: {policy_path}")
+        dance.policy_path = policy_path
+        if notes:
+            dance.notes = notes
+        # a different policy ⇒ old exam no longer applies (findings #24/#27)
+        dance.policy_sha256 = None
+        dance.sim_exam = None
+        dance.status = "draft"
+        dance.repeatability["consecutive_clean"] = 0
         dance.save()
         return dance
 
