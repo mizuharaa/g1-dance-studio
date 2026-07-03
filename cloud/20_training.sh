@@ -60,7 +60,9 @@ else
             git clone --depth 1 --branch v2.1.0 https://github.com/isaac-sim/IsaacLab "$ISAACLAB"
         fi
         log "installing Isaac Lab 2.1.0"
-        ( cd "$ISAACLAB" && ./isaaclab.sh --install none ) \
+        # isaaclab.sh expects `python` on PATH (activate the venv) and a sane
+        # terminal (TERM=dumb — it dies on tput codes when run without a TTY)
+        ( cd "$ISAACLAB" && . "$VENV/bin/activate" && TERM=dumb ./isaaclab.sh --install none ) \
             2> "$NB_DATA/logs/isaaclab_install.err" \
             || { report "isaac_failed" "IsaacLab install script failed — see logs/isaaclab_install.err; USE MJLAB FALLBACK"; exit 1; }
         "$PY" -m pip install -q -e "$WBT/source/whole_body_tracking" \

@@ -32,8 +32,15 @@ fi
 # GVHMR's setup.py declares no dependencies — the real ones are pinned in
 # requirements.txt (incl. its own torch and a matching pytorch3d wheel).
 log "installing GVHMR python deps from requirements.txt (first run ~10 min)"
-"$PY" -m pip install -q -r "$REPO/requirements.txt" 2>&1 | tail -3 \
+# chumpy and cython_bbox (SMPL-era packages) predate modern pip build
+# isolation and fail to even build metadata — install them last,
+# --no-build-isolation, against already-present numpy/Cython/setuptools.
+grep -vE "^(chumpy|cython_bbox)" "$REPO/requirements.txt" > /tmp/gvhmr-reqs.txt
+"$PY" -m pip install -q "numpy==1.23.5" "setuptools>=68,<70" Cython 2>&1 | tail -1
+"$PY" -m pip install -q -r /tmp/gvhmr-reqs.txt 2>&1 | tail -3 \
     || die "GVHMR requirements install failed"
+"$PY" -m pip install -q --no-build-isolation chumpy cython_bbox 2>&1 | tail -2 \
+    || die "chumpy/cython_bbox install failed (even with --no-build-isolation)"
 "$PY" -m pip install -q -e "$REPO" --no-deps 2>&1 | tail -2 \
     || die "GVHMR pip install failed"
 
