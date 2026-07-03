@@ -262,8 +262,14 @@ def fit_motion_to_venue(motion: np.ndarray, venue: Venue) -> dict:
     }
 
     if not fits:
-        s, e = longest_window(motion, max_excursion_m=maxexc)
-        wcx, wcy = window_center(motion, s, e)
+        # longest_window's floorwork test is absolute-z (floor at 0), so it must run
+        # on a GROUNDED motion — otherwise an un-grounded clip mis-flags the window
+        # (audit LOW: latent). Ground first when the model is available; XY (the
+        # footprint) is unaffected so the fits/timeline results above are unchanged.
+        from .grounding import ground_motion, have_model
+        m_win = ground_motion(np.asarray(motion))[0] if have_model() else motion
+        s, e = longest_window(m_win, max_excursion_m=maxexc)
+        wcx, wcy = window_center(m_win, s, e)
         report["suggested_window"] = {
             "start_s": round(s / CSV_FPS, 2),
             "end_s": round((e + 1) / CSV_FPS, 2),

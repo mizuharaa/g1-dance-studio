@@ -95,7 +95,18 @@ def compute_cost(billing: dict, now: float | None = None) -> dict:
         created = datetime.fromisoformat(b["created_at"]).timestamp()
     except (ValueError, TypeError):
         created = datetime.fromisoformat(DEFAULT_BILLING["created_at"]).timestamp()
-    hours = max(0.0, (now - created) / 3600)
+    # Billing runs creation→DELETION. Once the box is deleted, stamp
+    # billing["deleted_at"] so cost stops accruing (audit: it accrued forever,
+    # permanently over-reporting spend). We stop only on an EXPLICIT deletion time,
+    # not on a transient unreachable uplink (which is not deletion).
+    end = now
+    deleted_at = b.get("deleted_at")
+    if deleted_at:
+        try:
+            end = min(end, datetime.fromisoformat(deleted_at).timestamp())
+        except (ValueError, TypeError):
+            pass
+    hours = max(0.0, (end - created) / 3600)
     rate = float(b["rate_vnd_per_hour"])
     cap = float(b["cap_vnd"])
     vnd = hours * rate
