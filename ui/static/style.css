@@ -79,7 +79,7 @@ a{color:var(--accent);text-decoration:none}
   border-radius:var(--r);padding:7px 12px;width:240px;color:var(--text-faint)}
 .search input{background:none;border:none;outline:none;color:var(--text);font-size:13px;width:100%}
 .search svg{width:15px;height:15px}
-.content{padding:26px 28px 60px;max-width:1180px;width:100%}
+.content{padding:26px clamp(24px,3vw,44px) 60px;width:100%;max-width:1680px;margin:0 auto}
 .screen{display:none;animation:fade .3s ease}
 .screen.active{display:block}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -104,9 +104,9 @@ a{color:var(--accent);text-decoration:none}
 .card-h .ico svg{width:16px;height:16px;color:var(--accent)}
 .card-h .more{margin-left:auto;color:var(--text-faint);font-size:12px}
 .grid{display:grid;gap:18px}
-.g-3{grid-template-columns:repeat(3,1fr)}
-.g-2{grid-template-columns:repeat(2,1fr)}
-.g-4{grid-template-columns:repeat(4,1fr)}
+.g-3{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.g-2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
+.g-4{grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
 
 /* badges */
 .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:.01em}
@@ -154,7 +154,7 @@ a{color:var(--accent);text-decoration:none}
 .act .aw{color:var(--text-faint);font-size:11.5px;white-space:nowrap}
 
 /* dance card grid */
-.dance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.dance-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:18px}
 .dcard{background:var(--bg-1);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;transition:.16s;cursor:pointer}
 .dcard:hover{border-color:var(--border-2);transform:translateY(-3px);box-shadow:var(--shadow)}
 .dthumb{height:150px;position:relative;display:grid;place-items:center;overflow:hidden}
@@ -302,3 +302,29 @@ button:disabled{opacity:.5;cursor:not-allowed;filter:none!important;transform:no
 .job-row .jn{font-weight:600;font-size:13.5px}
 .job-row .jm{font-size:11.5px;color:var(--text-faint)}
 video.preview{width:100%;border-radius:var(--r);background:#000;display:block}
+
+/* ===== responsive: fill wide windows, collapse gracefully when narrow ===== */
+/* narrower desktop windows — drop the dashboard's two-up rows to one column */
+@media (max-width:980px){
+  .g-2{grid-template-columns:1fr}
+  .dance-grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+}
+/* tablet / small window — shrink the sidebar to an icon rail */
+@media (max-width:760px){
+  .sidebar{width:64px;padding:14px 8px}
+  .logo-txt,.nav-item span:not(.nav-badge),.nav-label,.sidebar-foot .sc-txt,.cost-mini{display:none}
+  .nav-item{justify-content:center;gap:0;padding:11px 0}
+  .status-chip{justify-content:center;padding:9px 0}
+  .topbar{padding:0 16px}
+  .search{width:150px}
+  .g-4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .dance-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+}
+/* phone-width — single column everything, hide the search box */
+@media (max-width:520px){
+  .content{padding:18px 14px 48px}
+  .g-4,.g-3,.dance-grid{grid-template-columns:1fr}
+  .search{display:none}
+  .stepper{overflow-x:auto}
+}
+/* ultra-wide — the 1680px cap + auto-centering keeps line lengths readable */
