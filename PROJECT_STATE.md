@@ -472,6 +472,19 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   a few cross-lane UI/venue wires (noted per-agent). **Plan: merge each as it lands
   (disjoint lanes = clean), keep suite green, THEN a final integration test + preflight
   to guarantee robot day works. Robot-day readiness personally verified before done.**
+- 2026-07-04 (night): **ROBOT-DAY PACKAGE MERGED + PERSONALLY VERIFIED (main-thread).**
+  196 tests green. preflight_robot_day --stage gantry = **GO** (8 GO / 1 WARN=PC2-offline-
+  expected / 0 NO-GO): policy + policy_meta(sim gains) + thriller_deploy.csv(ramp) present,
+  verdict signed+bound (fail=sub-99% but OK for gantry), scripts present, shellcheck clean,
+  gantry bundle assembles, kill_now fires from any shell. --stage ground-free = correctly
+  **NO-GO** (sub-99% → needs ≥99% or conscious --informed-override) — safety gate proven.
+  Deploy-path bugs fixed (gen_config finds *verdict*.json + derives duration; mjlab_verify
+  binds motion_sha to the deployable CSV + records npz provenance). Full-day staged
+  10_gantry_test (gantry→ground-tethered→ground-free→push, per-stage typed phrases + hard
+  gates), gains-assertion (refuses to leave damping without SIM_GAINS_LOADED), telemetry
+  pull. Materials: docs/ROBOT_DAY_PLAN.md, ROBOT_DAY_CHECKLIST.md, preflight_robot_day.
+  **TOMORROW IS GO for the gantry stage.** Ground-free unlocks if attempt-2 hits ≥99%
+  overnight, else user makes a conscious informed-override call on the day.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
