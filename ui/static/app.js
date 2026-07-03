@@ -3,10 +3,43 @@
 
 const $ = (sel) => document.querySelector(sel);
 const api = async (path, opts) => {
-  const r = await fetch(path, opts);
+  let r;
+  try {
+    r = await fetch(path, opts);
+  } catch (netErr) {
+    markEngine(false);   // server/process down — surface it, don't fail silently
+    throw new Error("app engine not reachable");
+  }
+  markEngine(true);
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
   return r.json();
 };
+
+// Engine-down banner (audit MEDIUM): a background poll that hits a dead server used
+// to fail silently, leaving stale data on screen. Show a clear offline bar instead.
+function markEngine(ok) {
+  let bar = $("#engine-offline");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "engine-offline";
+    bar.textContent = "⚠ App engine not reachable — data may be stale. Retrying…";
+    bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:9999;" +
+      "background:#c0392b;color:#fff;padding:6px 12px;font:600 13px sans-serif;" +
+      "text-align:center;display:none";
+    document.body.appendChild(bar);
+  }
+  bar.style.display = ok ? "none" : "block";
+}
+
+// Disable a button for the duration of an async action so a double-click can't
+// double-submit a job / start two shows / fire the deploy gate twice (audit MEDIUM).
+async function withBusy(btn, fn) {
+  if (!btn) return fn();
+  if (btn.disabled) return;            // already in flight — ignore the repeat
+  btn.disabled = true;
+  try { return await fn(); }
+  finally { btn.disabled = false; }
+}
 
 let selectedJob = null;
 
@@ -64,13 +97,15 @@ $("#new-job-form").onsubmit = async (e) => {
   if (!file) return alert("Pick a video file first.");
   const fd = new FormData();
   fd.append("video", file);
-  try {
-    const j = await api("/api/jobs/upload", { method: "POST", body: fd });
-    selectedJob = j.id;
-    $("#video-file").value = "";
-    await refreshJobs();
-    await showJob(j.id);
-  } catch (err) { alert("Could not create job: " + err.message); }
+  await withBusy(e.submitter || $("#new-job-form button[type=submit]"), async () => {
+    try {
+      const j = await api("/api/jobs/upload", { method: "POST", body: fd });
+      selectedJob = j.id;
+      $("#video-file").value = "";
+      await refreshJobs();
+      await showJob(j.id);
+    } catch (err) { alert("Could not create job: " + err.message); }
+  });
 };
 
 // ---- vetting ---------------------------------------------------------------
@@ -82,7 +117,7 @@ async function loadMotions() {
   $("#csv-select").innerHTML = opts;
 }
 
-$("#csv-run").onclick = async () => {
+$("#csv-run").onclick = (e) => withBusy(e.currentTarget, async () => {
   const csv = $("#csv-select").value;
   if (!csv) return;
   try {
@@ -95,7 +130,7 @@ $("#csv-run").onclick = async () => {
     await refreshJobs();
     await showJob(j.id);
   } catch (err) { alert("Could not create job: " + err.message); }
-};
+});
 
 function vetHtml(r) {
   const row = (name, c, hard) => {
@@ -124,6 +159,14 @@ function playPreview(url) {
   v.src = url;
   v.hidden = false;
   $("#preview-hint").hidden = true;
+  // audit MEDIUM: a dangling/unserved preview used to fail silently (blank box).
+  v.onerror = () => {
+    v.hidden = true;
+    const hint = $("#preview-hint");
+    hint.hidden = false;
+    hint.textContent = "Preview unavailable — the render may still be in progress "
+      + "or the file is missing.";
+  };
 }
 
 $("#vet-run").onclick = async () => {
@@ -155,10 +198,14 @@ async function loadPreviews() {
 
 $("#deploy-btn").onclick = () => {
   if (!selectedJob) return;
-  $("#deploy-phrase").value = "";
-  $("#deploy-dialog").showModal();
+  delete $("#deploy-confirm").dataset.target;  // this is a STUDIO deploy (audit MEDIUM
+  $("#deploy-phrase").value = "";              // leak: a cancelled show-deploy left
+  $("#deploy-dialog").showModal();             // target='show' and misrouted this one)
 };
-$("#deploy-cancel").onclick = () => $("#deploy-dialog").close();
+$("#deploy-cancel").onclick = () => {
+  delete $("#deploy-confirm").dataset.target;  // clear target on cancel too
+  $("#deploy-dialog").close();
+};
 $("#deploy-confirm").onclick = async () => {
   try {
     const r = await api(`/api/jobs/${selectedJob}/deploy`, {
@@ -183,15 +230,20 @@ function cloudFieldsFor(transport) {
 async function refreshCloud(test = false) {
   const info = await api("/api/cloud");
   const cfg = info.config;
-  if (cfg.transport) {
-    document.querySelector(`input[name=transport][value=${cfg.transport}]`).checked = true;
-    cloudFieldsFor(cfg.transport);
+  // audit MEDIUM: the 30s auto-refresh used to overwrite fields mid-typing. Only
+  // (re)populate when the operator isn't editing the cloud form.
+  const editing = $("#cloud-form").contains(document.activeElement);
+  if (!editing) {
+    if (cfg.transport) {
+      document.querySelector(`input[name=transport][value=${cfg.transport}]`).checked = true;
+      cloudFieldsFor(cfg.transport);
+    }
+    $("#ssh-host").value = cfg.ssh.host || "";
+    $("#ssh-port").value = cfg.ssh.port || "";
+    $("#ssh-user").value = cfg.ssh.user || "";
+    $("#ssh-key").value = cfg.ssh.key_path || "";
+    $("#jup-url").value = cfg.jupyter.url || "";
   }
-  $("#ssh-host").value = cfg.ssh.host || "";
-  $("#ssh-port").value = cfg.ssh.port || "";
-  $("#ssh-user").value = cfg.ssh.user || "";
-  $("#ssh-key").value = cfg.ssh.key_path || "";
-  $("#jup-url").value = cfg.jupyter.url || "";
   const t = test ? await api("/api/cloud/test", { method: "POST" }) : info.last_test;
   const dot = $("#cloud-dot"), status = $("#cloud-status");
   if (!cfg.transport) {
@@ -377,7 +429,11 @@ function openDance(d) {
   $("#show-run").hidden = false;
   $("#show-dance-name").innerHTML = `${d.name} ${statusBadge(d)} ${repeatBadge(d)}`;
   const v = $("#show-preview");
-  if (d.preview) { v.src = d.preview; v.hidden = false; } else v.hidden = true;
+  if (d.preview) {
+    v.src = d.preview;
+    v.hidden = false;
+    v.onerror = () => { v.hidden = true; };  // don't leave a broken player (audit MEDIUM)
+  } else v.hidden = true;
   $("#show-start-box").hidden = false;
   $("#checklist-box").hidden = true;
   $("#show-deploy-result").textContent = "";
@@ -390,7 +446,7 @@ $("#show-back").onclick = () => {
   refreshDances(); refreshShowHistory();
 };
 
-$("#show-start").onclick = async () => {
+$("#show-start").onclick = (e) => withBusy(e.currentTarget, async () => {
   const operator = $("#operator-name").value.trim();
   if (!operator) return alert("Enter the operator name first.");
   if (!currentDance) return;
@@ -403,7 +459,7 @@ $("#show-start").onclick = async () => {
     $("#checklist-box").hidden = false;
     renderChecklist();
   } catch (err) { alert("Could not start show: " + err.message); }
-};
+});
 
 function renderChecklist() {
   const s = currentShow;
@@ -468,17 +524,23 @@ $("#deploy-confirm").onclick = async () => {
 };
 
 for (const btn of document.querySelectorAll("button.outcome")) {
-  btn.onclick = async () => {
+  btn.onclick = () => withBusy(btn, async () => {
     if (!currentShow) return;
+    const result = btn.dataset.result;
+    // audit MEDIUM: incident/abort is irreversible (it demotes the dance and resets
+    // its clean streak). Confirm before firing so one misclick can't do it.
+    if (result === "incident" || result === "aborted") {
+      if (!confirm(`Record this show as "${result}"? This demotes the dance from `
+                   + "show-ready and resets its clean-run streak.")) return;
+    }
     try {
       await api(`/api/shows/${currentShow.id}/outcome`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ result: btn.dataset.result,
-                               notes: $("#outcome-notes").value }),
+        body: JSON.stringify({ result, notes: $("#outcome-notes").value }),
       });
       $("#show-back").click();
     } catch (err) { alert("Could not record outcome: " + err.message); }
-  };
+  });
 }
 
 async function refreshShowHistory() {

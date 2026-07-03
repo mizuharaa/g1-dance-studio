@@ -12,7 +12,22 @@ import pytest
 
 from .conftest import HAVE_MODEL, make_motion
 
-from pipeline import library, motion_io, shows, store, video_probe
+from pipeline import library, monitor, motion_io, shows, store, video_probe
+
+
+# ---- monitor: parse real ANSI-coloured training logs (finding #7) ----------------
+
+def test_monitor_parses_ansi_training_log():
+    ansi = ("\x1b[1m        Learning iteration 1382/30000        \x1b[0m\n"
+            "            Mean reward: 13.25\n"
+            "            Mean episode length: 382.66\n"
+            "W&B: https://wandb.ai/luong-alois-vng-group/mjlab/runs/40g4byo3")
+    info = monitor.parse_job_log("train-dance1-seg", ansi)
+    assert info["iteration"] == 1382 and info["max_iteration"] == 30000
+    assert info["mean_reward"] == 13.25
+    assert info["mean_episode_length"] == 382.66
+    assert info["progress"] == round(1382 / 30000, 4)
+    assert info["wandb_url"].endswith("40g4byo3")
 
 
 # ---- motion_io: shape validation (no more cryptic tracebacks) --------------------
