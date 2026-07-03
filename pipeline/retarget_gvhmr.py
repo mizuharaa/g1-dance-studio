@@ -26,7 +26,12 @@ from general_motion_retargeting.utils.smpl import (  # noqa: E402
 )
 
 
-def retarget(pred_file: Path, out_csv: Path, robot: str = "unitree_g1") -> dict:
+def retarget(
+    pred_file: Path,
+    out_csv: Path,
+    robot: str = "unitree_g1",
+    use_velocity_limit: bool = False,
+) -> dict:
     smplx_folder = GMR_DIR / "assets" / "body_models"
     smplx_data, body_model, smplx_output, human_height = load_gvhmr_pred_file(
         str(pred_file), smplx_folder
@@ -34,7 +39,12 @@ def retarget(pred_file: Path, out_csv: Path, robot: str = "unitree_g1") -> dict:
     frames, fps = get_gvhmr_data_offline_fast(
         smplx_data, body_model, smplx_output, tgt_fps=30
     )
-    rt = GMR(actual_human_height=human_height, src_human="smplx", tgt_robot=robot)
+    rt = GMR(
+        actual_human_height=human_height,
+        src_human="smplx",
+        tgt_robot=robot,
+        use_velocity_limit=use_velocity_limit,
+    )
 
     qpos_list = []
     for i, frame in enumerate(frames):
@@ -67,5 +77,10 @@ if __name__ == "__main__":
     ap.add_argument("--pred", required=True, type=Path, help="hmr4d_results.pt from GVHMR")
     ap.add_argument("--out", required=True, type=Path, help="output CSV path")
     ap.add_argument("--robot", default="unitree_g1")
+    ap.add_argument(
+        "--velocity-limit",
+        action="store_true",
+        help="clamp retargeted joint velocities inside GMR (recipe doc, section 2)",
+    )
     args = ap.parse_args()
-    retarget(args.pred, args.out, args.robot)
+    retarget(args.pred, args.out, args.robot, use_velocity_limit=args.velocity_limit)
