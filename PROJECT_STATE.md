@@ -499,6 +499,20 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   attempt-2 ≥99% overnight, else conscious informed-override on the day.** MORNING SWEEP
   owed by main: after agents land, re-merge/verify + final preflight + write MORNING
   STATUS at top of docs/ROBOT_DAY_PLAN.md.
+- 2026-07-04 (02:30 ICT): **OVERNIGHT AUTOPILOT running (tools/overnight_a2.sh, bg).**
+  Goal: unlock GROUND stage for tomorrow (gantry already GO on attempt-1's 98.4%;
+  ground-free needs >=99%% held-out or informed override). Autopilot waits for
+  train-thriller-a2 to converge, then auto: export ONNX -> heldout_eval.py (256 env,
+  seed 90001, nominal+push) on the DEPLOYABLE motion (thriller_deploy) -> sign via
+  pipeline/mjlab_verify.py -> writes data/policies/thriller_a2/RESULT.txt with survival
+  %% + GROUND_READY yes/no. **RESUME ACTION (if session rotates):** read
+  data/policies/thriller_a2/RESULT.txt; if GROUND_READY=YES → stage a2 as ground policy
+  at data/policies/thriller/ (keep a1 as gantry fallback), gen thriller_deploy ramp for
+  it, tell main to rebuild --full bundle; if NO → report honestly (attempt 2 of <=3).
+  Attempt-1 stays the staged gantry policy regardless (complete policy_meta.json w/ PD
+  gains + thriller_deploy 2.5s activation ramp; gantry-safe confirmed).
+  Long-dance train-dance2-long ~3722/6000 (reward 33) converging — verdict via watchdog.
+  Do NOT start unrelated training tonight (GPU focused on a2 + dance2-long).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
