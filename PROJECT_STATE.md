@@ -409,6 +409,19 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   SPARINGLY (authored held gestures like the Thriller claw, open-loop synced), ONLY after
   collision-gated on a real Inspire model. Blockers: source Inspire MJCF + whole-body
   hands estimator. Worktree agent-a3cfcfe00dfde754c merge-ready (additive).
+- 2026-07-04 (night): **ROBOT DAY = TOMORROW MORNING (user, at work). Gantry/hoist
+  CONFIRMED available (feet fully off ground) → full gantry test possible.** Reframe:
+  first contact = MEASUREMENT + SAFETY, not a performance. Goal order: powered health
+  check → Step 3a kill/command-loss→damping measurement (THE key test; remote B-damping
+  is the ONLY stop, no torque-cut e-stop) → feet-off policy run + sim-vs-real tracking.
+  Do NOT go to ground tomorrow regardless of results. Gantry policy does NOT need ≥99%
+  (gantry is where we validate a not-yet-proven policy). TONIGHT staging (agent
+  a3c1cb3223b4b2d13): fix deploy dead-end bugs (gen_config glob+duration_s, verdict
+  npz/csv sha), add GANTRY-SCOPE authorization (feet-off-only, sub-99% ok, ground/show
+  still needs ≥99%), build+stage the Thriller gantry bundle, accurate gantry GO/NO-GO
+  preflight, docs/GANTRY_MORNING_BRIEF.md. Orchestrator staging best Thriller policy +
+  policy_meta.json. User needs tomorrow: gantry rigged, remote in hand, laptop on robot
+  net (PC2 192.168.123.164). base_lin_vel≈0 on gantry so current policy is gantry-safe.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
