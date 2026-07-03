@@ -22,6 +22,12 @@ from pathlib import Path
 
 # consecutive-clean / clean-run floor a verdict must show to authorize a deploy.
 REQUIRED_CLEAN_RUNS = 3
+# Held-out survival floor for show-ready (user decision 2026-07-04): a dance is
+# sim-verified at >=99% survival across held-out episodes, with gantry-first robot
+# day as the compensating control. Was a strict 100% (clean == runs); loosened to
+# 0.99 deliberately and per explicit authorization. Still needs >= REQUIRED_CLEAN_RUNS
+# episodes so a 1-run "100%" cannot sneak through.
+REQUIRED_CLEAN_RATE = 0.99
 # a push suite below this force floor cannot authorize (findings #22): a 5 N love-tap
 # proving nothing must not read as "push PASS".
 MIN_PUSH_FORCE_N = 150.0
@@ -88,7 +94,8 @@ def derive_pass(verdict: dict) -> bool:
     """Re-derive the pass decision from phase CONTENTS, ignoring the ``verdict`` string.
 
     All three phases must be present, have actually run, and passed; repeatability must
-    show clean == runs >= REQUIRED_CLEAN_RUNS; the push suite must meet the force floor.
+    show >= REQUIRED_CLEAN_RUNS episodes with a survival rate >= REQUIRED_CLEAN_RATE
+    (the user's >=99% show-ready standard); the push suite must meet the force floor.
     """
     if not isinstance(verdict, dict) or verdict.get("schema") != "sim_exam/v1":
         return False
@@ -98,9 +105,9 @@ def derive_pass(verdict: dict) -> bool:
     if not (isinstance(push.get("force_n"), (int, float)) and push["force_n"] >= MIN_PUSH_FORCE_N):
         return False
     runs, clean = repeat.get("runs"), repeat.get("clean")
-    if not (isinstance(runs, int) and isinstance(clean, int)):
+    if not (isinstance(runs, int) and isinstance(clean, int)) or runs <= 0:
         return False
-    return clean == runs and clean >= REQUIRED_CLEAN_RUNS
+    return clean >= REQUIRED_CLEAN_RUNS and (clean / runs) >= REQUIRED_CLEAN_RATE
 
 
 def authorize(

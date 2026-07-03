@@ -19,7 +19,9 @@ import argparse
 import json
 from pathlib import Path
 
-from pipeline.exam_verdict import full_sha256, sign_verdict, authorize
+from pipeline.exam_verdict import (
+    full_sha256, sign_verdict, authorize, REQUIRED_CLEAN_RUNS, REQUIRED_CLEAN_RATE,
+)
 
 # Phase thresholds (survival fraction) — a phase "passes" at/above these, but
 # show-ready still needs repeatability clean==runs (100%) via derive_pass.
@@ -69,10 +71,11 @@ def build_verdict(eval_json: dict, policy_path: Path, motion_path: Path,
             "mpkpe_m": push.get("mpkpe_m"),
             "held_out_seed": push.get("seed"),
         },
-        # Repeatability = the nominal held-out episodes. clean==runs (every episode
-        # survived) is the strict bar derive_pass enforces for show-ready.
+        # Repeatability = the nominal held-out episodes. Show-ready needs a survival
+        # rate >= REQUIRED_CLEAN_RATE (the user's >=99% standard) across >= 3 episodes;
+        # derive_pass re-checks this independently.
         "repeatability": {
-            "pass": clean == n,
+            "pass": n >= REQUIRED_CLEAN_RUNS and (clean / n) >= REQUIRED_CLEAN_RATE if n else False,
             "runs": n,
             "clean": clean,
         },
