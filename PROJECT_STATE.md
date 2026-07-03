@@ -7,10 +7,19 @@
 
 ## Mission
 
-Build a full software pipeline + web UI where the user inputs a reference dance video
-and gets out an artifact that makes the **Unitree G1 EDU Ultimate (29 DoF, Inspire FTP
-hands)** perform that exact choreography, pre-choreographed, while staying **balanced and
-push-robust** (RL whole-body tracking controller, not open-loop playback).
+Build a full software pipeline + desktop app where the user inputs a reference dance
+video and gets out an artifact that makes the **Unitree G1 EDU Ultimate (29 DoF, Inspire
+FTP hands)** perform that exact choreography, pre-choreographed, while staying **balanced
+and push-robust** (RL whole-body tracking controller, not open-loop playback).
+
+**END GOAL (user, 2026-07-03): a plug-and-play product, not a lab demo.** The robot +
+app must deliver **paid-service quality**: an operator powers on, picks a dance, deploys,
+and the G1 performs — reliably, repeatably, venue after venue. **Long dances (2–3 min)
+are the primary target**, not a stretch goal: the pipeline, training recipe, and battery/
+endurance envelope must be validated at 2–3 min, with short pieces treated only as
+stepping stones. Implications: app doubles as an operator console ("show mode": dance
+library, pre-show checks, one-confirmation deploy); Phase 8 hardening is product work
+(reliability, fall recovery, checklists), gated by an adversarial safety review.
 
 ## Hard facts (verified 2026-06-11)
 
