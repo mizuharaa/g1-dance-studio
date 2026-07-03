@@ -19,19 +19,26 @@ def test_standing_motion_passes(motion_csv):
 
 
 def test_excursion_beyond_limit_fails(motion_csv):
-    rc, rep = run_vet(motion_csv(drift_xy=(2.0, 0.0)))
+    # Footprint = enclosing-circle radius. A 3.5 m straight walk has radius 1.75 m,
+    # which overflows the 1.5 m default venue. (A 2 m walk would PASS now — radius
+    # 1.0 m — because a 2 m line fits a 3 m-diameter area; that is correct geometry
+    # and the deliberate change from the old distance-from-start metric.)
+    rc, rep = run_vet(motion_csv(drift_xy=(3.5, 0.0)))
     assert rc == 1 and rep["pass"] is False
     exc = rep["hard"]["root_excursion"]
     assert not exc["pass"]
-    assert exc["max_m"] == pytest.approx(2.0, abs=0.01)
+    assert exc["footprint_radius_m"] == pytest.approx(1.75, abs=0.02)
 
 
-def test_excursion_is_relative_to_first_frame(motion_csv):
-    # 1.4 m of drift stays under the 1.5 m gate no matter where it starts
+def test_footprint_is_translation_invariant(motion_csv):
+    # The footprint radius depends only on the dance's shape, not where in the
+    # world it starts: 1.4 m of travel => 0.7 m radius, passes wherever it sits.
     m = make_motion(drift_xy=(1.4, 0.0))
     m[:, 0] += 100.0  # far from the world origin
     rc, rep = run_vet(motion_csv(m))
     assert rep["hard"]["root_excursion"]["pass"]
+    assert rep["hard"]["root_excursion"]["footprint_radius_m"] == pytest.approx(
+        0.7, abs=0.02)
 
 
 def test_joint_limit_violation_fails(motion_csv):

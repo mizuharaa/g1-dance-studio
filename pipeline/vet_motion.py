@@ -15,6 +15,7 @@ Exit code 0 = PASS, 1 = FAIL (hard checks only). --json for the UI hook.
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -25,7 +26,10 @@ ROOT = Path(__file__).resolve().parent.parent
 MODEL_XML = ROOT / "third_party/mujoco_menagerie/unitree_g1/scene.xml"
 CSV_FPS = 30.0
 
-MAX_ROOT_EXCURSION_M = 1.5
+# Max root excursion (footprint radius) the venue allows. Defaults to 1.5 m (the
+# 2 m-radius home area minus a 0.5 m margin); the app parameterises it per venue
+# via the G1_MAX_EXCURSION_M env var when running this as a subprocess.
+MAX_ROOT_EXCURSION_M = float(os.environ.get("G1_MAX_EXCURSION_M", 1.5))
 MIN_PELVIS_HEIGHT_M = 0.35
 FOOT_SKATE_SPEED = 0.30      # m/s tolerated horizontal foot speed during stance
 FOOT_CONTACT_HEIGHT = 0.045  # ankle_roll_link origin: grounded sole ~0.023-0.04 m
@@ -46,6 +50,7 @@ def main():
         sys.path.insert(0, str(ROOT))
     from pipeline.grounding import UNGROUNDED_FLAG_M, ground_motion
     from pipeline.motion_io import load_motion_csv
+    from pipeline.venue import footprint
 
     m = load_motion_csv(args.csv)  # clear error on malformed CSV, not a traceback
     model = mujoco.MjModel.from_xml_path(str(MODEL_XML))
@@ -67,11 +72,20 @@ def main():
            "ground_shift_m": round(float(ground_shift), 4)}
     hard, advisory = {}, {}
 
-    # HARD 1: root excursion
-    xy = m[:, 0:2] - m[0, 0:2]
-    exc = float(np.linalg.norm(xy, axis=1).max())
-    hard["root_excursion"] = {"max_m": round(exc, 3), "limit": MAX_ROOT_EXCURSION_M,
-                              "pass": exc <= MAX_ROOT_EXCURSION_M}
+    # HARD 1: spatial footprint = minimal enclosing circle of the root-XY path.
+    # This is the smallest venue that holds the whole dance if the robot is placed
+    # at the circle centre — translation-invariant, so a dance isn't penalised for
+    # starting off-centre. The old metric (max distance from the first frame)
+    # over-counted an off-centre-but-compact dance. Placement note: the guarantee
+    # holds only if the robot is positioned at footprint_center_xy at deploy time.
+    fcenter, fradius = footprint(m[:, 0:2])
+    hard["root_excursion"] = {
+        "max_m": round(float(fradius), 3),          # footprint radius (kept key)
+        "footprint_radius_m": round(float(fradius), 3),
+        "footprint_center_xy": [round(float(fcenter[0]), 3),
+                                round(float(fcenter[1]), 3)],
+        "limit": round(MAX_ROOT_EXCURSION_M, 3),
+        "pass": bool(fradius <= MAX_ROOT_EXCURSION_M + 1e-6)}
 
     # HARD 2: joint position limits (model ranges, joints are qpos 7..35 = jnt 1..29)
     lo = model.jnt_range[1:, 0]
