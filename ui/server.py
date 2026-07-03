@@ -156,11 +156,14 @@ def create_job(payload: dict = Body(...)) -> dict:
 @app.post("/api/jobs/upload")
 async def create_job_upload(video: UploadFile) -> dict:
     """Create a job from a browser-style file upload."""
-    tmp = DATA_DIR / "videos" / f"upload-{int(time.time())}-{video.filename}"
+    # BUG-1: the client controls filename — keep only its basename so a name
+    # like "../../evil.sh" cannot escape the videos directory.
+    safe_name = Path(video.filename or "upload").name
+    tmp = DATA_DIR / "videos" / f"upload-{int(time.time())}-{safe_name}"
     tmp.parent.mkdir(parents=True, exist_ok=True)
     with open(tmp, "wb") as f:
         shutil.copyfileobj(video.file, f)
-    name = Path(video.filename or "upload").stem
+    name = Path(safe_name).stem
     return _job_dict(_create_job(name, tmp))
 
 
