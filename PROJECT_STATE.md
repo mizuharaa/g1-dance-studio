@@ -445,6 +445,17 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   thriller_deploy, NOT thriller_show.** Gantry candidate = attempt-1 (98.4% held-out,
   gantry-safe: base_lin_vel≈0 in-distribution). attempt-2 (→≥99% for ground-free) still
   training (~1150/4000). Details forwarded to deploy-kit agent a3c1cb3223b4b2d13.
+- 2026-07-04 (night): **Show-production workflow MERGED** (191 tests): music sync
+  (Dance.audio, 1.5s-aligned muxed preview), set-lists (pipeline/setlist.py, builder +
+  sequential runner, show-ready only if all items are), rehearsal mode (Show.mode,
+  rehearsal incident never demotes), show timeline. Presentation-only; never touches
+  show-ready gating. Seeded dances still draft so set-lists show blockers until Thriller
+  is show-ready (expected). **AUDIT CONSOLIDATION still QUEUED** (docs/production_audit_
+  findings.md): deferred behind the deploy-kit robot-day agent (which is fixing the
+  deploy-path findings gen_config/mjlab_verify NOW). After robot day + deploy-kit merge:
+  ONE consolidation pass for the CRITICAL outcome-capture regression (verify whether the
+  show-production runner already covers it) + remaining highs, tested through REAL
+  artifacts. NOT needed for tomorrow's gantry test.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
