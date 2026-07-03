@@ -39,3 +39,18 @@
 - Both jobs share the 4090 (VRAM ~2.6GB each, plenty of headroom); persistent
   monitor reports every ~50 min and immediately on crash/completion.
 - Box-hours: ≈5.5h ≈ 100k VND of 1.5M cap at Thriller launch.
+
+## 2026-07-03 ~23:15 ICT — W&B URL correction + visual progress renders
+
+- **W&B correction**: run `40g4byo3` (cited earlier as the live benchmark) is actually
+  a KILLED early launch (num_envs=1) — that's the "Crashed" run the user saw. LIVE runs:
+  - benchmark train-dance1-seg → **ue5nw8u1** (writing, live)
+  - thriller-a1 → **yhx35nb1** (writing, live)
+  Both syncing in-process. Box uplink is FLAKY (SSH drops mid-command; a wandb heartbeat
+  blip is what "crashed" 40g4byo3's logger) → **watchdog reports are source of truth,
+  not W&B run status.** Renders/commands that must survive a drop run in tmux, never bare SSH.
+- **Visual progress renders**: cloud/render_progress.sh renders a job's LATEST checkpoint
+  via `mjlab play --video` (1 env, headless EGL, 500 steps, 640x480) → box:
+  previews_progress/<job>_iter<N>.mp4. Launched in tmux (render-bench, render-thriller).
+  Pull to laptop data/previews/progress/. Repeat every ~500-1000 iters for a "robot right
+  now" clip. Checkpoints save every 500 iters under cloud/logs/rsl_rl/g1_tracking/<ts>_<job>/.
