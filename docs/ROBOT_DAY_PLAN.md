@@ -13,10 +13,9 @@
 > - **Quality note:** attempt-2 never falls but tracks a touch looser (avg body-point
 >   error 0.22 m vs attempt-1's 0.17 m) — the cost of the extra stability. It's the safer
 >   ground choice; attempt-1 is crisper-looking at 98.4%. **Use the staged attempt-2 as-is**
->   — it's verified and both preflights are GO. (Footnote, ignore on robot day: a slightly
->   crisper attempt-2 *final* checkpoint may finish overnight at `data/policies/
->   thriller_a2_final/RESULT.txt`; it is NOT auto-applied and needs a bundle rebuild +
->   re-preflight, so don't swap it in on the day — it's a future nicety, not a decision.)
+>   — it's verified and both preflights are GO. (RESOLVED overnight: the attempt-2 *final*
+>   checkpoint was checked and tracked LOOSER, not tighter, so the staged iter-1500 policy
+>   is confirmed the best — no upgrade pending, nothing to check or swap on the day.)
 > - **New first-contact steps in this plan** (don't skip): get the controller onto PC2
 >   (Stage 0a — never done, likely time-sink), and the **joint-calibration check**
 >   (`deploy/check_joint_calibration.py`) — a mismatched robot zero = wrong motion = fall.

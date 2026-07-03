@@ -563,6 +563,12 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   it needs the user's console clicks + time. Cost is ~18k VND/h (trivial; budget 182k/1.5M).
   Delete AFTER robot day once we know no immediate retrain is needed. (a2_final autopilot
   still using the box; when it finishes the box idles but STAYS UP through robot day.)
+- 2026-07-05 (AM): **a2_final RESOLVED — staged iter-1500 is the best, FINAL.** The
+  attempt-2 final checkpoint also hit 100% but tracked LOOSER (0.249m vs iter-1500's
+  0.221m — more training kept trading precision for smoothness), so no swap. Staged
+  Thriller ground policy is locked. Long-dance policy preserved to data/policies/
+  dance2_long/. All overnight objectives achieved; robot day GO. Box still up per keep-
+  through-robot-day decision (all data on laptop; user can kill the meter anytime).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
