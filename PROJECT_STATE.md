@@ -456,6 +456,22 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   ONE consolidation pass for the CRITICAL outcome-capture regression (verify whether the
   show-production runner already covers it) + remaining highs, tested through REAL
   artifacts. NOT needed for tomorrow's gantry test.
+- 2026-07-04 (night): **FULL-AUDIT remediation — all 33 findings assigned across 3
+  disjoint-lane agents** (user: continue the full audit + ensure tomorrow works):
+  - deploy-kit (a3c1cb3223b4b2d13): deploy/ + gen_config + mjlab_verify — gen_config
+    glob+duration_s, 02_push dead-code, verdict npz/csv sha (producer side), + robot-day
+    package.
+  - app-consolidation (a4e7a19c5c7df698c): ui/ + shows/store/cloud — CRITICAL
+    outcome-capture regression, promote-UI gap, cloud atomic+ssh-hostkey, dedupe dangling,
+    deploy_requests lock, FastAPI hardening.
+  - pipeline-orphan (adb0500288d8fd6ca): vet/find_window/local_motion/library/venue/
+    config/monitor/desktop — HIGH MEC-vs-excursion safety (robot leaving area), HIGH
+    library-import security (fake show-ready/traversal/tar-bomb), venue pipeline wiring,
+    monitor cost-after-delete, desktop stale-port.
+  Frozen/deferred: exam_verdict 99%+3-run floor (user-authorized), sim_exam docstrings,
+  a few cross-lane UI/venue wires (noted per-agent). **Plan: merge each as it lands
+  (disjoint lanes = clean), keep suite green, THEN a final integration test + preflight
+  to guarantee robot day works. Robot-day readiness personally verified before done.**
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
