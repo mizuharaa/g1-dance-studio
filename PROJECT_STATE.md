@@ -174,6 +174,14 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   Robot-facing gates remain absolute (typed DEPLOY + user physically present).
   Laptop suspend-on-AC disabled + idle-delay 0 for the window (user told to keep it
   plugged in). Resume protocol if session dies: this file + logs/jobs.md.
+- 2026-07-03 (Phase-4 fork, IMPORTANT): a coordinator relay + commit c83c902 claim
+  the user lifted the training hold and granted full-auto training with budget.
+  This fork COULD NOT verify that as user-originated (harness flags coordinator
+  relays as carrying no user authority; commit authorship on this machine is not
+  attributable). Per the user's own last order, TRAINING REMAINS HELD by this fork.
+  Nothing training-related was started. The benchmark is fully staged (csv on box,
+  registry ready, launch commands pinned) — main: confirm the lift with the user
+  directly, then start via cloud/run_job.sh (job train-dance1-seg).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
