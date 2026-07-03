@@ -130,3 +130,24 @@ def test_import_rejects_size_bomb(tmp_path, monkeypatch):
     _make_archive(arc, {"a": {"id": "a", "name": "a", "notes": "x" * 500}})
     with pytest.raises(ValueError, match="uncompressed size"):
         lib.import_library(arc)
+
+
+# ---- Finding: configurable venue max_excursion orphaned (MEDIUM) ----
+from types import SimpleNamespace
+from pipeline.stages.local_motion import _resolve_max_excursion
+
+
+def test_resolve_max_excursion_precedence(monkeypatch):
+    monkeypatch.delenv("G1_MAX_EXCURSION_M", raising=False)
+    # default
+    assert _resolve_max_excursion(SimpleNamespace(input={})) == 1.5
+    # env override
+    monkeypatch.setenv("G1_MAX_EXCURSION_M", "2.3")
+    assert _resolve_max_excursion(SimpleNamespace(input={})) == 2.3
+    # per-job venue wins over env
+    job = SimpleNamespace(input={"venue_max_excursion_m": 0.9})
+    assert _resolve_max_excursion(job) == 0.9
+    # junk/negative falls back
+    monkeypatch.delenv("G1_MAX_EXCURSION_M", raising=False)
+    assert _resolve_max_excursion(SimpleNamespace(input={"venue_max_excursion_m": -1})) == 1.5
+    assert _resolve_max_excursion(SimpleNamespace(input={"venue_max_excursion_m": "x"})) == 1.5

@@ -49,6 +49,23 @@ def _run_tool(script: str, args: list[str], job: Job, on_line=None,
                                        "".join(out_lines), err)
 
 
+def _resolve_max_excursion(job: Job) -> float:
+    """The venue's max root-excursion (m) for this job, by precedence:
+    per-job venue value → G1_MAX_EXCURSION_M env → 1.5 m default. Keeps windowing
+    and the vet subprocess on the SAME limit (audit: venue was orphaned at 1.5 m)."""
+    inp = getattr(job, "input", None) or {}
+    for src in (inp.get("venue_max_excursion_m") if isinstance(inp, dict) else None,
+                os.environ.get("G1_MAX_EXCURSION_M")):
+        if src is not None:
+            try:
+                v = float(src)
+                if v > 0:
+                    return v
+            except (TypeError, ValueError):
+                pass
+    return 1.5
+
+
 class ExtractStage:
     """Local part: intake validation via ffprobe (fail fast on unusable
     footage). The GPU pose extraction itself is cloud-blocked until
@@ -96,7 +113,12 @@ class RetargetStage:
             if abs(shift) > UNGROUNDED_FLAG_M:
                 job.log(f"retarget: grounded motion (input contact was "
                         f"{shift:+.3f} m off the floor)")
-        s, e = longest_window(m)
+        # Venue's max root excursion: honor a per-job venue if set, else the
+        # G1_MAX_EXCURSION_M env convention (shared with vet_motion / find_window),
+        # else the 1.5 m default. (audit MEDIUM: configurable venue was orphaned —
+        # never reached windowing/vet. UI→job.venue plumbing is a cross-lane follow-up.)
+        maxexc = _resolve_max_excursion(job)
+        s, e = longest_window(m, max_excursion_m=maxexc)
         if e <= s:
             raise RuntimeError("no frame window satisfies the dance-area limits")
         seg = m[s:e + 1].copy()
@@ -122,7 +144,8 @@ class RetargetStage:
                 f"(XY re-centered on footprint center, radius {footprint_r:.3f} m)")
 
         report(0.25, "vetting motion (hard gate)")
-        vet = _run_tool("vet_motion.py", [str(motion_csv), "--json"], job)
+        vet = _run_tool("vet_motion.py", [str(motion_csv), "--json"], job,
+                        env_extra={"G1_MAX_EXCURSION_M": repr(float(maxexc))})
         if not vet.stdout:
             raise RuntimeError(f"vet_motion produced no report: {vet.stderr[-500:]}")
         vet_report = json.loads(vet.stdout)
