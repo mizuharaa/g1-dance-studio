@@ -98,7 +98,11 @@ def _run_ssh(cfg: dict, command: str, timeout: int = 30) -> tuple[int, str, str]
     if argv[0] == "sshpass" and not _which("sshpass"):
         raise RuntimeError("password auth needs the 'sshpass' tool — either "
                            "install it (conda-forge) or use an SSH key file")
-    proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+    # The desktop launcher exports LD_LIBRARY_PATH=$CONDA_PREFIX/lib for Qt; that
+    # breaks the system ssh binary (OpenSSL version mismatch). Scrub it here.
+    env = {k: v for k, v in os.environ.items() if k != "LD_LIBRARY_PATH"}
+    proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
+                          env=env)
     return proc.returncode, proc.stdout, proc.stderr
 
 
