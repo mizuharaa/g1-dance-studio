@@ -513,6 +513,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   gains + thriller_deploy 2.5s activation ramp; gantry-safe confirmed).
   Long-dance train-dance2-long ~3722/6000 (reward 33) converging — verdict via watchdog.
   Do NOT start unrelated training tonight (GPU focused on a2 + dance2-long).
+- 2026-07-04 (night, autopilot): **THRILLER ATTEMPT-2 = 100% HELD-OUT SURVIVAL →
+  SHOW-READY. GROUND STAGE UNLOCKS.** Overnight autopilot (tools/overnight_a2.sh)
+  exported a2 (iter 1500 ckpt), ran the 256-env held-out gate on the deployable motion:
+  nominal 256/256 + push 256/256 = 100%, signed verdict PASS, authorizes show-ready.
+  Artifacts: data/policies/thriller_a2/{policy.onnx, heldout_verdict.json (signed,
+  bound to a2 sha + thriller_deploy.csv)}. **QUALITY NOTE: a2 mpkpe 0.221m vs a1 0.168m**
+  — a2 never falls (100%) but tracks a bit looser than a1 (the stronger action-rate
+  penalty traded precision for robustness). For a FIRST ground dance, never-falls is the
+  right priority; a1 stays available as a crisper-but-98.4% fallback.
+  IN PROGRESS: orchestrator staging a2 as the ground policy (confirm policy_meta.json
+  config-identical to a1: kp/kd/default_pose/action_scale — these drive the real PD loop,
+  errors=fall); then main rebuilds the --full ground bundle + re-runs preflight (ground-
+  free should flip to GO) + writes MORNING STATUS atop ROBOT_DAY_PLAN.md. 207 tests green
+  (pipeline-orphan merged: venue z-grounding, monitor cost-freeze-on-delete, desktop
+  stale-port).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
