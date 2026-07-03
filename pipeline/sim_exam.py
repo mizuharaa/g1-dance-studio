@@ -81,6 +81,28 @@ ABS_MIN_TORSO_Z_M = 0.45  # torso world height floor; below this it is going dow
 NOMINAL_MEAN_JOINT_ERR_MAX = 0.30  # rad, mean over 29 joints
 NOMINAL_MEAN_ANCHOR_ERR_MAX = 0.30  # m, mean torso position error
 
+# --- exam domain randomization (finding #6): the repeatability phase used identical
+# deterministic seeds with only tiny joint jitter and zero sensor/model perturbation,
+# so "3x clean" was bit-identical and proved nothing about robustness. Each repeat run
+# now perturbs the world within these physical ranges. Recorded in the verdict so the
+# "works every time" claim is auditable. Nominal stays clean (dr=None) as the canonical
+# tracking check; DR lives in the repeatability reruns.
+DR_RANGES = {
+    "friction_scale": [0.6, 1.4],       # ground/contact sliding-friction multiplier
+    "mass_scale": [0.95, 1.05],         # per-link mass multiplier (payload / model error)
+    "base_pos_m": 0.03,                 # ± initial base xy offset
+    "base_yaw_rad": 0.10,               # ± initial base yaw
+    "base_tilt_rad": 0.05,              # ± initial base roll/pitch
+    "base_lin_vel_mps": 0.15,           # ± initial base linear velocity
+    "base_ang_vel_radps": 0.20,         # ± initial base angular velocity
+    "obs_noise_std": {                  # additive gaussian per obs term (IMU/encoder spec)
+        "joint_pos": 0.01, "joint_vel": 0.75,
+        "base_lin_vel": 0.10, "base_ang_vel": 0.20,
+        "motion_anchor_pos_b": 0.05, "motion_anchor_ori_b": 0.02,
+    },
+    "action_latency_ticks": 1,          # one control tick of actuation delay
+}
+
 
 def _resolve_third_party() -> Path:
     """Worktrees do not carry the (gitignored) third_party clones — fall back."""
@@ -307,6 +329,15 @@ class ExamEnv:
         self.torso_id = self.anchor_id
         self.ctrl_lo = model.actuator_ctrlrange[:, 0]
         self.ctrl_hi = model.actuator_ctrlrange[:, 1]
+        # DR snapshots (finding #6): restore these before re-randomizing each run so
+        # perturbations never accumulate across the shared model.
+        self._friction0 = model.geom_friction.copy()
+        self._mass0 = model.body_mass.copy()
+        # DR state, off by default so nominal runs stay clean/deterministic.
+        self.obs_noise: dict[str, float] = {}
+        self.action_latency: int = 0
+        self._noise_rng: np.random.Generator | None = None
+        self._act_buf: list[np.ndarray] = []
 
     # ---- state helpers (policy joint order) ----
     def joint_pos(self) -> np.ndarray:
@@ -315,8 +346,14 @@ class ExamEnv:
     def joint_vel(self) -> np.ndarray:
         return self.data.qvel[self.vadr]
 
-    def reset(self, seed: int = 0, jitter: float = 0.0) -> None:
+    def reset(self, seed: int = 0, jitter: float = 0.0, dr: dict | None = None) -> None:
         rng = np.random.default_rng(seed)
+        # restore any prior DR perturbation of the shared model first
+        self.model.geom_friction[:] = self._friction0
+        self.model.body_mass[:] = self._mass0
+        self.obs_noise = {}
+        self.action_latency = 0
+        self._noise_rng = None
         mujoco.mj_resetData(self.model, self.data)
         self.data.qpos[0:3] = self.motion.root_pos[0]
         self.data.qpos[3:7] = self.motion.root_quat_wxyz[0]
@@ -324,10 +361,43 @@ class ExamEnv:
         if jitter:
             self.data.qpos[7:] += rng.uniform(-jitter, jitter, self.data.qpos[7:].shape)
         self.data.qvel[:] = 0
+        if dr:
+            self._apply_dr(rng, dr)
         mujoco.mj_forward(self.model, self.data)
         self.last_action = np.zeros(self.n)
         self.policy.reset()
         self._obs_hist: dict[str, list[np.ndarray]] = {}
+        self._act_buf = []
+
+    def _apply_dr(self, rng: np.random.Generator, dr: dict) -> None:
+        """Perturb model + initial state within `dr` ranges (finding #6)."""
+        fs = dr.get("friction_scale")
+        if fs:
+            self.model.geom_friction[:, 0] = self._friction0[:, 0] * rng.uniform(*fs)
+        ms = dr.get("mass_scale")
+        if ms:
+            self.model.body_mass[:] = self._mass0 * rng.uniform(*ms)
+        p = dr.get("base_pos_m", 0.0)
+        if p:
+            self.data.qpos[0:2] += rng.uniform(-p, p, 2)
+        # small orientation perturbation (roll/pitch/yaw) via quaternion multiply
+        tilt, yaw = dr.get("base_tilt_rad", 0.0), dr.get("base_yaw_rad", 0.0)
+        if tilt or yaw:
+            eul = np.array([rng.uniform(-tilt, tilt), rng.uniform(-tilt, tilt),
+                            rng.uniform(-yaw, yaw)])
+            dq = np.zeros(4)
+            mujoco.mju_euler2Quat(dq, eul, "xyz")
+            q = self.data.qpos[3:7].copy()
+            mujoco.mju_mulQuat(self.data.qpos[3:7], q, dq)
+        lv, av = dr.get("base_lin_vel_mps", 0.0), dr.get("base_ang_vel_radps", 0.0)
+        if lv:
+            self.data.qvel[0:3] += rng.uniform(-lv, lv, 3)
+        if av:
+            self.data.qvel[3:6] += rng.uniform(-av, av, 3)
+        self.obs_noise = dict(dr.get("obs_noise_std", {}))
+        self.action_latency = int(dr.get("action_latency_ticks", 0))
+        # noise stream derived from the run seed for reproducibility
+        self._noise_rng = np.random.default_rng(int(rng.integers(2**31)))
 
     # ---- observation ----
     def _term_value(self, term: str, tick: int) -> np.ndarray:
@@ -361,6 +431,10 @@ class ExamEnv:
         parts = []
         for term, hist in self.policy.obs_terms:
             v = self._term_value(term, tick)
+            # additive sensor noise on the perceived term (finding #6)
+            std = self.obs_noise.get(term) if self.obs_noise else None
+            if std and self._noise_rng is not None:
+                v = v + self._noise_rng.normal(0.0, std, np.shape(v))
             buf = self._obs_hist.setdefault(term, [v] * max(1, hist))
             buf.append(v)
             del buf[:-max(1, hist)]
@@ -370,6 +444,14 @@ class ExamEnv:
     # ---- stepping ----
     def step(self, tick: int, push: np.ndarray | None = None) -> None:
         action = self.policy.act(self.obs(tick), tick)
+        # one-tick actuation latency (finding #6): apply the previous action while the
+        # freshly-computed one is buffered. Latency 0 => applied immediately (nominal).
+        if self.action_latency > 0:
+            self._act_buf.append(action)
+            if len(self._act_buf) > self.action_latency:
+                action = self._act_buf.pop(0)
+            else:
+                action = np.zeros(self.n)  # hold default pose until buffer fills
         self.last_action = action
         q_des = self.policy.default_pos + self.policy.action_scale * action
         for _ in range(DECIMATION):
@@ -415,8 +497,8 @@ class ExamEnv:
 
 # --------------------------------------------------------------------------- phases
 def run_nominal(env: ExamEnv, seed: int = 0, jitter: float = 0.0, frames_out: list | None = None,
-                renderer: "mujoco.Renderer | None" = None) -> dict:
-    env.reset(seed=seed, jitter=jitter)
+                renderer: "mujoco.Renderer | None" = None, dr: dict | None = None) -> dict:
+    env.reset(seed=seed, jitter=jitter, dr=dr)
     T = env.motion.ticks
     errs, joint_errs, max_exc = [], [], 0.0
     survived = T
@@ -493,19 +575,29 @@ def run_push_test(env: ExamEnv, num_pushes: int, force_n: float, seed: int = 0) 
     }
 
 
-def run_repeatability(env: ExamEnv, runs: int) -> dict:
+def run_repeatability(env: ExamEnv, runs: int, dr: dict | None = None) -> dict:
+    """N reruns, each under DISTINCT domain randomization (finding #6).
+
+    Identical deterministic reruns made "3x clean" meaningless; each run now gets a
+    unique seed and a fresh world perturbation (friction, mass, base pose/velocity,
+    sensor noise, one-tick latency). The applied ranges are recorded for audit.
+    """
+    dr = DR_RANGES if dr is None else dr
     clean, consecutive, best = 0, 0, 0
     per_run = []
     for k in range(runs):
-        r = run_nominal(env, seed=100 + k, jitter=0.02)
-        per_run.append({"seed": 100 + k, "pass": r["pass"], "survived_s": r["survived_s"]})
+        seed = 100 + 7919 * k  # de-correlated, distinct per run
+        r = run_nominal(env, seed=seed, jitter=0.02, dr=dr)
+        per_run.append({"seed": seed, "pass": r["pass"], "survived_s": r["survived_s"],
+                        "mean_joint_err_rad": r["mean_joint_err_rad"]})
         if r["pass"]:
             clean += 1
             consecutive += 1
             best = max(best, consecutive)
         else:
             consecutive = 0
-    return {"runs": runs, "clean": clean, "consecutive_clean": best, "pass": clean == runs, "per_run": per_run}
+    return {"runs": runs, "clean": clean, "consecutive_clean": best,
+            "pass": clean == runs, "per_run": per_run, "dr": dr}
 
 
 # --------------------------------------------------------------------------- main

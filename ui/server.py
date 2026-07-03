@@ -345,14 +345,26 @@ def promote_dance(dance_id: str, payload: dict = Body(...)) -> dict:
 
 @app.post("/api/dances/{dance_id}/sim-runs")
 def record_sim_run(dance_id: str, payload: dict = Body(...)) -> dict:
-    """Repeatability contract endpoint — see docs/show_mode_contracts.md.
-    Called by the sim-exam tool after each closed-loop run."""
-    dance = _load_dance_or_404(dance_id)
-    if not isinstance(payload.get("passed"), bool):
-        raise HTTPException(400, "payload needs boolean 'passed'")
-    dance = shows.record_sim_run(
-        dance, payload["passed"], metrics=payload.get("metrics"),
-        exam_id=payload.get("exam_id"), video=payload.get("video"))
+    """Repeatability contract endpoint — see docs/show_mode_contracts.md §1.
+
+    Findings #23/#24: the caller must submit a signed sim_exam/v1 verdict (inline as
+    `verdict`, or a path as `verdict_path`), NOT a bare `passed` bool. The verdict's
+    HMAC is verified, it must bind to this dance's exact policy+motion bytes, and the
+    pass is re-derived from phase contents before any clean-streak credit."""
+    _load_dance_or_404(dance_id)  # 404 before touching the verdict
+    verdict = payload.get("verdict")
+    if verdict is None and payload.get("verdict_path"):
+        vp = Path(payload["verdict_path"]).expanduser()
+        if not vp.is_file():
+            raise HTTPException(400, f"verdict_path not found: {vp}")
+        verdict = json.loads(vp.read_text())
+    if not isinstance(verdict, dict):
+        raise HTTPException(400, "payload needs a signed sim_exam/v1 'verdict' "
+                                 "(object) or 'verdict_path'")
+    try:
+        dance = shows.record_sim_run_from_verdict(dance_id, verdict)
+    except shows.VerdictError as e:
+        raise HTTPException(400, str(e))
     return _dance_dict(dance)
 
 
@@ -425,30 +437,13 @@ def show_deploy_gate(show_id: str, payload: dict = Body(...)) -> dict:
 @app.post("/api/shows/{show_id}/outcome")
 def record_outcome(show_id: str, payload: dict = Body(...)) -> dict:
     show = _load_show_or_404(show_id)
-    if show.closed:
-        raise HTTPException(400, "show is already closed")
-    result = payload.get("result")
-    if result not in ("clean", "aborted", "incident"):
-        raise HTTPException(400, "result must be clean|aborted|incident")
-    show.outcome = {"result": result, "notes": payload.get("notes", ""),
-                    "at": time.time()}
-    show.closed = True
-    show.save()
-    show.log(f"outcome recorded: {result} — show closed")
-    # finding #9: a live incident/abort must demote the dance and reset the clean streak,
-    # so re-promotion to show-ready requires a fresh, deliberate re-examination.
-    if result in ("incident", "aborted"):
-        try:
-            dance = shows.load_dance(show.dance_id)
-        except (FileNotFoundError, ValueError):
-            dance = None
-        if dance is not None:
-            dance.repeatability["consecutive_clean"] = 0
-            dance.incident = {"show_id": show.id, "result": result, "at": time.time()}
-            if dance.status == "show-ready":
-                dance.status = "sim-verified"
-            dance.save()
-            show.log(f"dance '{dance.name}' demoted + streak reset after {result}")
+    # finding #9/#28: close + (on incident/abort) demote-and-reset happen under record
+    # locks inside shows.record_outcome, so a concurrent sim-run can't race the streak.
+    try:
+        show = shows.record_outcome(show, payload.get("result", ""),
+                                    payload.get("notes", ""))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return _show_dict(show)
 
 

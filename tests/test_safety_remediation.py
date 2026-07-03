@@ -130,6 +130,6 @@ def test_battery_below_floor_rejected(tmp_path, monkeypatch):
     shows.complete_step(show, "space_clear", True)
     with pytest.raises(ValueError, match="floor"):
         shows.complete_step(show, "battery", 25.0)
-    # at/above floor is accepted
-    shows.complete_step(show, "battery", 55.0)
+    # at/above floor is accepted (mutators now return the fresh record — finding #28)
+    show = shows.complete_step(show, "battery", 55.0)
     assert show.steps["battery"]["value"] == 55.0

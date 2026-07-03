@@ -6,34 +6,42 @@ the schema'd payloads must version-check the `schema` field.
 
 ## 1. Repeatability: sim-exam tool → app
 
-After EACH closed-loop exam run of a dance's policy, the sim-exam tool POSTs:
+After EACH closed-loop exam run of a dance's policy, the sim-exam tool POSTs the
+**signed `sim_exam/v1` verdict** (findings #23/#24 — a bare `passed` bool is NO LONGER
+accepted; it let anyone march a dance to show-ready):
 
 ```
 POST /api/dances/{dance_id}/sim-runs
 Content-Type: application/json
 {
-  "passed":  true,                  # REQUIRED bool — this run was fully clean
-  "exam_id": "exam-20260704-01",    # optional string — groups runs of one exam batch
-  "metrics": {                      # optional object — whatever the exam measured
-    "tracking_err_mean_rad": 0.041,
-    "survived_s": 44.3,
-    "max_root_excursion_m": 0.91,
-    "pushes_survived": 5,
-    "pushes_total": 5
-  },
-  "video": "data/exams/thriller/run3.mp4"   # optional project-relative path
+  "verdict": { ...full signed sim_exam/v1 object (see §4)... }
+  # OR, instead of inline:
+  # "verdict_path": "data/exports/exam_thriller.json"
 }
 ```
 
-Server behavior (pipeline/shows.py:record_sim_run):
-- `passed=true`  → `repeatability.consecutive_clean += 1`, dance `sim_exam.verdict = "pass"`,
-  status `draft → sim-verified` (if draft).
-- `passed=false` → `consecutive_clean = 0`, `sim_exam.verdict = "fail"`,
-  status `show-ready → sim-verified` (demotion — "works every time" broken).
-- History kept (newest first, capped at 20). Response: the updated dance JSON.
+Server behavior (pipeline/shows.py:record_sim_run_from_verdict):
+1. Verify the verdict's **HMAC signature** (key in `.secrets/exam_signing.key`, held by
+   the sim-exam tool, not the web process). Missing/invalid → **400**, nothing recorded.
+2. Require the verdict's `policy_sha256`/`motion_sha256` to equal the sha256 of the
+   dance's **registered** `policy_path`/`motion_csv` bytes. Mismatch → **400** (the
+   verdict is about a different artifact).
+3. **Derive** pass from phase contents (`exam_verdict.derive_pass`): all of nominal,
+   push, repeatability present and passed, push force ≥ floor, `clean == runs ≥ 3`.
+   The top-level `"verdict"` string is NEVER trusted.
+- pass → `consecutive_clean += 1`, `sim_exam.verdict = "pass"`, `draft → sim-verified`,
+  and the exam-passed policy sha is **pinned** onto `dance.policy_sha256`.
+- fail → `consecutive_clean = 0`, `show-ready → sim-verified` (demotion).
+- History kept (newest first, capped at 20), each entry carries its `policy_sha256`.
+  Response: the updated dance JSON.
 
 Show-ready promotion is HUMAN-ONLY: `POST /api/dances/{id}/promote {"status": "show-ready"}`
-— refused unless latest exam passed AND `consecutive_clean >= REPEATABILITY_TARGET`.
+— refused unless latest exam passed AND `consecutive_clean >= REPEATABILITY_TARGET`
+AND the policy file on disk **still hashes to the pinned exam sha** (#24/#27 — a policy
+swapped in after the passing exam is rejected, not silently deployed).
+
+All dance/show mutations run under a per-record `flock` (finding #28) so concurrent
+sim-run POSTs cannot mask a failing run via a stale read-modify-write.
 REPEATABILITY_TARGET is 3 as implemented; the deploy-kit track recommends raising to 5
 before real client shows — OPEN DECISION, revisit at Phase 8 hardening.
 

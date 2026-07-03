@@ -22,6 +22,8 @@ from here — hardware deployment is a separate, human-driven phase).
 """
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import os
 import time
@@ -29,7 +31,8 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .config import DATA_DIR
+from . import exam_verdict
+from .config import DATA_DIR, PROJECT_ROOT
 
 DANCES_DIR = DATA_DIR / "dances"
 SHOWS_DIR = DATA_DIR / "shows"
@@ -75,6 +78,30 @@ def _atomic_write(path: Path, payload: dict) -> None:
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, indent=2))
     os.replace(tmp, path)
+
+
+@contextlib.contextmanager
+def _record_lock(record_dir: Path):
+    """Serialize load->mutate->save on one record dir (finding #28).
+
+    Without this, two concurrent sim-run POSTs both read the same counter and the
+    later save wins — a failing run can be masked by a passing one. flock on a sidecar
+    file serializes across threads AND processes (the sim_exam CLI vs the web worker).
+    """
+    record_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = record_dir / ".lock"
+    with open(lock_path, "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def _abs(project_rel: str) -> Path:
+    """Resolve a stored (possibly project-relative) path to absolute."""
+    p = Path(project_rel)
+    return p if p.is_absolute() else PROJECT_ROOT / p
 
 
 # ---- dance library ---------------------------------------------------------------
@@ -143,30 +170,81 @@ def find_dance(name: str) -> Dance | None:
     return None
 
 
-def record_sim_run(dance: Dance, passed: bool, metrics: dict | None = None,
-                   exam_id: str | None = None, video: str | None = None) -> Dance:
-    """Record one sim-exam run (the repeatability contract's server side)."""
+class VerdictError(ValueError):
+    """A submitted sim-exam verdict is unauthentic or about a different artifact."""
+
+
+def record_sim_run_from_verdict(dance_id: str, verdict: dict) -> Dance:
+    """Record one sim-exam run from an AUTHENTICATED verdict (findings #23/#24/#26/#27).
+
+    The old endpoint trusted a bare ``passed`` bool from the caller — anyone could
+    POST ``{"passed": true}`` and march a dance to show-ready. Now the caller must
+    submit a signed ``sim_exam/v1`` verdict; we (a) verify the HMAC, (b) require it to
+    bind to THIS dance's exact policy+motion bytes, and (c) DERIVE pass from phase
+    contents (all phases ran+passed, push force floor, clean==runs). Only then is the
+    clean streak credited, and the exam-passed policy sha is pinned onto the dance.
+    """
+    with _record_lock(DANCES_DIR / dance_id):
+        dance = load_dance(dance_id)  # fresh read under lock (finding #28)
+        if not exam_verdict.signature_valid(verdict):
+            raise VerdictError("verdict signature invalid or missing — not authentic")
+        if not dance.policy_path or not dance.motion_csv:
+            raise VerdictError("dance has no registered policy/motion to bind the verdict to")
+        policy_sha = exam_verdict.full_sha256(_abs(dance.policy_path))
+        motion_sha = exam_verdict.full_sha256(_abs(dance.motion_csv))
+        if verdict.get("policy_sha256") != policy_sha:
+            raise VerdictError("verdict policy_sha256 does not match this dance's policy file")
+        if verdict.get("motion_sha256") != motion_sha:
+            raise VerdictError("verdict motion_sha256 does not match this dance's motion file")
+        passed = exam_verdict.derive_pass(verdict)
+        summary = {
+            "nominal": verdict.get("nominal"), "push": verdict.get("push"),
+            "repeatability": (verdict.get("repeatability") or {}).get("clean"),
+        }
+        return _apply_sim_run(dance, passed, policy_sha=policy_sha,
+                              metrics=summary, exam_id=verdict.get("at"),
+                              video=verdict.get("video"))
+
+
+def _apply_sim_run(dance: Dance, passed: bool, *, policy_sha: str | None = None,
+                   metrics: dict | None = None, exam_id: str | None = None,
+                   video: str | None = None) -> Dance:
+    """Mutate + persist one run's effect on the dance. Caller holds the record lock."""
     rep = dance.repeatability
     rep["total_runs"] += 1
     rep["consecutive_clean"] = rep["consecutive_clean"] + 1 if passed else 0
     rep["last_run_at"] = time.time()
     rep["history"].insert(0, {"passed": passed, "at": rep["last_run_at"],
                               "exam_id": exam_id, "metrics": metrics or {},
-                              "video": video})
+                              "video": video, "policy_sha256": policy_sha})
     del rep["history"][20:]
+    verdict_str = "pass" if passed else "fail"
+    dance.sim_exam = {"verdict": verdict_str, "at": rep["last_run_at"],
+                      "exam_id": exam_id, "metrics": metrics or {},
+                      "policy_sha256": policy_sha}
     if passed:
-        dance.sim_exam = {"verdict": "pass", "at": rep["last_run_at"],
-                          "exam_id": exam_id, "metrics": metrics or {}}
+        # pin the exam-passed policy identity so a later swap is detectable (finding #27)
+        dance.policy_sha256 = policy_sha
         if dance.status == "draft":
             dance.status = "sim-verified"
-    else:
-        dance.sim_exam = {"verdict": "fail", "at": rep["last_run_at"],
-                          "exam_id": exam_id, "metrics": metrics or {}}
-        if dance.status == "show-ready":
-            # A failed exam demotes: "works every time" no longer holds.
-            dance.status = "sim-verified"
+    elif dance.status == "show-ready":
+        # a failed exam demotes: "works every time" no longer holds (finding #9)
+        dance.status = "sim-verified"
     dance.save()
     return dance
+
+
+def record_sim_run(dance: Dance, passed: bool, metrics: dict | None = None,
+                   exam_id: str | None = None, video: str | None = None,
+                   policy_sha256: str | None = None) -> Dance:
+    """Locking wrapper around _apply_sim_run (reloads fresh under lock, finding #28).
+
+    NOTE: this trusts the caller's ``passed`` — kept only for internal/test callers.
+    The web endpoint MUST use record_sim_run_from_verdict, which authenticates."""
+    with _record_lock(DANCES_DIR / dance.id):
+        fresh = load_dance(dance.id)
+        return _apply_sim_run(fresh, passed, policy_sha=policy_sha256,
+                              metrics=metrics, exam_id=exam_id, video=video)
 
 
 def promote(dance: Dance, to_status: str) -> Dance:
@@ -174,17 +252,30 @@ def promote(dance: Dance, to_status: str) -> Dance:
     'show-ready' mean something."""
     if to_status not in DANCE_STATUSES:
         raise ValueError(f"unknown status: {to_status}")
-    if to_status == "show-ready":
-        if dance.sim_exam is None or dance.sim_exam.get("verdict") != "pass":
-            raise ValueError("cannot promote: latest sim exam has not passed")
-        clean = dance.repeatability["consecutive_clean"]
-        if clean < REPEATABILITY_TARGET:
-            raise ValueError(
-                f"cannot promote: {clean}/{REPEATABILITY_TARGET} consecutive "
-                "clean sim runs")
-    dance.status = to_status
-    dance.save()
-    return dance
+    with _record_lock(DANCES_DIR / dance.id):
+        dance = load_dance(dance.id)  # fresh read under lock (finding #28)
+        if to_status == "show-ready":
+            if dance.sim_exam is None or dance.sim_exam.get("verdict") != "pass":
+                raise ValueError("cannot promote: latest sim exam has not passed")
+            clean = dance.repeatability["consecutive_clean"]
+            if clean < REPEATABILITY_TARGET:
+                raise ValueError(
+                    f"cannot promote: {clean}/{REPEATABILITY_TARGET} consecutive "
+                    "clean sim runs")
+            # the policy on disk NOW must be the exact one the exam passed (findings
+            # #24/#25/#27): re-hash and refuse if it was swapped after the exam.
+            if not dance.policy_sha256:
+                raise ValueError("cannot promote: no exam-pinned policy sha on record")
+            if not dance.policy_path or not _abs(dance.policy_path).exists():
+                raise ValueError("cannot promote: policy file is missing")
+            current = exam_verdict.full_sha256(_abs(dance.policy_path))
+            if current != dance.policy_sha256:
+                raise ValueError(
+                    "cannot promote: policy file changed since the passing exam "
+                    "(sha mismatch) — re-run the sim exam on the current policy")
+        dance.status = to_status
+        dance.save()
+        return dance
 
 
 # ---- shows (performances) --------------------------------------------------------
@@ -250,10 +341,16 @@ def list_shows() -> list[Show]:
 
 def complete_step(show: Show, step: str, value=None) -> Show:
     """Record one checklist step. Steps must be completed in order."""
-    if show.closed:
-        raise ValueError("show is closed")
     if step not in CHECKLIST_KEYS:
         raise ValueError(f"unknown checklist step: {step}")
+    with _record_lock(SHOWS_DIR / show.id):
+        show = load_show(show.id)  # fresh read under lock (finding #28)
+        return _complete_step_locked(show, step, value)
+
+
+def _complete_step_locked(show: Show, step: str, value=None) -> Show:
+    if show.closed:
+        raise ValueError("show is closed")
     expected = show.next_step()
     if step != expected:
         raise ValueError(f"steps must be completed in order — next is '{expected}'")
@@ -283,6 +380,38 @@ def complete_step(show: Show, step: str, value=None) -> Show:
     show.save()
     show.log(f"checklist step '{step}' completed: {record}")
     return show
+
+
+def record_outcome(show: Show, result: str, notes: str = "") -> Show:
+    """Close a show with an outcome; an incident/abort demotes the dance (finding #9).
+
+    Both the show close and the dance demotion happen under their record locks
+    (finding #28) so a concurrent sim-run cannot race the streak reset."""
+    if result not in ("clean", "aborted", "incident"):
+        raise ValueError("result must be clean|aborted|incident")
+    with _record_lock(SHOWS_DIR / show.id):
+        show = load_show(show.id)
+        if show.closed:
+            raise ValueError("show is already closed")
+        show.outcome = {"result": result, "notes": notes, "at": time.time()}
+        show.closed = True
+        show.save()
+        show.log(f"outcome recorded: {result} — show closed")
+        dance_id = show.dance_id
+    if result in ("incident", "aborted"):
+        with _record_lock(DANCES_DIR / dance_id):
+            try:
+                dance = load_dance(dance_id)
+            except (FileNotFoundError, ValueError):
+                dance = None
+            if dance is not None:
+                dance.repeatability["consecutive_clean"] = 0
+                dance.incident = {"show_id": show.id, "result": result, "at": time.time()}
+                if dance.status == "show-ready":
+                    dance.status = "sim-verified"
+                dance.save()
+                show.log(f"dance '{dance.name}' demoted + streak reset after {result}")
+    return load_show(show.id)
 
 
 # ---- seeding ----------------------------------------------------------------------
