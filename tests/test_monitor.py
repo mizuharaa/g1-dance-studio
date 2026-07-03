@@ -113,3 +113,48 @@ def test_parse_gather_full():
 def test_parse_gather_box_no_gpu_no_jobs():
     g = monitor.parse_gather("NO_GPU\n@@TMUX@@\nNONE\n@@STATUS@@\n@@LOGS@@\n")
     assert g["gpu"] is None and g["jobs"] == [] and g["tmux_sessions"] == []
+
+
+# ---- job liveness (BUG: dead jobs shown as "Active Training") ----------------
+
+def _gather(sessions_line, status_blocks, log_blocks):
+    """Assemble a raw gather payload from parts for parse_gather."""
+    s = "80 %, 11 %, 4600 MiB, 24564 MiB, 210 W, 70\n@@TMUX@@\n"
+    s += (sessions_line or "NONE") + "\n@@STATUS@@\n"
+    for name, body in status_blocks:
+        s += f"@@FILE {name}@@\n{body}\n"
+    s += "@@LOGS@@\n"
+    for name, body in log_blocks:
+        s += f"@@FILE {name}@@\n{body}\n"
+    return s
+
+
+ITER_LOG = "Learning iteration 4730/30000\nMean reward: 10.4\nMean episode length: 300"
+
+
+def test_job_with_log_but_no_session_is_not_live():
+    # retired benchmark: log on disk, no tmux session, no clean status -> finished
+    raw = _gather("job-train-dance2-long: 1 windows (...)", [],
+                  [("train-dance1-seg", ITER_LOG), ("train-dance2-long", ITER_LOG)])
+    jobs = {j["name"]: j for j in monitor.parse_gather(raw)["jobs"]}
+    assert jobs["train-dance1-seg"]["live"] is False
+    assert jobs["train-dance1-seg"]["state"] == "finished"
+    # the genuinely-running one is live despite the "job-" session prefix
+    assert jobs["train-dance2-long"]["live"] is True
+    assert jobs["train-dance2-long"]["state"] == "running"
+
+
+def test_stale_running_status_without_session_is_not_live():
+    # SIGKILL'd job left a "running" status.json but no session -> stopped, not live
+    raw = _gather("NONE", [("train-dance1-seg", '{"state":"running"}')],
+                  [("train-dance1-seg", ITER_LOG)])
+    j = monitor.parse_gather(raw)["jobs"][0]
+    assert j["live"] is False and j["running"] is False
+    assert j["state"] == "stopped"
+
+
+def test_done_status_is_finished_not_live():
+    raw = _gather("NONE", [("train-thriller-a1", '{"state":"done","rc":0}')],
+                  [("train-thriller-a1", ITER_LOG)])
+    j = monitor.parse_gather(raw)["jobs"][0]
+    assert j["live"] is False and j["state"] == "done"
