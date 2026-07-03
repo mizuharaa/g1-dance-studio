@@ -234,3 +234,54 @@ The publicly accessible helpdesk KB (`/kb/mss`) covers GreenNode Cloud (VNG Clou
 - Protect & Govern: Guardrail (BETA), Rate limit (BETA)
 - Deployment & Usage: Model registry, Inference
 - **Storage management: Network volume** ← secondary section
+
+## GreenNode AI Platform — Cloud Provisioning (2026-07-03)
+
+### Task 1: Network Volume
+
+- **Name:** g1dance-data
+- **Region:** HCM
+- **Type:** GreenNode managed (auto-bucket created)
+- **Status:** ACTIVE
+- **Internal ID:** nv-cb2e7860-567a-4a85-a439-3d26a60...
+- **Created:** 03/07/2026 17:10:51
+- **Price:** 1,080 VND/month (VAT excluded) — bucket auto-sized by usage
+- **Note:** S3 credentials were shown once at creation; saved to .secrets/cloud-connect.txt
+
+### Task 2: Notebook Instance
+
+- **Name:** g1dance-gpu
+- **Internal ID:** nb-039dfbbe-6fca-474b-be6f-e3e863a8389d
+- **Region:** HCM, Zone: HCM-03-1A
+- **Status:** ACTIVE (provisioned in ~18 min)
+- **Created:** 03/07/2026 17:20:49
+- **Instance type:** aiplatform-standard-16x64-1rtx4090
+  - GPU: 1 × RTX4090 (24 GB VRAM)
+  - CPU: 16 cores
+  - RAM: 64 GB
+- **Image:** Pytorch 2.5.1 CUDA 12.4 (Pre-built container, JupyterLab)
+- **Block storage:** 150 GB (nnv-09da4462-b8..., Gen2-NVMe2-5000IOPS, ACTIVE)
+- **Network volume:** g1dance-data mounted at /workspace/notebook-data
+- **HTTP port:** 8888 (Jupyter via web proxy — Ready)
+- **TCP port:** 22 (SSH)
+- **SSH host/port:** 103.245.250.152 : 46936 (public) → :22 (internal)
+- **SSH user:** root
+- **Jupyter URL:** https://nb-039dfbbe-6fca-474b-be6f-e3e863a8389d-8888.notebook-hcm.aiplatform.console.greennode.ai/lab
+
+### Pricing shown at creation (VAT excluded)
+
+| Line item | Amount (VND) |
+|---|---|
+| Instance (GPU-CODE-RTX4090, 16x64, 1×RTX4090) | 16,155,432 |
+| Block storage (150 GB) | +486,200 |
+| **Total at creation** | **16,641,632** |
+| Network volume (g1dance-data) | 1,080/mo |
+
+Note: Console shows prices excluding VAT. At ~18,200 VND/h authorized, confirmed in range.
+
+### Access notes
+
+- JupyterLab accessible immediately after ACTIVE status via SSO session
+- notebook-data folder visible in JupyterLab file browser (network volume mount confirmed)
+- SSH key (g1dance-laptop ed25519) deployed; connect with: `ssh -p 46936 root@103.245.250.152 -i ~/.ssh/id_rsa`
+- Token/credential details in .secrets/cloud-connect.txt (mode 600, never commit)
