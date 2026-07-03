@@ -254,10 +254,15 @@ def complete_step(show: Show, step: str, value=None) -> Show:
     spec = next(s for s in CHECKLIST_STEPS if s["key"] == step)
     record: dict = {"at": time.time()}
     if spec["kind"] == "number":
+        # bool is an int subclass: float(True) == 1.0 — reject it explicitly.
+        if isinstance(value, bool):
+            raise ValueError(f"step '{step}' needs a numeric value")
         try:
             record["value"] = float(value)
         except (TypeError, ValueError):
             raise ValueError(f"step '{step}' needs a numeric value")
+        if not 0 <= record["value"] <= 100:
+            raise ValueError(f"step '{step}' value must be between 0 and 100")
     else:
         if value is not True:
             raise ValueError(f"step '{step}' needs an explicit confirmation")
