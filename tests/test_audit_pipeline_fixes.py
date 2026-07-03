@@ -1,153 +1,88 @@
-"""Regression tests for the pipeline/library-lane production-audit fixes.
-
-Each test names the audit finding it locks down.
+"""Regression tests for the pipeline-lane production-audit fixes owned by this
+worker (venue.py grounding, monitor.py cost-after-deletion, ui/desktop.py stale
+port). The local_motion.py and library.py findings are owned by another agent and
+were reverted here to avoid a merge collision.
 """
+from datetime import datetime, timezone
+
 import numpy as np
 import pytest
 
-from pipeline.venue import minimal_enclosing_circle
 
+# ---- Finding: fit_motion_to_venue ran the pelvis>=0.35 z test un-grounded (LOW) ----
+def test_venue_fit_grounds_before_window(monkeypatch):
+    import pipeline.grounding as grounding
+    from pipeline import venue as venuemod
 
-# ---- Finding: MEC footprint vs deployed excursion mismatch (HIGH, safety) ----
-# The gate certifies MEC radius <= max_excursion assuming the robot is placed at
-# the MEC center. The deploy motion must recenter on that SAME center, else the
-# real excursion from the placement point can reach ~2x the certified radius and
-# the robot leaves the certified dance area.
+    called = {"ground": 0}
 
-def _circle_traj(center, radius, n=120, start_on_edge=True):
-    """XY trajectory tracing a circle; frame 0 sits on the circle edge (worst case
-    for frame-0 recentering)."""
+    def fake_ground(m):
+        called["ground"] += 1
+        return np.asarray(m), 0.0
+
+    monkeypatch.setattr(grounding, "have_model", lambda: True)
+    monkeypatch.setattr(grounding, "ground_motion", fake_ground)
+
+    # A motion whose XY footprint (radius ~3 m) does NOT fit a 2 m venue, so the
+    # code enters the `not fits` branch that calls longest_window (the z-dependent
+    # path that must run on a grounded motion).
+    n = 90
     th = np.linspace(0, 2 * np.pi, n, endpoint=False)
-    if start_on_edge:
-        th = th  # th[0]=0 -> point (center + (radius,0)), i.e. on the edge
-    xy = np.column_stack([center[0] + radius * np.cos(th),
-                          center[1] + radius * np.sin(th)])
-    return xy
+    m = np.zeros((n, 36))
+    m[:, 0] = 3.0 * np.cos(th)
+    m[:, 1] = 3.0 * np.sin(th)
+    m[:, 2] = 0.7  # pelvis height
+
+    v = venuemod.default_venue()
+    report = venuemod.fit_motion_to_venue(m, v)
+    assert report["fits_whole"] is False
+    assert called["ground"] >= 1  # grounding applied before the z-dependent window
 
 
-def _max_radial(xy):
-    return float(np.max(np.linalg.norm(xy, axis=1)))
+def test_venue_fit_survives_without_model(monkeypatch):
+    # No model available → still works (no grounding, prior behaviour).
+    import pipeline.grounding as grounding
+    from pipeline import venue as venuemod
+    monkeypatch.setattr(grounding, "have_model", lambda: False)
+    n = 90
+    th = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    m = np.zeros((n, 36))
+    m[:, 0] = 3.0 * np.cos(th)
+    m[:, 1] = 3.0 * np.sin(th)
+    m[:, 2] = 0.7
+    report = venuemod.fit_motion_to_venue(m, venuemod.default_venue())
+    assert report["fits_whole"] is False
+    assert "suggested_window" in report
 
 
-def test_deploy_recenter_on_mec_center_bounds_excursion():
-    # A dance that circles a point 1.0 m off to the side, radius 1.0 m.
-    R = 1.0
-    xy = _circle_traj(center=(1.0, 0.0), radius=R, start_on_edge=True)
-    (cx, cy), r = minimal_enclosing_circle(xy)
-    assert r == pytest.approx(R, abs=0.02)
-
-    # NEW behaviour (deploy recenters on MEC center): max radial distance == r,
-    # so it stays within the certified radius.
-    on_center = xy - np.array([cx, cy])
-    assert _max_radial(on_center) == pytest.approx(r, abs=0.02)
-    assert _max_radial(on_center) <= 1.5 + 1e-6      # fits a 1.5 m venue
-
-    # OLD (buggy) behaviour (recenter on frame 0): frame 0 is on the edge, so the
-    # far side of the circle is ~2R away -> would exceed the certified radius.
-    on_frame0 = xy - xy[0]
-    assert _max_radial(on_frame0) == pytest.approx(2 * R, abs=0.05)
-    assert _max_radial(on_frame0) > 1.5              # leaves the certified 1.5 m area
+# ---- Finding: cost accrues forever after box deletion (LOW) ----
+def _iso(ts):
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
 
 
-def test_deploy_footprint_radius_is_the_real_bound():
-    # For any trajectory, recentering on the MEC center makes the certified radius
-    # a true upper bound on the deployed excursion (the property the fix guarantees).
-    rng = np.random.default_rng(0)
-    for _ in range(20):
-        xy = rng.uniform(-2, 2, size=(200, 2))
-        (cx, cy), r = minimal_enclosing_circle(xy)
-        recentered = xy - np.array([cx, cy])
-        assert _max_radial(recentered) <= r + 1e-6
+def test_cost_stops_at_deletion():
+    from pipeline.monitor import compute_cost
+    created = 1_000_000.0
+    now = created + 10 * 3600  # 10h later
+    billing = {"created_at": _iso(created), "rate_vnd_per_hour": 1000.0,
+               "cap_vnd": 1_000_000.0, "usd_per_vnd": 4e-5}
+    live = compute_cost(billing, now=now)
+    assert live["hours"] == 10.0
+    billing["deleted_at"] = _iso(created + 4 * 3600)  # delete after 4h
+    frozen = compute_cost(billing, now=now)
+    assert frozen["hours"] == 4.0
+    assert frozen["accrued_vnd"] == 4000.0
+    assert compute_cost(billing, now=now + 99 * 3600)["hours"] == 4.0
 
 
-# ---- Finding: library import trusts dance.json wholesale (HIGH, security) ----
-import io
-import json as _json
-import tarfile as _tarfile
-from pathlib import Path as _Path
-
-import pipeline.library as lib
-from pipeline import shows as _shows
-
-
-def _make_archive(path, dances):
-    """dances: {id: dance_record_dict}. Builds a dance_library/v1 .tar.gz."""
-    buf = {}
-    buf["manifest.json"] = _json.dumps(
-        {"schema": lib.SCHEMA, "exported_at": 0, "dances": list(dances)}).encode()
-    for did, rec in dances.items():
-        buf[f"dances/{did}/dance.json"] = _json.dumps(rec).encode()
-    with _tarfile.open(path, "w:gz") as tar:
-        for name, data in buf.items():
-            ti = _tarfile.TarInfo(name)
-            ti.size = len(data)
-            tar.addfile(ti, io.BytesIO(data))
-
-
-def _redirect(monkeypatch, tmp_path):
-    monkeypatch.setattr(_shows, "DANCES_DIR", tmp_path / "dances")
-    (tmp_path / "dances").mkdir()
-    monkeypatch.setattr(lib, "DATA_DIR", tmp_path)
-
-
-def test_import_forces_draft_and_strips_trust_fields(tmp_path, monkeypatch):
-    _redirect(monkeypatch, tmp_path)
-    arc = tmp_path / "a.tar.gz"
-    _make_archive(arc, {"legit": {
-        "id": "legit", "name": "Evil", "status": "show-ready",
-        "sim_exam": {"verdict": "pass"}, "policy_sha256": "deadbeef",
-        "repeatability": {"consecutive_clean": 99}}})
-    got = lib.import_library(arc)
-    assert got == ["legit"]
-    rec = _json.loads((tmp_path / "dances" / "legit" / "dance.json").read_text())
-    assert rec["status"] == "draft"                     # never trust show-ready
-    for f in ("sim_exam", "policy_sha256", "repeatability"):
-        assert f not in rec                             # authorization fields stripped
-
-
-def test_import_rejects_traversal_id(tmp_path, monkeypatch):
-    _redirect(monkeypatch, tmp_path)
-    arc = tmp_path / "a.tar.gz"
-    _make_archive(arc, {"../evil": {"id": "../evil", "name": "x", "status": "draft"}})
-    got = lib.import_library(arc)
-    assert got == []                                    # skipped, not imported
-    assert not (tmp_path / "evil").exists()             # nothing written outside
-
-
-def test_import_rejects_member_count_bomb(tmp_path, monkeypatch):
-    _redirect(monkeypatch, tmp_path)
-    monkeypatch.setattr(lib, "_MAX_MEMBERS", 2)
-    arc = tmp_path / "a.tar.gz"
-    _make_archive(arc, {"a": {"id": "a", "name": "a"}, "b": {"id": "b", "name": "b"}})
-    with pytest.raises(ValueError, match="too many entries"):
-        lib.import_library(arc)
-
-
-def test_import_rejects_size_bomb(tmp_path, monkeypatch):
-    _redirect(monkeypatch, tmp_path)
-    monkeypatch.setattr(lib, "_MAX_UNCOMPRESSED_BYTES", 50)
-    arc = tmp_path / "a.tar.gz"
-    _make_archive(arc, {"a": {"id": "a", "name": "a", "notes": "x" * 500}})
-    with pytest.raises(ValueError, match="uncompressed size"):
-        lib.import_library(arc)
-
-
-# ---- Finding: configurable venue max_excursion orphaned (MEDIUM) ----
-from types import SimpleNamespace
-from pipeline.stages.local_motion import _resolve_max_excursion
-
-
-def test_resolve_max_excursion_precedence(monkeypatch):
-    monkeypatch.delenv("G1_MAX_EXCURSION_M", raising=False)
-    # default
-    assert _resolve_max_excursion(SimpleNamespace(input={})) == 1.5
-    # env override
-    monkeypatch.setenv("G1_MAX_EXCURSION_M", "2.3")
-    assert _resolve_max_excursion(SimpleNamespace(input={})) == 2.3
-    # per-job venue wins over env
-    job = SimpleNamespace(input={"venue_max_excursion_m": 0.9})
-    assert _resolve_max_excursion(job) == 0.9
-    # junk/negative falls back
-    monkeypatch.delenv("G1_MAX_EXCURSION_M", raising=False)
-    assert _resolve_max_excursion(SimpleNamespace(input={"venue_max_excursion_m": -1})) == 1.5
-    assert _resolve_max_excursion(SimpleNamespace(input={"venue_max_excursion_m": "x"})) == 1.5
+# ---- Finding: desktop silently attaches to a stale server on 8735 (LOW) ----
+def test_desktop_port_in_use_detection():
+    import socket as _sock
+    from ui.desktop import _port_in_use
+    with _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM) as s:
+        s.setsockopt(_sock.SOL_SOCKET, _sock.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+        assert _port_in_use("127.0.0.1", port) is True   # occupied → detected
+    assert _port_in_use("127.0.0.1", port) is False       # released → free

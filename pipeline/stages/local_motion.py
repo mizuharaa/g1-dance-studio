@@ -49,23 +49,6 @@ def _run_tool(script: str, args: list[str], job: Job, on_line=None,
                                        "".join(out_lines), err)
 
 
-def _resolve_max_excursion(job: Job) -> float:
-    """The venue's max root-excursion (m) for this job, by precedence:
-    per-job venue value → G1_MAX_EXCURSION_M env → 1.5 m default. Keeps windowing
-    and the vet subprocess on the SAME limit (audit: venue was orphaned at 1.5 m)."""
-    inp = getattr(job, "input", None) or {}
-    for src in (inp.get("venue_max_excursion_m") if isinstance(inp, dict) else None,
-                os.environ.get("G1_MAX_EXCURSION_M")):
-        if src is not None:
-            try:
-                v = float(src)
-                if v > 0:
-                    return v
-            except (TypeError, ValueError):
-                pass
-    return 1.5
-
-
 class ExtractStage:
     """Local part: intake validation via ffprobe (fail fast on unusable
     footage). The GPU pose extraction itself is cloud-blocked until
@@ -113,39 +96,23 @@ class RetargetStage:
             if abs(shift) > UNGROUNDED_FLAG_M:
                 job.log(f"retarget: grounded motion (input contact was "
                         f"{shift:+.3f} m off the floor)")
-        # Venue's max root excursion: honor a per-job venue if set, else the
-        # G1_MAX_EXCURSION_M env convention (shared with vet_motion / find_window),
-        # else the 1.5 m default. (audit MEDIUM: configurable venue was orphaned —
-        # never reached windowing/vet. UI→job.venue plumbing is a cross-lane follow-up.)
-        maxexc = _resolve_max_excursion(job)
-        s, e = longest_window(m, max_excursion_m=maxexc)
+        s, e = longest_window(m)
         if e <= s:
             raise RuntimeError("no frame window satisfies the dance-area limits")
         seg = m[s:e + 1].copy()
-        # Re-center XY on the enclosing-circle CENTER the gate certifies — NOT the
-        # window start. find_window certifies MEC radius <= max_excursion assuming the
-        # robot is placed at that center; recentering on frame 0 would let the real
-        # deployed excursion reach ~2x the certified radius, so the robot could leave
-        # the certified dance area on the real floor (audit HIGH: MEC-vs-deploy mismatch).
-        from ..venue import minimal_enclosing_circle
-        (cx, cy), footprint_r = minimal_enclosing_circle(seg[:, 0:2])
-        seg[:, 0] -= cx
-        seg[:, 1] -= cy
-        # After recentering, max radial distance == footprint_r == the certified bound.
+        seg[:, 0:2] -= seg[0, 0:2]  # re-center XY on the window start
         motion_csv = out_dir / "motion.csv"
         np.savetxt(motion_csv, seg, delimiter=",", fmt="%.6f")
         st.meta["window"] = {
             "start_frame": int(s), "end_frame": int(e),
             "seconds": round(len(seg) / CSV_FPS, 1),
             "input_seconds": round(len(m) / CSV_FPS, 1),
-            "footprint_radius_m": round(float(footprint_r), 3),
         }
         job.log(f"retarget: window frames {s}..{e} = {len(seg) / CSV_FPS:.1f}s "
-                f"(XY re-centered on footprint center, radius {footprint_r:.3f} m)")
+                "(XY re-centered)")
 
         report(0.25, "vetting motion (hard gate)")
-        vet = _run_tool("vet_motion.py", [str(motion_csv), "--json"], job,
-                        env_extra={"G1_MAX_EXCURSION_M": repr(float(maxexc))})
+        vet = _run_tool("vet_motion.py", [str(motion_csv), "--json"], job)
         if not vet.stdout:
             raise RuntimeError(f"vet_motion produced no report: {vet.stderr[-500:]}")
         vet_report = json.loads(vet.stdout)

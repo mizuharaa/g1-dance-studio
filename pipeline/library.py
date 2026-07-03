@@ -16,7 +16,6 @@ Archive layout:
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import tarfile
 import tempfile
@@ -29,21 +28,6 @@ from .config import DATA_DIR, PROJECT_ROOT
 
 SCHEMA = "dance_library/v1"
 EXPORTS_DIR = DATA_DIR / "exports"
-
-# A dance id becomes a directory name — allowlist it so a crafted manifest can't
-# escape DANCES_DIR (partial path traversal) via '../' or absolute segments.
-_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-
-# Import must NOT trust show-ready state from an archive: a crafted dance.json
-# could claim status "show-ready" + a fake sim-exam verdict and bypass the signed
-# gate the API enforces. Imported dances land as draft and must be re-verified.
-# These verification/authorization fields are stripped on import.
-_TRUST_FIELDS = ("sim_exam", "repeatability", "policy_sha256", "verified",
-                 "show_ready", "sim_verified")
-
-# Uncompressed-size and member-count caps so a tar bomb can't exhaust the disk.
-_MAX_UNCOMPRESSED_BYTES = 5 * 1024 ** 3   # 5 GB
-_MAX_MEMBERS = 10_000
 
 # Dance fields that reference an on-disk file we must bundle and rewrite.
 _FILE_FIELDS = {"motion_csv": "motion.csv", "policy_path": None, "preview": "preview.mp4"}
@@ -122,25 +106,12 @@ def import_library(archive: Path, *, overwrite: bool = False) -> list[str]:
         if manifest.get("schema") != SCHEMA:
             raise ValueError(f"unrecognized archive schema: {manifest.get('schema')}")
         for did in manifest.get("dances", []):
-            # Sanitize the id before it becomes a filesystem path (path-traversal /
-            # arbitrary write under data/). Reject anything not in the allowlist.
-            if not isinstance(did, str) or not _ID_RE.match(did):
-                continue
             src_dir = root / "dances" / did
             rec_path = src_dir / "dance.json"
             if not rec_path.is_file():
                 continue
             record = json.loads(rec_path.read_text())
-            # Never trust show-ready state from an archive — force draft + strip the
-            # verification/authorization fields so the imported dance must re-verify
-            # through the signed-verdict gate before it can be deployed.
-            record["status"] = "draft"
-            for tf in _TRUST_FIELDS:
-                record.pop(tf, None)
             dest_dir = shows.DANCES_DIR / did
-            # Defense in depth: confirm the resolved dest stays under DANCES_DIR.
-            if dest_dir.resolve().parent != shows.DANCES_DIR.resolve():
-                continue
             if dest_dir.exists() and not overwrite:
                 continue
             dest_dir.mkdir(parents=True, exist_ok=True)
@@ -166,23 +137,10 @@ def import_library(archive: Path, *, overwrite: bool = False) -> list[str]:
 
 
 def _safe_extract(tar: tarfile.TarFile, path: Path) -> None:
-    """Extract guarding against path traversal (../ or absolute members) and
-    decompression bombs (total uncompressed size / member count caps)."""
+    """Extract guarding against path traversal (../ or absolute members)."""
     base = path.resolve()
-    members = tar.getmembers()
-    if len(members) > _MAX_MEMBERS:
-        raise ValueError(f"archive has too many entries ({len(members)} > "
-                         f"{_MAX_MEMBERS})")
-    total = 0
-    for member in members:
+    for member in tar.getmembers():
         target = (base / member.name).resolve()
-        if not str(target).startswith(str(base) + "/") and target != base:
+        if not str(target).startswith(str(base)):
             raise ValueError(f"unsafe path in archive: {member.name}")
-        # Reject symlink/hardlink/device members outright — only regular files/dirs.
-        if not (member.isfile() or member.isdir()):
-            raise ValueError(f"unsafe member type in archive: {member.name}")
-        total += max(member.size, 0)
-        if total > _MAX_UNCOMPRESSED_BYTES:
-            raise ValueError("archive uncompressed size exceeds the "
-                             f"{_MAX_UNCOMPRESSED_BYTES} byte limit")
     tar.extractall(path)
