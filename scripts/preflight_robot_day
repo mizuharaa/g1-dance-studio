@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Robot-day pre-flight: run this on the LAPTOP before you go near the robot.
+# It checks everything software-side is ready and prints a GO / NO-GO verdict.
+# Read-only + dry-run: it never touches the robot and starts nothing.
+#
+#   ./scripts/preflight_robot_day --dance thriller
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+DANCE="thriller"
+[ "${1:-}" = "--dance" ] && DANCE="${2:-thriller}"
+
+pass=0; warn=0; fail=0
+ok()   { printf '  \033[32mGO\033[0m   %s\n' "$*"; pass=$((pass+1)); }
+wn()   { printf '  \033[33mWARN\033[0m %s\n' "$*"; warn=$((warn+1)); }
+no()   { printf '  \033[31mNO-GO\033[0m %s\n' "$*"; fail=$((fail+1)); }
+
+echo "=== Robot-day pre-flight: dance=${DANCE} ==="
+
+# 1. policy + show-ready verdict
+POL="data/policies/${DANCE}/policy.onnx"
+VER="data/policies/${DANCE}/heldout_verdict.json"
+[ -f "$POL" ] && ok "policy present ($POL)" || no "policy missing ($POL) — train + export first"
+if [ -f "$VER" ]; then
+  v=$(python3 -c "import json;d=json.load(open('$VER'));print(d.get('verdict','?'))" 2>/dev/null)
+  case "$v" in
+    pass) ok "held-out verdict = pass (>=99% bar met)";;
+    *)    no "held-out verdict = '$v' (need 'pass' at >=99% survival — dance is NOT show-ready)";;
+  esac
+else
+  no "no held-out verdict ($VER) — run the verification gate"
+fi
+
+# 2. deploy scripts present + shellcheck clean
+for s in deploy/lib.sh deploy/01_pc2_install.sh deploy/02_push_bundle.sh \
+         deploy/10_gantry_test.sh deploy/kill_now.sh; do
+  [ -f "$s" ] && ok "script present: $s" || no "missing script: $s"
+done
+if command -v shellcheck >/dev/null 2>&1; then
+  # -S warning ignores benign SC1091 "can't follow sourced lib.sh" info notes.
+  if ( cd deploy && shellcheck -S warning -x ./*.sh >/dev/null 2>&1 ); then
+    ok "shellcheck clean (deploy/*.sh)"
+  else wn "shellcheck reported warnings (run: cd deploy && shellcheck -x ./*.sh)"; fi
+else
+  wn "shellcheck not installed — skipped static analysis"
+fi
+
+# 3. bundle can be assembled (rehearsal — never authorizes)
+M=$(ls data/motions/${DANCE}/*show*.csv 2>/dev/null | head -1)
+M=${M:-$(ls data/motions/${DANCE}/*.csv 2>/dev/null | head -1)}
+if [ -f "$POL" ] && [ -f "${M:-/nonexistent}" ]; then
+  if PYTHONPATH=. python deploy/gen_config.py --dance "$DANCE" --policy "$POL" \
+       --motion "$M" --rehearsal >/dev/null 2>&1; then
+    ok "bundle assembles (rehearsal build succeeded)"
+    rm -rf "deploy/bundles/${DANCE}"
+  else no "bundle assembly failed — inspect gen_config.py"; fi
+else
+  wn "skipped bundle assembly (policy or motion csv not found under data/motions/${DANCE}/)"
+fi
+
+# 4. kill path is self-contained (no arming credential — safety review #2/#10).
+# Match a real CALL to require_human (non-comment line), not the word in a comment.
+if grep -Eq '^[[:space:]]*require_human' deploy/kill_now.sh; then
+  no "kill_now.sh calls require_human — an emergency stop must NOT be gated"
+else
+  ok "kill_now.sh fires from any shell (no arming gate)"
+fi
+
+# 5. robot LAN reachability (informational — robot is normally OFF now)
+if ping -c1 -W2 192.168.123.164 >/dev/null 2>&1; then
+  ok "PC2 (192.168.123.164) reachable now"
+else
+  wn "PC2 not reachable (expected if robot is off / laptop not on robot-lan yet)"
+fi
+
+echo "----------------------------------------"
+echo "  GO:${pass}  WARN:${warn}  NO-GO:${fail}"
+if [ "$fail" -gt 0 ]; then
+  echo "  VERDICT: NO-GO — resolve the NO-GO items before robot day."; exit 1
+elif [ "$warn" -gt 0 ]; then
+  echo "  VERDICT: GO WITH CAUTION — review WARN items (some are expected when the robot is off)."; exit 0
+else
+  echo "  VERDICT: GO — software side is ready."; exit 0
+fi

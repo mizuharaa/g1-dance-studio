@@ -78,4 +78,6 @@ pc2 "docker run -d --rm --name g1dance-controller --network host --privileged \
 
 log "controller container start issued (DAMPING HOLD)."
 log "watch:  ssh ${PC2_USER}@${PC2_HOST} docker logs -f g1dance-controller"
-log "abort:  deploy/kill_now.sh   (kills container; robot falls back to damping)"
+log "abort:  deploy/kill_now.sh  (stops the container). The remote e-stop (B-damping)"
+log "        in your hand is the ONLY guaranteed stop until command-loss->damping is"
+log "        verified on the gantry (runbook step 3a). Do NOT assume a safe posture."

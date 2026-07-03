@@ -23,18 +23,29 @@ require_human
 BUNDLE="bundles/${DANCE}"
 [ -f "${BUNDLE}/bundle.json" ] || die "no bundle at deploy/${BUNDLE} — run gen_config.py first (it enforces the exam gate)"
 
-# integrity re-check against the manifest before anything leaves the laptop
+# A rehearsal bundle (built with gen_config.py --rehearsal) is never pushable.
+if [ -f "${BUNDLE}/REHEARSAL_ONLY" ]; then
+    die "refusing: ${BUNDLE} is a REHEARSAL bundle (no exam authorization) — rebuild without --rehearsal once show-ready"
+fi
+
+# integrity re-check against the manifest before anything leaves the laptop.
+# Matches gen_config.py's manifest exactly: exam.authorized (NOT a 'verdict' string),
+# FULL 64-hex sha256 (finding #32), and EVERY hash-pinned file (findings #8/#19).
 python3 - "$BUNDLE" <<'PYEOF'
 import hashlib, json, sys
 from pathlib import Path
 b = Path(sys.argv[1])
 man = json.loads((b / "bundle.json").read_text())
-assert man["exam"]["verdict"] == "pass", "manifest exam verdict is not pass"
+assert man.get("rehearsal") is not True, "rehearsal bundle is not deployable"
+assert man["exam"]["authorized"] is True, "manifest exam is not authorized"
+for name, want in man["files_sha256"].items():
+    got = hashlib.sha256((b / name).read_bytes()).hexdigest()
+    assert got == want, f"{name}: sha mismatch\n  got  {got}\n  want {want}"
 for part in ("policy", "motion"):
     f = b / man[part]["file"]
-    got = hashlib.sha256(f.read_bytes()).hexdigest()[:16]
+    got = hashlib.sha256(f.read_bytes()).hexdigest()
     assert got == man[part]["sha256"], f"{f}: sha mismatch {got} != {man[part]['sha256']}"
-print("bundle integrity ok")
+print("bundle integrity ok (exam authorized, all files match full sha256)")
 PYEOF
 
 [ "$DRY_RUN" = "0" ] && check_robot_reachable
