@@ -339,6 +339,17 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 - 2026-07-04: **Sim2real finding (robot-day):** base_lin_vel is not directly measurable
   on the real G1 — deployed controller needs a state estimator for it, else robustness
   gap. Record in deploy/robot-day docs.
+- 2026-07-04: **Cost calibration FINAL:** ~2040 iters/hr (GPU-shared), ~8,900 VND/1000
+  iters, a converging dance (~3000 iters) ≈ 27,000 VND ≈ **$1.04 compute/dance**. Box
+  ~145k/1.5M VND (~8h). **Benchmark dance1-seg was a ROGUE DUPLICATE** — an agent
+  relaunched it via the OLD registry interface (train.py --registry-name … + .wandb_key,
+  no iter cap) after the orchestrator had cleanly killed the original; it was halving the
+  GPU with the long-dance. Orchestrator killed the rogue; long-dance now solo (~2x
+  faster). WATCH: if a benchmark reappears, some stale loop/worker is relaunching it via
+  the deprecated registry path — kill + trace. VRAM only ~4/24GB used (small model +
+  mjlab lean) → big headroom for parallel dances (backlog: batch/multi-GPU training).
+  Backlog also: box auto-teardown on training-done (GreenNode delete is console-only, no
+  API — needs browser-drive or user click; watcher armed).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
