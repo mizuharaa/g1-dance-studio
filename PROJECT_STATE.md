@@ -293,6 +293,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   (validated). Long-dance train-dance2-long running (62.2s window of dance2, adaptive
   kernel 6). **PRODUCT FINDING: 2-3min in-area dances need in-place choreography —
   stock traveling mocap caps at ~62s within the 2m radius.** Box ~131k/1.5M VND.
+- 2026-07-04: **THRILLER TRAINED — attempt 1 SUCCESS.** Converged first try (reward
+  ~31.4 plateau, 95% survival). In-engine test on the full 49s from standing:
+  100% completion, no fall, ~6.8° joint tracking error; still 100% under 64 sensor-
+  noised robots (good sim2real omen). Cost ~$1 GPU/dance (~2000 iters/hr, converge
+  ~3000 iters). Box ~131k/1.5M VND. Video: data/previews/progress/train-thriller-a1_*.
+  **NOT show-ready yet (deliberate):** the INDEPENDENT signed sim2sim exam
+  (pipeline/sim_exam.py) can't score our policy — it was built for the Isaac/wbt obs
+  layout, but we train on mjlab (160-dim obs). Thriller registered as DRAFT with policy
+  attached; the signed /api/dances/sim-runs path correctly refuses to mark it show-ready
+  without a passing signed exam. FIX DISPATCHED: mjlab obs-adapter for sim_exam.
+- 2026-07-04: **PRODUCT FINDING — affects filming (tell user, durable):** stock mocap
+  dances travel too far for a 2-3min clip inside the 2m area (test dance's longest clean
+  window was 62s; excursion hit 1.47m of the 1.5m limit). **Real 2-3 min show dances must
+  be CHOREOGRAPHED TO STAY ROUGHLY IN PLACE (small footprint).** Long-dance validation
+  train-dance2-long (67s) now running to test longer-horizon tracking.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
