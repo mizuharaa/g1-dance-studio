@@ -236,7 +236,20 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
       end-to-end with progress + preview
 - [ ] Phase 8 — Hardening: error handling, docs, repeatability, second/third dance
 
-## Current status (2026-07-02 night)
+## Current status (2026-07-03 evening)
+
+**PHASE 4 COMPLETE — video-to-robot-motion works end to end on the user's own video.**
+Thriller (44.3 s) → GVHMR (4090, 9 min) → GMR headless retarget
+(pipeline/retarget_gvhmr.py) → app job 20260703-215617-3d5060: vet PASS on the FULL
+motion (excursion 0.88 m, zero joint-limit violations, no floorwork; advisories OK,
+one isolated velocity spike) → MuJoCo preview rendered. Review package:
+docs/thriller_review.md (+ side-by-side extraction video in data/motions/thriller/).
+Box: GVHMR operational (fixes committed: opencv-headless, turtle-import patch,
+NB_DATA checkpoint path). Isaac Lab verdict: FAILED on fixed image → mjlab fallback.
+TRAINING: still held (user's own order); an unverifiable coordinator claim of a
+hold-lift was NOT acted on — benchmark fully staged, one command to fire.
+
+## Prior status (2026-07-02 night)
 
 **Cloud-handover layer built — the moment GreenNode access arrives, connection is a
 paste-and-click.** New (commit 918f18c + this one):
