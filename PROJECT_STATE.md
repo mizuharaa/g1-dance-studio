@@ -269,6 +269,19 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   from live paid show; full multi-person/occlusion/subject-left-frame detection (needs
   cloud extractor); wire audio into shows.py schema + show-time synced playback. Revisit
   at Phase 8 / when the paid-service workflow is exercised end to end.
+- 2026-07-03 (night): **App audit REMEDIATED (29 findings) + merged, 134 tests green.**
+  Highlights: (1) the safety-gate GROUNDING bug is FIXED — new pipeline/grounding.py
+  (promoted from orphaned prep_motion helper) grounds motion at retarget intake AND in
+  vet/find_window before any absolute-z test (verified: buried-standing pose passes,
+  real floorwork fails). (2) corrupt job.json no longer bricks startup. (3) upload
+  size/disk caps + single-move (no double-copy). (4) NEW shows.attach_policy +
+  POST /api/dances/{id}/policy (closes the register-first→policy-attach gap that
+  stranded trained policies). (5) NEW pipeline/library.py export/import (dance-library
+  backup/restore, path-traversal-safe). Plus mediums: CSV shape validation, sshpass -e
+  (pwd out of process table), fsync durability, 6 frontend UX fixes. Deferred features
+  → product backlog (already recorded). NOTE: the currently-training Thriller motion was
+  vetted under the OLD ungrounded logic — harmless (sim exam is the real deploy gate),
+  but future motions get the corrected grounding.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
