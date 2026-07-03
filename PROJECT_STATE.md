@@ -180,6 +180,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   pushed to the network volume (uplink ~12 MB/s). Launch commands pinned:
   csv_to_npz + train.py both run from $NB_DATA/envs/isaaclab python with --headless;
   registry_name = luong-alois-vng-group-org/wandb-registry-motions/<collection>.
+- 2026-07-03: **TRAINING ON HOLD (user order):** do NOT launch train.py / any RL
+  training (Isaac or mjlab) until the user lifts the hold. csv_to_npz motion
+  conversion/upload IS allowed. Box stays provisioned and idle (meter accepted;
+  do not delete anything).
+- 2026-07-03: **Phase 4 STARTED — user delivered the reference video**
+  `data/videos/Thriller Dance Final.mov` (44.3 s, 1498×1392, h264, VFR: nominal
+  120 fps, ~35.4 avg ⇒ re-encoded to constant 30 fps → `thriller_30fps.mp4`,
+  1329 frames, pushed to box:/workspace/notebook-data/videos_in/). Plan: GVHMR
+  inference on box (static-cam assumption, -s) → pull hmr4d_results.pt → laptop
+  GMR `scripts/gvhmr_to_robot.py --robot unitree_g1 --save_path <pkl>` (tgt
+  30 fps, saves root_pos+root_rot(xyzw)+dof_pos) → `batch_gmr_pkl_to_csv.py`
+  (36-col LAFAN1-style CSV) → find_window → vet → MuJoCo preview as an app job.
+  GMR being installed -e into g1dance env (laptop). Provisioning fix rounds:
+  chumpy + cython_bbox need --no-build-isolation; isaaclab.sh needs activated
+  venv + TERM=dumb.
 
 ## Phase checklist
 
