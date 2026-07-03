@@ -379,6 +379,36 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   Held-out gate = cloud/heldout_eval.py (256 env, seed 90001, nominal+push) + signed by
   pipeline/mjlab_verify.py. On converge: export → heldout → >=99%% = sim-verified else
   attempt 3 (last of 3). policy_meta.json/interface spec delivered to sim-exam agent.
+- 2026-07-04: **Production audit (whole-system, real artifacts) → 33 confirmed**
+  (docs/production_audit_findings.md): 1 CRITICAL, 7 HIGH, rest med/low. Theme =
+  integration seams from parallel builds + one safety regression. Most FAIL CLOSED
+  (block deploy, not unsafe-deploy). Must-fix before robot/paid use:
+  - **CRITICAL: outcome capture dropped in UI rebuild** — no in-app way to record a
+    show's outcome, so a fallen/incident dance is never demoted and stays show-ready →
+    redeployed. Endpoint (record_outcome, demote-on-incident) EXISTS but is orphaned
+    from the rebuilt UI. Fix: add Clean/Aborted/Incident step after deploy in the
+    checklist wizard + force open-show resolution. (ui/ + shows.py)
+  - **HIGH: verdict motion-sha seam** — mjlab_verify signs the .npz sha; every consumer
+    (shows.record_sim_run_from_verdict, gen_config, authorize) hashes the deployable
+    .csv → never matches → no dance can EVER reach show-ready via real artifacts. Fix:
+    record BOTH npz+csv digests, bind consumers to the csv. (mjlab_verify + shows.py)
+  - **HIGH: gen_config can't consume mjlab verdict** — globs exam_*.json (verdict is
+    heldout_verdict.json) AND reads nominal.duration_s (mjlab verdict has no such key)
+    → KeyError. Deploy path is a dead-path with real artifacts. (deploy/gen_config.py)
+  **REMEDIATION PLAN (disciplined, avoid new integration debt):** these fixes touch
+  ui/ + shows.py which the show-production build is editing NOW. DO NOT fix in parallel.
+  Sequence: (1) let show-production land + merge; (2) ONE consolidation pass fixes all
+  audit critical+high on top of it, with regression tests through the REAL artifacts
+  (not synthetic matching shas — the audit noted existing tests miss these seams);
+  (3) re-run production audit to confirm. Full list: docs/production_audit_findings.md.
+- 2026-07-04: **Hands spike verdict (R&D):** hand pose NOT recoverable from our GVHMR
+  front-end (body-only SMPL; GMR zeros the hands) — expressive hands must be AUTHORED
+  until a whole-body+hands estimator (SMPLer-X/OSX/HaMeR) replaces the front-end. No
+  Inspire RH56DFTP MJCF exists (only Dex3), so the collision gate (built, works) can't
+  yet certify the REAL hands and the 'oversized' look is unconfirmed. v1 rec: use hands
+  SPARINGLY (authored held gestures like the Thriller claw, open-loop synced), ONLY after
+  collision-gated on a real Inspire model. Blockers: source Inspire MJCF + whole-body
+  hands estimator. Worktree agent-a3cfcfe00dfde754c merge-ready (additive).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
