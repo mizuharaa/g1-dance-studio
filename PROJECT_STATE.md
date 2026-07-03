@@ -350,6 +350,22 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   mjlab lean) → big headroom for parallel dances (backlog: batch/multi-GPU training).
   Backlog also: box auto-teardown on training-done (GreenNode delete is console-only, no
   API — needs browser-drive or user click; watcher armed).
+- 2026-07-04: **Independent sim2sim exam BLOCKED by model-fidelity gap (important).**
+  Exam physics agent made 2 faithful fixes (per-joint armature recovered from gains;
+  IMU velocimeter lever-arm at imu_in_pelvis) but proved by elimination that the exam's
+  `unitree_mujoco` G1 is NOT dynamically equivalent to mjlab's trained model: a pure
+  STATIC POSE HOLD (no policy) collapses at 1.38s in it. So a true different-model
+  sim2sim gate isn't viable without rebuilding the exam model. Added safety guard
+  `static_pose_hold_ok()` → emits verdict="invalid"/model_faithful:false (never a false
+  pass OR false fail). Thriller correctly stays DRAFT. 165 tests green.
+  **DECISION: adopt held-out mjlab verification as the automated pre-robot gate** (agent's
+  option 1 — cheapest, highest fidelity since it uses the faithful model): score the
+  policy in mjlab with HELD-OUT seeds + strong DR + push tests, produce the signed
+  sim_exam/v1 verdict. Honestly labeled = robustness/generalization verification, NOT
+  cross-engine independence. The TRUE independent gate remains ROBOT DAY (gantry-first).
+  Builder dispatched.
+  Findings routed: base_lin_vel not measurable on real G1 (deploy needs state estimator);
+  action_scale is PER-JOINT (0.074 wrists), not scalar 0.5 — exporter must emit the vector.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
