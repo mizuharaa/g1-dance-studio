@@ -164,6 +164,16 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   progressing (box provisioning monitored, GMR installing on laptop; GVHMR inference
   on the Thriller video auto-launches when its stack is ready). Finding: GMR ships a
   direct gvhmr_to_robot.py bridge — use it for SMPL->G1. TRAINING HOLD in force.
+- 2026-07-03: **FULL AUTONOMOUS MODE GRANTED (user) — TRAINING HOLD LIFTED.**
+  Parameters: (a) auto-chain Thriller training after benchmark passes (extraction
+  quality self-checked against metrics, no preview sign-off needed); (b) up to 3
+  Thriller training attempts before pausing for the user; (c) GPU spend cap for this
+  window: 1.5M VND (~$60, ≈82 box-hours) — pause everything and report if it would
+  be exceeded; (d) long-dance (2–3 min) recipe validation authorized on stock LAFAN1
+  mocap (e.g. dance2_subject4) after Thriller succeeds; user video swaps in later.
+  Robot-facing gates remain absolute (typed DEPLOY + user physically present).
+  Laptop suspend-on-AC disabled + idle-delay 0 for the window (user told to keep it
+  plugged in). Resume protocol if session dies: this file + logs/jobs.md.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
