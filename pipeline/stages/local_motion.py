@@ -100,16 +100,26 @@ class RetargetStage:
         if e <= s:
             raise RuntimeError("no frame window satisfies the dance-area limits")
         seg = m[s:e + 1].copy()
-        seg[:, 0:2] -= seg[0, 0:2]  # re-center XY on the window start
+        # Re-center XY on the enclosing-circle CENTER the gate certifies — NOT the
+        # window start. find_window certifies MEC radius <= max_excursion assuming the
+        # robot is placed at that center; recentering on frame 0 would let the real
+        # deployed excursion reach ~2x the certified radius, so the robot could leave
+        # the certified dance area on the real floor (audit HIGH: MEC-vs-deploy mismatch).
+        from ..venue import minimal_enclosing_circle
+        (cx, cy), footprint_r = minimal_enclosing_circle(seg[:, 0:2])
+        seg[:, 0] -= cx
+        seg[:, 1] -= cy
+        # After recentering, max radial distance == footprint_r == the certified bound.
         motion_csv = out_dir / "motion.csv"
         np.savetxt(motion_csv, seg, delimiter=",", fmt="%.6f")
         st.meta["window"] = {
             "start_frame": int(s), "end_frame": int(e),
             "seconds": round(len(seg) / CSV_FPS, 1),
             "input_seconds": round(len(m) / CSV_FPS, 1),
+            "footprint_radius_m": round(float(footprint_r), 3),
         }
         job.log(f"retarget: window frames {s}..{e} = {len(seg) / CSV_FPS:.1f}s "
-                "(XY re-centered)")
+                f"(XY re-centered on footprint center, radius {footprint_r:.3f} m)")
 
         report(0.25, "vetting motion (hard gate)")
         vet = _run_tool("vet_motion.py", [str(motion_csv), "--json"], job)
