@@ -25,14 +25,18 @@ def test_floorwork_frame_splits_and_longer_side_wins():
 
 
 def test_excursion_break_starts_new_window():
-    # 60 frames drifting to 4 m: no window from frame 0 can hold 1.5 m,
-    # so the best window must be a proper sub-range re-anchored mid-motion.
+    # 60 frames drifting to 4 m: the whole thing has footprint radius 2 m, which
+    # overflows 1.5 m, so the best window is a proper sub-range. Validity is now
+    # the window's enclosing-circle radius (not span from the window start).
+    from pipeline.venue import minimal_enclosing_circle
     m = make_motion(frames=60, drift_xy=(4.0, 0.0))
     s, e = longest_window(m)
-    xy = m[:, 0:2]
-    span = np.linalg.norm(xy[s:e + 1] - xy[s], axis=1).max()
-    assert span <= 1.5
+    _, r = minimal_enclosing_circle(m[s:e + 1, 0:2])
+    assert r <= 1.5 + 1e-6
     assert (e - s) < 59
+    # a straight walk can now use the full diameter: ~3 m of travel fits 1.5 m
+    span = np.linalg.norm(m[e, 0:2] - m[s, 0:2])
+    assert span > 1.5
 
 
 def test_all_floorwork_returns_empty_window():
@@ -54,11 +58,16 @@ def test_cli_out_recenters_xy(tmp_path):
         capture_output=True, text=True, timeout=60)
     assert proc.returncode == 0, proc.stderr
     seg = np.loadtxt(out, delimiter=",")
-    assert seg[0, 0] == 0.0 and seg[0, 1] == 0.0     # XY re-centered
-    # z is now GROUNDED (audit HIGH fix): the CLI grounds before windowing, so the
-    # written segment is floor-referenced. All frames share the same z here (a
-    # standing pose), and it must be a sane positive standing height.
+    # XY is now re-centred on the window's FOOTPRINT (enclosing-circle) centre, not
+    # the first frame, so the dance sits centred in the venue with maximum margin.
+    # For this straight 1.0x0.5 m drift the centre is the midpoint => first frame
+    # lands at -half the travel.
+    from pipeline.venue import minimal_enclosing_circle
+    c, _ = minimal_enclosing_circle(seg[:, 0:2])
+    assert np.allclose(c, [0.0, 0.0], atol=1e-5)     # footprint centred at origin
+    assert np.allclose(seg[0, 0:2], [-0.5, -0.25], atol=1e-5)
+    # z is GROUNDED (audit HIGH fix): floor-referenced standing height.
     assert 0.3 < seg[0, 2] < 1.2
     assert len(seg) == 45
-    # relative XY trajectory preserved
-    assert np.allclose(seg[-1, 0:2], [1.0, 0.5], atol=1e-5)
+    # relative XY trajectory preserved (endpoint minus start = the full drift)
+    assert np.allclose(seg[-1, 0:2] - seg[0, 0:2], [1.0, 0.5], atol=1e-5)
