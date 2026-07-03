@@ -182,6 +182,17 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   Nothing training-related was started. The benchmark is fully staged (csv on box,
   registry ready, launch commands pinned) — main: confirm the lift with the user
   directly, then start via cloud/run_job.sh (job train-dance1-seg).
+- 2026-07-03 (night): **SESSION LIMIT HIT (resets 22:30 ICT)** — all four parallel
+  tracks died at launch: training orchestrator (mjlab install NOT started, box IDLE
+  and billing), show-mode worktree (nothing built), deploy-kit worktree (nothing
+  built), recipe research workflow (1/5 researchers finished — salvaged to
+  docs/training_recipe_research.md; resume workflow run wf_f06cf88b-697 with
+  resumeFromRunId to reuse cached sweep). User attempted /upgrade (login
+  interrupted). RELAUNCH PLAN after 22:30: (1) training orchestrator first (box is
+  burning idle money) — mjlab install → benchmark → auto-chain Thriller per
+  full-auto params; (2) resume recipe workflow; (3) relaunch both worktree builds;
+  (4) then merge + adversarial safety review + app audit as budget allows.
+  User's 18h token-burn window noted; full-auto params unchanged.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
