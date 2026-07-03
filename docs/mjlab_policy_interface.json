@@ -1,0 +1,74 @@
+{
+  "framework": "mjlab",
+  "task": "Mjlab-Tracking-Flat-Unitree-G1",
+  "control_hz": 50,
+  "sim_dt": 0.005,
+  "decimation": 4,
+  "actor_obs_terms_in_order": [
+    "command",
+    "motion_anchor_pos_b",
+    "motion_anchor_ori_b",
+    "base_lin_vel",
+    "base_ang_vel",
+    "joint_pos",
+    "joint_vel",
+    "actions"
+  ],
+  "obs_concatenated": true,
+  "action_scale": {
+    ".*_elbow_joint": 0.43857731392336724,
+    ".*_shoulder_pitch_joint": 0.43857731392336724,
+    ".*_shoulder_roll_joint": 0.43857731392336724,
+    ".*_shoulder_yaw_joint": 0.43857731392336724,
+    ".*_wrist_roll_joint": 0.43857731392336724,
+    ".*_hip_pitch_joint": 0.5475464629911068,
+    ".*_hip_yaw_joint": 0.5475464629911068,
+    "waist_yaw_joint": 0.5475464629911068,
+    ".*_hip_roll_joint": 0.35066146637882434,
+    ".*_knee_joint": 0.35066146637882434,
+    ".*_wrist_pitch_joint": 0.07450087032950714,
+    ".*_wrist_yaw_joint": 0.07450087032950714,
+    "waist_pitch_joint": 0.43857731392336724,
+    "waist_roll_joint": 0.43857731392336724,
+    ".*_ankle_pitch_joint": 0.43857731392336724,
+    ".*_ankle_roll_joint": 0.43857731392336724
+  },
+  "action_use_default_offset": true,
+  "anchor_body_name": "torso_link",
+  "tracked_body_names": [
+    "pelvis",
+    "left_hip_roll_link",
+    "left_knee_link",
+    "left_ankle_roll_link",
+    "right_hip_roll_link",
+    "right_knee_link",
+    "right_ankle_roll_link",
+    "torso_link",
+    "left_shoulder_roll_link",
+    "left_elbow_link",
+    "left_wrist_yaw_link",
+    "right_shoulder_roll_link",
+    "right_elbow_link",
+    "right_wrist_yaw_link"
+  ],
+  "onnx_inputs": {
+    "obs": [
+      1,
+      160
+    ],
+    "time_step": [
+      1,
+      1
+    ]
+  },
+  "onnx_outputs": [
+    "actions",
+    "joint_pos",
+    "joint_vel",
+    "body_pos_w",
+    "body_quat_w",
+    "body_lin_vel_w",
+    "body_ang_vel_w"
+  ],
+  "note": "mjlab policy \u2014 obs terms must be built in this order to match training. joint order = LAFAN1 29-DoF (see mjlab csv_to_npz body joint list)."
+}
