@@ -223,6 +223,22 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   - **CROSS-CUTTING GOTCHA for any launch code:** mjlab num_envs DEFAULTS TO 1 — must
     pass --env.scene.num-envs 4096 explicitly (deploy-kit/sim_exam/app take note).
   - Budget: ~100k / 1.5M VND used at a1 launch.
+- 2026-07-03 (night): **ADVERSARIAL SAFETY REVIEW done + remediated** (40-agent
+  ultracode review → 33 confirmed findings, docs/safety_review_findings.md;
+  remediation merged, docs/safety_remediation.md). Both CRITICALs closed: (0) deploy
+  gate no longer trusts self-declared verdict string — new pipeline/exam_verdict.py
+  requires HMAC signature (key in .secrets/, exam-tool-only) + pass RE-DERIVED from
+  phase contents; hand-edit/fabrication now inert (regression-tested). (1) kill_now.sh
+  = SIGTERM-then-SIGKILL, stops falsely claiming robot damps. 22/33 code-fixed w/ 12
+  new tests (suite now 91 green). Reclassified to MANDATORY robot-day gates (runbook
+  Step 3a): SIGKILL→damping must be measured on gantry before ground; on-Jetson
+  comms-loss deadman; NaN→damping. **Corrected dangerous falsehood: this tetherless
+  G1 has NO torque-cutting hardware e-stop — only the remote's B-damping + the power
+  switch.** RESIDUAL (medium, non-blocking): #6 full exam DR, #23/#24 wire app
+  sim-runs endpoint to ingest signed verdict (primitives now exist), #28 per-dance
+  concurrency lock — follow-up dispatched.
+- 2026-07-03 (night): Training healthy — benchmark reward ~12.7, ep-len 360/500
+  (~7s survival); Thriller a1 reward 5.4 and climbing. Budget ~100k/1.5M VND.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
