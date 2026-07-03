@@ -187,11 +187,26 @@ async function openDance(id) {
     ${prev ? `<video class="preview" src="${esc(prev)}" controls ${muxed ? "" : "muted"} onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'empty',innerHTML:'preview unavailable'}))"></video>` : `<div class="empty" style="padding:24px">No preview rendered yet</div>`}
     ${audioRow}
     ${vetRows ? `<div class="section-title">Vetting</div><table>${vetRows}</table>` : ""}
-    <div class="row"><button class="btn btn-ghost" id="dClose">Close</button>${d.status === "draft" && !d.policy_path ? `<button class="btn btn-ghost" id="dAttach">Attach policy…</button>` : ""}</div>
+    <div class="row"><button class="btn btn-ghost" id="dClose">Close</button>${d.status === "draft" && !d.policy_path ? `<button class="btn btn-ghost" id="dAttach">Attach policy…</button>` : ""}${d.status === "sim-verified" ? `<button class="btn btn-primary" id="dPromote">Promote to Show-Ready</button>` : ""}</div>
+    <div id="dPromoteErr" class="hint" style="color:var(--danger);margin-top:8px;display:none"></div>
   </div></div>`);
   $("#modalRoot").appendChild(bg);
   $("#dClose", bg).onclick = () => bg.remove();
   bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+  const pBtn = $("#dPromote", bg);
+  if (pBtn) pBtn.onclick = async () => {
+    const errEl = $("#dPromoteErr", bg);
+    errEl.style.display = "none";
+    pBtn.disabled = true;
+    try {
+      await api(`/api/dances/${esc(d.id)}/promote`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "show-ready" }) });
+      toast("Promoted to Show-Ready", "ok");
+      bg.remove(); await refreshDances(); if (RENDER[S.cur]) RENDER[S.cur]();
+    } catch (e) {
+      // server explains why (e.g. "2/3 consecutive clean sim runs" or a policy swap)
+      errEl.textContent = e.message; errEl.style.display = "block"; pBtn.disabled = false;
+    }
+  };
   const reopen = async () => { bg.remove(); await refreshDances(); if (RENDER[S.cur]) RENDER[S.cur](); openDance(id); };
   const mBtn = $("#dMusic", bg);
   if (mBtn) mBtn.onclick = async () => {
