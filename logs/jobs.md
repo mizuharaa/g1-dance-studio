@@ -129,3 +129,20 @@ sessions. Trainings survive laptop reboots (they run in tmux on the box).
 - Thriller a2 at 3794/4000 (reward 30.4, climbing) — final-checkpoint autopilot waiting
   for its true completion to verify + hot-swap if tighter than 0.221m mpkpe.
 - Box-hours ~10h ≈ 182k VND of 1.5M cap.
+
+## 2026-07-04 ~03:15 ICT — OVERNIGHT COMPLETE. All training done, GPU idle.
+
+- **Thriller a2 FINAL checkpoint (iter 3999)**: also 100% held-out, but mpkpe 0.249m —
+  LOOSER than iter-1500's 0.221m (action-rate penalty kept trading precision for
+  smoothness with more training). ⇒ **iter-1500 KEPT as staged primary** (best a2:
+  100% survival + tightest tracking among a2 checkpoints). Swap-if-better logic correctly
+  declined the swap. Final artifacts at data/policies/thriller_a2_final/.
+- **Long-dance policy preserved**: exported dance2-long final → data/policies/dance2_long/policy.onnx.
+- **All GPU work done; GPU idle (0%).** Render loop + watchdogs stopped. Box still ALIVE
+  (~18k VND/h idle) — KEPT (not deleted) through robot day: derisk doc anticipates a
+  possible retrain if the gantry shows oscillation (latency+PD-gain DR), and re-provision
+  is ~1h. Budget ~182k/1.5M VND; keeping through the morning ~+110k stays well under.
+  **BOX DELETION = user's call** (destructive: loses provisioned env, data is all on laptop).
+- **ROBOT-DAY READY**: data/policies/thriller/ = a2 100% (ground), thriller_a1_fallback/ =
+  a1 (gantry/crisp), thriller_deploy.{csv,npz} (2.5s activation ramp), policy_meta.json
+  (full PD gains). Deploy-kit to build --full bundle. Robot untouched; deploy human-gated.
