@@ -43,11 +43,24 @@ def test_joint_limit_violation_fails(motion_csv):
 
 
 def test_floorwork_fails(motion_csv):
-    rc, rep = run_vet(motion_csv(z=0.20))
+    # GENUINE floorwork: robot lying down (base pitched 90°) → pelvis close to the
+    # floor after grounding. A merely-low root z on a STANDING pose is NOT floorwork
+    # (audit HIGH: judge pelvis height relative to floor contact, not un-grounded z).
+    m = make_motion(frames=10)
+    m[:, 3:7] = [0.0, 0.7071, 0.0, 0.7071]   # 90° pitch about y → lying down
+    rc, rep = run_vet(motion_csv(m))
     assert rc == 1
     ph = rep["hard"]["pelvis_height"]
     assert not ph["pass"]
-    assert ph["min_m"] == pytest.approx(0.20, abs=0.01)
+    assert ph["min_m"] < 0.35
+
+
+def test_low_standing_pose_grounded_passes(motion_csv):
+    # Regression for the grounding fix: a standing pose with a LOW absolute root z
+    # (un-grounded) must PASS — grounding references it to the floor first.
+    rc, rep = run_vet(motion_csv(z=0.20))
+    assert rc == 0
+    assert rep["hard"]["pelvis_height"]["pass"]
 
 
 def test_velocity_spike_is_advisory_not_fatal(motion_csv):

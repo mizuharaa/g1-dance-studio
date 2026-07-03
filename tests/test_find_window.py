@@ -54,8 +54,11 @@ def test_cli_out_recenters_xy(tmp_path):
         capture_output=True, text=True, timeout=60)
     assert proc.returncode == 0, proc.stderr
     seg = np.loadtxt(out, delimiter=",")
-    assert seg[0, 0] == 0.0 and seg[0, 1] == 0.0     # re-centered
-    assert seg[0, 2] == m[0, 2]                       # z untouched
+    assert seg[0, 0] == 0.0 and seg[0, 1] == 0.0     # XY re-centered
+    # z is now GROUNDED (audit HIGH fix): the CLI grounds before windowing, so the
+    # written segment is floor-referenced. All frames share the same z here (a
+    # standing pose), and it must be a sane positive standing height.
+    assert 0.3 < seg[0, 2] < 1.2
     assert len(seg) == 45
-    # relative trajectory preserved
+    # relative XY trajectory preserved
     assert np.allclose(seg[-1, 0:2], [1.0, 0.5], atol=1e-5)

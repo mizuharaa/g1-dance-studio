@@ -86,7 +86,16 @@ class RetargetStage:
         st = job.stages[self.name]
 
         report(0.05, "finding deployable window")
-        m = np.loadtxt(csv, delimiter=",")
+        from ..motion_io import load_motion_csv
+        m = load_motion_csv(csv)  # clear error on a malformed CSV, not a traceback
+        # Ground-reference before window/vet so the absolute-z gate is meaningful
+        # (audit HIGH: GMR retarget output is not floor-referenced). Idempotent.
+        from ..grounding import UNGROUNDED_FLAG_M, ground_motion, have_model
+        if have_model():
+            m, shift = ground_motion(m)
+            if abs(shift) > UNGROUNDED_FLAG_M:
+                job.log(f"retarget: grounded motion (input contact was "
+                        f"{shift:+.3f} m off the floor)")
         s, e = longest_window(m)
         if e <= s:
             raise RuntimeError("no frame window satisfies the dance-area limits")

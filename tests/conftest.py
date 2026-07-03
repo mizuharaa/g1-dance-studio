@@ -134,6 +134,23 @@ def jobs_env(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def dances_env(tmp_path, monkeypatch):
+    """Isolate the show/dance library (and the library export/import module) in a
+    temp dir. Returns (shows_module, dances_dir)."""
+    from pipeline import library, shows
+    dances_dir = tmp_path / "dances"
+    dances_dir.mkdir()
+    monkeypatch.setattr(shows, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(shows, "DANCES_DIR", dances_dir)
+    monkeypatch.setattr(shows, "SHOWS_DIR", tmp_path / "shows")
+    monkeypatch.setattr(shows, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(library, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(library, "EXPORTS_DIR", tmp_path / "exports")
+    monkeypatch.setattr(library, "PROJECT_ROOT", tmp_path)
+    return shows, dances_dir
+
+
+@pytest.fixture
 def client(tmp_path, monkeypatch, jobs_env):
     """TestClient over ui.server with the runner stubbed out (no real stage
     execution) and the store isolated. Yields (client, server_module)."""

@@ -62,17 +62,12 @@ def _clamp_joint_velocities(dof: np.ndarray) -> tuple[np.ndarray, int]:
 
 
 def _min_height_fk(motion: np.ndarray, model: mujoco.MjModel) -> float:
-    """Lowest z of any ROBOT geom over the trajectory (world/floor geoms excluded)."""
-    data = mujoco.MjData(model)
-    robot_geoms = np.flatnonzero(model.geom_bodyid != 0)
-    zmin = np.inf
-    for row in motion:
-        data.qpos[:3] = row[:3]
-        data.qpos[3:7] = row[[6, 3, 4, 5]]  # xyzw -> wxyz
-        data.qpos[7:] = row[7:]
-        mujoco.mj_kinematics(model, data)
-        zmin = min(zmin, float(data.geom_xpos[robot_geoms, 2].min()))
-    return zmin
+    """Lowest z of any ROBOT geom over the trajectory (world/floor geoms excluded).
+
+    Thin wrapper over the shared grounding helper so prep and the vet/window gate
+    ground motion identically (audit HIGH: grounding was orphaned here)."""
+    from .grounding import min_contact_height
+    return min_contact_height(motion, model)
 
 
 def _standing_row(model: mujoco.MjModel, like: np.ndarray) -> np.ndarray:

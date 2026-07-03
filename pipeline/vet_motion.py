@@ -39,9 +39,23 @@ def main():
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
-    m = np.loadtxt(args.csv, delimiter=",")
+    # This module runs both as a package import AND as a standalone subprocess
+    # (the retarget stage calls `python pipeline/vet_motion.py`), so import via the
+    # absolute package with ROOT on sys.path — a relative import breaks the script.
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from pipeline.grounding import UNGROUNDED_FLAG_M, ground_motion
+    from pipeline.motion_io import load_motion_csv
+
+    m = load_motion_csv(args.csv)  # clear error on malformed CSV, not a traceback
     model = mujoco.MjModel.from_xml_path(str(MODEL_XML))
     data = mujoco.MjData(model)
+
+    # Ground-reference before ANY absolute-z test (audit HIGH safety-gate bug):
+    # HARD-3 (no floorwork) and foot-skate compare against z=0, so the motion's
+    # lowest robot geom must sit on the floor first. Idempotent — a motion that
+    # is already grounded shifts by ~0.
+    m, ground_shift = ground_motion(m, model)
 
     qpos = np.empty_like(m)
     qpos[:, 0:3] = m[:, 0:3]
@@ -49,7 +63,8 @@ def main():
     qpos[:, 4:7] = m[:, 3:6]
     qpos[:, 7:] = m[:, 7:]
 
-    res = {"file": args.csv, "frames": len(m), "seconds": len(m) / CSV_FPS}
+    res = {"file": args.csv, "frames": len(m), "seconds": len(m) / CSV_FPS,
+           "ground_shift_m": round(float(ground_shift), 4)}
     hard, advisory = {}, {}
 
     # HARD 1: root excursion
@@ -99,6 +114,13 @@ def main():
     advisory["foot_skate"] = {"p95_stance_speed_m_s": round(skate_p95, 3),
                               "limit": FOOT_SKATE_SPEED,
                               "ok": skate_p95 <= FOOT_SKATE_SPEED}
+
+    # ADVISORY 3: intake grounding — flag a motion that arrived un-grounded, so a
+    # raw (offset_to_ground=False) retarget can't silently rely on grounding here.
+    advisory["grounding"] = {
+        "input_contact_offset_m": round(float(ground_shift), 4),
+        "limit": UNGROUNDED_FLAG_M,
+        "ok": abs(ground_shift) <= UNGROUNDED_FLAG_M}
 
     res["hard"] = hard
     res["advisory"] = advisory
