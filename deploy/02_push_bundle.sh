@@ -37,7 +37,17 @@ from pathlib import Path
 b = Path(sys.argv[1])
 man = json.loads((b / "bundle.json").read_text())
 assert man.get("rehearsal") is not True, "rehearsal bundle is not deployable"
-assert man["exam"]["authorized"] is True, "manifest exam is not authorized"
+scope = man.get("scope", "full")
+# A pushable bundle is either show-ready ("full", exam.authorized) OR "gantry-only"
+# (signed+bound but not show-ready — feet-off-ground testing; 10_gantry_test.sh will
+# still refuse --stage ground for it). Anything else must not leave the laptop.
+if scope == "full":
+    assert man["exam"]["authorized"] is True, "manifest exam is not authorized"
+elif scope == "gantry-only":
+    assert man["exam"].get("gantry_authorized") is True, "gantry-only bundle not gantry_authorized"
+    print("*** GANTRY-ONLY bundle: valid for FEET-OFF-GROUND testing only, NOT ground/show ***")
+else:
+    raise AssertionError(f"unknown bundle scope {scope!r} — refusing to push")
 for name, want in man["files_sha256"].items():
     got = hashlib.sha256((b / name).read_bytes()).hexdigest()
     assert got == want, f"{name}: sha mismatch\n  got  {got}\n  want {want}"

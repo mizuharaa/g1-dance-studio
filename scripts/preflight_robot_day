@@ -1,84 +1,108 @@
 #!/usr/bin/env bash
 # Robot-day pre-flight: run this on the LAPTOP before you go near the robot.
-# It checks everything software-side is ready and prints a GO / NO-GO verdict.
-# Read-only + dry-run: it never touches the robot and starts nothing.
+# STAGE-AWARE GO / NO-GO — a sub-99% policy is GO for the gantry but NO-GO for
+# ground-free. Read-only + dry-run: never touches the robot, starts nothing.
 #
-#   ./scripts/preflight_robot_day --dance thriller
+#   ./scripts/preflight_robot_day --stage gantry   [--dance thriller]
+#   ./scripts/preflight_robot_day --stage ground-free
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
-DANCE="thriller"
-[ "${1:-}" = "--dance" ] && DANCE="${2:-thriller}"
+cd "$ROOT" || exit 1
+DANCE="thriller"; STAGE="gantry"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dance) DANCE="${2:-thriller}"; shift 2 ;;
+    --stage) STAGE="${2:-gantry}"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+case "$STAGE" in gantry|ground-tethered|ground-free|push-test) ;; *) echo "bad --stage $STAGE"; exit 2 ;; esac
+# ground stages that carry real free-standing fall risk need a >=99% show-ready policy.
+NEEDS_SHOWREADY=0
+{ [ "$STAGE" = ground-free ] || [ "$STAGE" = push-test ]; } && NEEDS_SHOWREADY=1
 
 pass=0; warn=0; fail=0
-ok()   { printf '  \033[32mGO\033[0m   %s\n' "$*"; pass=$((pass+1)); }
-wn()   { printf '  \033[33mWARN\033[0m %s\n' "$*"; warn=$((warn+1)); }
-no()   { printf '  \033[31mNO-GO\033[0m %s\n' "$*"; fail=$((fail+1)); }
+ok() { printf '  \033[32mGO\033[0m   %s\n' "$*"; pass=$((pass+1)); }
+wn() { printf '  \033[33mWARN\033[0m %s\n' "$*"; warn=$((warn+1)); }
+no() { printf '  \033[31mNO-GO\033[0m %s\n' "$*"; fail=$((fail+1)); }
 
-echo "=== Robot-day pre-flight: dance=${DANCE} ==="
+echo "=== Robot-day pre-flight: dance=${DANCE} stage=${STAGE} ==="
 
-# 1. policy + show-ready verdict
 POL="data/policies/${DANCE}/policy.onnx"
+META="data/policies/${DANCE}/policy_meta.json"
 VER="data/policies/${DANCE}/heldout_verdict.json"
-[ -f "$POL" ] && ok "policy present ($POL)" || no "policy missing ($POL) — train + export first"
+DEP=$(ls "data/motions/${DANCE}/"*deploy*.csv 2>/dev/null | head -1)
+
+# 1. policy + gains spec
+[ -f "$POL" ] && ok "policy present" || no "policy missing ($POL) — train + export first"
+[ -f "$META" ] && ok "policy_meta.json present (SIM PD gains — robot must load THESE)" \
+  || no "policy_meta.json missing — bundle cannot carry the sim gains (fall risk)"
+
+# 2. deployable (ramped) motion — avoids the activation lurch
+if [ -n "$DEP" ]; then ok "deploy motion present ($(basename "$DEP") — has standby ramp)"
+else wn "no *deploy*.csv under data/motions/${DANCE}/ — build from the ramped clip, NOT the raw show clip (lurch hazard)"; fi
+
+# 3. verdict, graded BY STAGE
+v="?"
 if [ -f "$VER" ]; then
-  v=$(python3 -c "import json;d=json.load(open('$VER'));print(d.get('verdict','?'))" 2>/dev/null)
-  case "$v" in
-    pass) ok "held-out verdict = pass (>=99% bar met)";;
-    *)    no "held-out verdict = '$v' (need 'pass' at >=99% survival — dance is NOT show-ready)";;
-  esac
+  read -r v sig <<<"$(python3 -c "
+import json,sys
+sys.path.insert(0,'.')
+from pipeline.exam_verdict import signature_valid
+d=json.load(open('$VER'))
+print(d.get('verdict','?'), signature_valid(d))" 2>/dev/null)"
+  if [ "$sig" != "True" ]; then
+    no "verdict signature invalid — not authentically signed"
+  elif [ "$v" = pass ]; then
+    ok "held-out verdict = pass (>=99%) — show-ready, GO for all stages"
+  elif [ "$NEEDS_SHOWREADY" = 1 ]; then
+    no "verdict='$v' (sub-99%): NO-GO for ${STAGE}. ground-free/push-test need a >=99% policy (or a conscious --informed-override at the script)."
+  else
+    ok "verdict='$v' signed+bound: sufficient for ${STAGE} (gantry/tethered accept sub-99%)"
+  fi
 else
-  no "no held-out verdict ($VER) — run the verification gate"
+  no "no held-out verdict ($VER) — run pipeline.mjlab_verify"
 fi
 
-# 2. deploy scripts present + shellcheck clean
+# 4. deploy scripts present + shellcheck clean
+missing=0
 for s in deploy/lib.sh deploy/01_pc2_install.sh deploy/02_push_bundle.sh \
-         deploy/10_gantry_test.sh deploy/kill_now.sh; do
-  [ -f "$s" ] && ok "script present: $s" || no "missing script: $s"
+         deploy/10_gantry_test.sh deploy/kill_now.sh deploy/pull_telemetry.sh; do
+  [ -f "$s" ] || { no "missing script: $s"; missing=1; }
 done
+[ "$missing" = 0 ] && ok "all deploy scripts present"
 if command -v shellcheck >/dev/null 2>&1; then
-  # -S warning ignores benign SC1091 "can't follow sourced lib.sh" info notes.
-  if ( cd deploy && shellcheck -S warning -x ./*.sh >/dev/null 2>&1 ); then
-    ok "shellcheck clean (deploy/*.sh)"
-  else wn "shellcheck reported warnings (run: cd deploy && shellcheck -x ./*.sh)"; fi
-else
-  wn "shellcheck not installed — skipped static analysis"
-fi
+  ( cd deploy && shellcheck -S warning -x ./*.sh >/dev/null 2>&1 ) \
+    && ok "shellcheck clean (deploy/*.sh)" \
+    || wn "shellcheck warnings (cd deploy && shellcheck -x ./*.sh)"
+else wn "shellcheck not installed — skipped"; fi
 
-# 3. bundle can be assembled (rehearsal — never authorizes)
-M=$(ls data/motions/${DANCE}/*show*.csv 2>/dev/null | head -1)
-M=${M:-$(ls data/motions/${DANCE}/*.csv 2>/dev/null | head -1)}
-if [ -f "$POL" ] && [ -f "${M:-/nonexistent}" ]; then
-  if PYTHONPATH=. python deploy/gen_config.py --dance "$DANCE" --policy "$POL" \
-       --motion "$M" --rehearsal >/dev/null 2>&1; then
-    ok "bundle assembles (rehearsal build succeeded)"
-    rm -rf "deploy/bundles/${DANCE}"
+# 5. the real bundle assembles for this stage
+if [ -f "$POL" ] && [ -f "${DEP:-/nonexistent}" ] && [ -f "$VER" ]; then
+  FLAG="--gantry"; [ "$v" = pass ] && FLAG=""
+  if PYTHONPATH=. python deploy/gen_config.py --dance "preflight-${DANCE}" \
+       --policy "$POL" --motion "$DEP" --verdict "$VER" $FLAG >/dev/null 2>&1; then
+    ok "bundle assembles for ${STAGE} (scope $([ -n "$FLAG" ] && echo gantry-only || echo full))"
+    rm -rf "deploy/bundles/preflight-${DANCE}"
   else no "bundle assembly failed — inspect gen_config.py"; fi
-else
-  wn "skipped bundle assembly (policy or motion csv not found under data/motions/${DANCE}/)"
-fi
+else wn "skipped bundle assembly (missing policy/deploy-motion/verdict)"; fi
 
-# 4. kill path is self-contained (no arming credential — safety review #2/#10).
-# Match a real CALL to require_human (non-comment line), not the word in a comment.
-if grep -Eq '^[[:space:]]*require_human' deploy/kill_now.sh; then
-  no "kill_now.sh calls require_human — an emergency stop must NOT be gated"
-else
-  ok "kill_now.sh fires from any shell (no arming gate)"
-fi
+# 6. kill path is self-contained (no arming credential — safety review #2/#10)
+grep -Eq '^[[:space:]]*require_human' deploy/kill_now.sh \
+  && no "kill_now.sh calls require_human — an emergency stop must NOT be gated" \
+  || ok "kill_now.sh fires from any shell (no arming gate)"
 
-# 5. robot LAN reachability (informational — robot is normally OFF now)
-if ping -c1 -W2 192.168.123.164 >/dev/null 2>&1; then
-  ok "PC2 (192.168.123.164) reachable now"
-else
-  wn "PC2 not reachable (expected if robot is off / laptop not on robot-lan yet)"
-fi
+# 7. robot LAN (informational — robot normally OFF now)
+ping -c1 -W2 192.168.123.164 >/dev/null 2>&1 \
+  && ok "PC2 reachable now" \
+  || wn "PC2 not reachable (expected if robot off / not on robot-lan)"
 
 echo "----------------------------------------"
-echo "  GO:${pass}  WARN:${warn}  NO-GO:${fail}"
+echo "  stage=${STAGE}   GO:${pass}  WARN:${warn}  NO-GO:${fail}"
 if [ "$fail" -gt 0 ]; then
-  echo "  VERDICT: NO-GO — resolve the NO-GO items before robot day."; exit 1
+  echo "  VERDICT: NO-GO for ${STAGE} — resolve NO-GO items."; exit 1
 elif [ "$warn" -gt 0 ]; then
-  echo "  VERDICT: GO WITH CAUTION — review WARN items (some are expected when the robot is off)."; exit 0
+  echo "  VERDICT: GO WITH CAUTION for ${STAGE} — review WARN items."; exit 0
 else
-  echo "  VERDICT: GO — software side is ready."; exit 0
+  echo "  VERDICT: GO for ${STAGE}."; exit 0
 fi
