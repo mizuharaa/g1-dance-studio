@@ -422,6 +422,16 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   preflight, docs/GANTRY_MORNING_BRIEF.md. Orchestrator staging best Thriller policy +
   policy_meta.json. User needs tomorrow: gantry rigged, remote in hand, laptop on robot
   net (PC2 192.168.123.164). base_lin_vel≈0 on gantry so current policy is gantry-safe.
+- 2026-07-04 (night): **Robot day is now a FULL DAY** (user full-time on it) → staged
+  progression, NOT just measure: health → gantry (Step 3a damping + tracking) → GATE →
+  ground-tethered (taut line, partial weight) → GATE → ground-free (slack line, 2m area,
+  full dance — REAL fall risk) → GATE → push tests → debrief. Each stage GATED on the
+  prior passing; more time must NOT skip gates. ground-free requires: (a) gantry 3a
+  damping CONFIRMED, (b) ≥99% policy (attempt-2, else loud informed-override), (c) DLIO
+  estimator verified sane (base_lin_vel matters on ground, ~0 on gantry). Staging agent
+  a3c1cb3223b4b2d13 extended: full-day runbook docs/ROBOT_DAY_PLAN.md + ground-scope auth
+  + telemetry capture. STRETCH MILESTONE: Thriller on the ground, repeatably — earned
+  stage by stage, not assumed.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
