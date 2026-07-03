@@ -223,6 +223,18 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   - **CROSS-CUTTING GOTCHA for any launch code:** mjlab num_envs DEFAULTS TO 1 — must
     pass --env.scene.num-envs 4096 explicitly (deploy-kit/sim_exam/app take note).
   - Budget: ~100k / 1.5M VND used at a1 launch.
+- 2026-07-03 (night): **Safety residuals #6/#23/#24/#28 closed + merged** (98 tests
+  green). App sim-runs endpoint now requires a SIGNED sim_exam/v1 verdict (HMAC +
+  sha-match to the dance's files + pass re-derived from phases) — bare-bool
+  show-ready path is gone; promote() re-hashes policy on disk (post-exam swap
+  rejected); per-record flock on all dance/show mutators; exam repeatability now uses
+  real DR (friction/mass/pose/obs-noise/latency) with de-correlated seeds so "3 clean"
+  is meaningful. KNOWN LIMITATION (accepted for single-user laptop): the HMAC signing
+  key lives in .secrets/ — defeats accidental/hand edits + fabrication (the actual
+  finding) but is a soft boundary against a hostile local process, not a hard one.
+  Note: UI has no stale bool-posting caller (sim-runs is a machine endpoint from
+  sim_exam); server enforces signed verdict regardless. Deploy path is now
+  safety-reviewed + remediated end to end; robot-day empirical gates in runbook.
 - 2026-07-03 (night): **ADVERSARIAL SAFETY REVIEW done + remediated** (40-agent
   ultracode review → 33 confirmed findings, docs/safety_review_findings.md;
   remediation merged, docs/safety_remediation.md). Both CRITICALs closed: (0) deploy
