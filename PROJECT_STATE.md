@@ -308,6 +308,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   window was 62s; excursion hit 1.47m of the 1.5m limit). **Real 2-3 min show dances must
   be CHOREOGRAPHED TO STAY ROUGHLY IN PLACE (small footprint).** Long-dance validation
   train-dance2-long (67s) now running to test longer-horizon tracking.
+- 2026-07-04: **Phase 5 TRAINING LIVE.** mjlab 1.5.0 is the stack (Isaac Lab failed
+  on the fixed image — bounded fallback confirmed; mjlab pinned b546afe). Task
+  Mjlab-Tracking-Flat-Unitree-G1. Benchmark (dance1_subject2_seg) converted→registry
+  and TRAINING (4096 envs, ~1.6s/iter, GPU 76%, W&B run 40g4byo3). Thriller motion
+  pre-converted to registry (thriller), attempt-1 command staged in logs/jobs.md.
+  Auto-chain next-actions + resume steps in logs/jobs.md. Cost meter started there.
+  mjlab mdp/cfg mirrored to third_party/mjlab_mdp_ref/ (force-tracked; third_party is
+  gitignored) for the sim-exam gate. **Export contract:** emit policy_meta.json beside
+  policy.onnx — obs terms [command 58, motion_anchor_pos_b 3, motion_anchor_ori_b 6,
+  base_lin_vel 3, base_ang_vel 3, joint_pos 29, joint_vel 29, actions 29] = 160;
+  anchor_body_name torso_link. **IMU gotcha for sim-exam/deploy:** base_lin/ang_vel are
+  MuJoCo velocimeter/gyro at site imu_in_pelvis (PELVIS, pos 0.04525,0,-0.08339), NOT
+  torso base frame — velocimeter includes ω×r lever-arm; replicate exactly or good
+  policies false-fail. base_lin_vel is not directly measurable on hardware (sim2real
+  gap → flag at deploy).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
