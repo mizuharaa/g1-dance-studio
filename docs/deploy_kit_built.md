@@ -70,3 +70,37 @@ pipeline/sim_exam.py, docs/show_mode_contracts.md, docs/ROBOT_DAY_RUNBOOK.md,
 docs/deploy_kit_built.md, deploy/{README.md,lib.sh,gen_config.py,01_pc2_install.sh,
 02_push_bundle.sh,10_gantry_test.sh,kill_now.sh}. No dependency changes beyond
 `onnxruntime` (+ shellcheck, conda) already installed into the g1dance env.
+
+## Update 2026-07-04 — mjlab ONNX adapter added (sim2sim gate unblocked)
+
+Context change: Isaac Lab died on the GreenNode image; policies now train on **mjlab
+1.5.x** (task `Mjlab-Tracking-Flat-Unitree-G1`). Its ONNX export carries no
+whole_body_tracking metadata, so `WbtOnnxPolicy` hard-failed at load. Added
+`MjlabOnnxPolicy` (option (a): native adapter — the gate rebuilds the observation from
+MuJoCo state itself and takes reference truth from the motion CSV, so it stays
+independent of the policy under test).
+
+**Contract the training orchestrator must emit** — a `policy_meta.json` beside
+`policy.onnx`:
+```json
+{ "engine": "mjlab-1.5.0",
+  "joint_names": [".. 29 in mjlab actor order .."],
+  "kp": [..29..], "kd": [..29..], "default_joint_pos": [..29..],
+  "action_scale": 0.25,                    // scalar or [..29..]
+  "anchor_body_name": "torso_link",
+  "obs_terms": [["command",58],["motion_anchor_pos_b",3],["motion_anchor_ori_b",6],
+                ["imu_lin_vel",3],["imu_ang_vel",3],["joint_pos",29],
+                ["joint_vel",29],["actions",29]] }   // [name,width]; widths must sum to ONNX obs dim (160)
+```
+`load_policy` auto-selects `MjlabOnnxPolicy` when the sidecar is present. Verified
+end-to-end with a synthetic 160-in/29-out ONNX + sidecar on the real Thriller CSV:
+obs rebuilt to 160 dims, onnxruntime accepted it, full 44.3 s loop ran, signed verdict
+produced; the zero-action stub correctly FAILS (falls at 0.88 s).
+
+**One convention to confirm before trusting a real PASS (false-fail risk):** the mjlab
+IMU terms `imu_lin_vel`/`imu_ang_vel` are implemented here as torso base-frame
+linear/angular velocity (identical math to `base_lin_vel`/`base_ang_vel`). If mjlab's
+builtin IMU measures at a non-torso site or bakes in projected gravity, the obs will be
+subtly wrong and a good policy could false-fail. Needs `mjlab/src/mjlab/tasks/tracking/
+mdp/` mirrored to the laptop to lock the exact frame/site — requested from the training
+orchestrator. Same check for `motion_anchor_pos_b/ori_b` frame handedness.
