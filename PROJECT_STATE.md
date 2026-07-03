@@ -151,12 +151,10 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   (44.3 s, 1498x1392, h264, ~35.4 fps — odd rate, possibly VFR; validated by ffprobe).
   Phase 4 execution started on it: GVHMR on the box -> SMPL back to laptop -> GMR
   retarget -> window/vet/preview as an app job; review package for the user's return.
-- 2026-07-03: Phase-4/provisioning agent was STOPPED BY THE USER mid-work (while
-  reading GMR's gvhmr_to_robot.py — note: GMR ships a direct GVHMR->robot bridge
-  script, use it for the SMPL->G1 step). Do not relaunch until the user asks.
-  Box-side installs run in tmux on the GPU box and continue independently — on
-  resume: ssh in, check tmux sessions + reports/training_stack.json, then continue
-  Phase 4 (GVHMR on Thriller video). TRAINING HOLD still in force.
+- 2026-07-03: Phase-4/provisioning agent was briefly stopped, then RESUMED and is
+  progressing (box provisioning monitored, GMR installing on laptop; GVHMR inference
+  on the Thriller video auto-launches when its stack is ready). Finding: GMR ships a
+  direct gvhmr_to_robot.py bridge — use it for SMPL->G1. TRAINING HOLD in force.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
