@@ -64,6 +64,12 @@ def main() -> int:
         "--exam-dir", type=Path, default=PROJECT_ROOT / "data" / "exports",
         help="where sim_exam verdicts live",
     )
+    ap.add_argument(
+        "--rehearsal", action="store_true",
+        help="REHEARSAL ONLY: assemble the bundle WITHOUT the exam gate to validate "
+             "packaging mechanics. Stamps the bundle non-deployable — 02_push_bundle.sh "
+             "refuses to push it. Never produces an authorized bundle.",
+    )
     args = ap.parse_args()
 
     if not DANCE_RE.match(args.dance):
@@ -73,20 +79,32 @@ def main() -> int:
             raise SystemExit(f"ABORT: {f} does not exist")
 
     p_sha, m_sha = sha256(args.policy), sha256(args.motion)
-    exam = find_passing_exam(p_sha, m_sha, args.exam_dir)
-    if exam is None:
-        raise SystemExit(
-            "ABORT: no PASSING sim_exam/v1 verdict (with push + repeatability phases) "
-            f"matches policy {p_sha} + motion {m_sha} in {args.exam_dir}.\n"
-            "Run: python -m pipeline.sim_exam --policy <onnx> --motion <csv> first."
-        )
-
-    verdict = json.loads(exam.read_text())
     out = KIT_DIR / "bundles" / args.dance
     out.mkdir(parents=True, exist_ok=True)
+
+    if args.rehearsal:
+        # No exam gate — bundle is marked REHEARSAL_ONLY and can never be pushed.
+        n_rows = sum(1 for _ in args.motion.open()) - 1  # minus header
+        verdict = {"schema": "sim_exam/v1", "verdict": "rehearsal", "REHEARSAL_ONLY": True,
+                   "nominal": {"duration_s": round(max(n_rows, 0) / 30.0, 2)}}
+        (out / "exam_verdict.json").write_text(json.dumps(verdict, indent=1))
+        (out / "REHEARSAL_ONLY").write_text(
+            "Built with --rehearsal (no exam authorization). MUST NOT be pushed or run "
+            "on a robot. Rebuild without --rehearsal once the dance is show-ready.\n")
+        print("REHEARSAL bundle (NOT deployable): validating packaging only")
+    else:
+        exam = find_passing_exam(p_sha, m_sha, args.exam_dir)
+        if exam is None:
+            raise SystemExit(
+                "ABORT: no PASSING sim_exam/v1 verdict (with push + repeatability phases) "
+                f"matches policy {p_sha} + motion {m_sha} in {args.exam_dir}.\n"
+                "Run: python -m pipeline.sim_exam --policy <onnx> --motion <csv> first."
+            )
+        verdict = json.loads(exam.read_text())
+        shutil.copy2(exam, out / "exam_verdict.json")
+
     shutil.copy2(args.policy, out / "policy.onnx")
     shutil.copy2(args.motion, out / "motion.csv")
-    shutil.copy2(exam, out / "exam_verdict.json")
 
     # controller.env: launch parameters as REVIEWED DATA (findings #8/#20). start_mode
     # is fixed to damping here and asserted by the start script — not hand-editable.
@@ -138,14 +156,17 @@ def main() -> int:
             "duration_s": verdict["nominal"]["duration_s"],
         },
         # NOT the self-declared string: authorization was re-derived above via authorize().
-        "exam": {"file": "exam_verdict.json", "authorized": True},
+        # rehearsal bundles are explicitly NOT authorized and carry the marker file.
+        "exam": {"file": "exam_verdict.json", "authorized": not args.rehearsal},
+        "rehearsal": bool(args.rehearsal),
         "files_sha256": files,
         "controller": {"image": CONTROLLER_IMAGE, "notes": "see deploy/README.md"},
         "target": {"pc2": PC2_HOST, "user": PC2_USER},
     }
     (out / "bundle.json").write_text(json.dumps(manifest, indent=1))
-    print(f"bundle ready: {out}")
-    print(f"  policy {p_sha[:16]}…  motion {m_sha[:16]}…  exam {exam.name} (authorized)")
+    tag = "REHEARSAL (not deployable)" if args.rehearsal else "authorized"
+    print(f"bundle ready: {out}  [{tag}]")
+    print(f"  policy {p_sha[:16]}…  motion {m_sha[:16]}…")
     print("next: deploy/02_push_bundle.sh --dance", args.dance)
     return 0
 
