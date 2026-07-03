@@ -19,6 +19,7 @@ import sys
 import threading
 import time
 import traceback
+from dataclasses import asdict
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -29,7 +30,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from pipeline.config import DATA_DIR, STAGE_ORDER
-from pipeline import body_models, cloud, store
+from pipeline import body_models, cloud, shows, store
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -88,6 +89,7 @@ def _reconcile_jobs() -> None:
 @app.on_event("startup")
 def _start_worker() -> None:
     _reconcile_jobs()
+    shows.seed_initial_dances()
     threading.Thread(target=_worker_loop, name="job-worker", daemon=True).start()
 
 
@@ -287,6 +289,150 @@ def previews() -> list[dict]:
                    reverse=True)
     return [{"name": p.name, "url": f"/previews/{p.name}",
              "size": p.stat().st_size} for p in files]
+
+
+# ---- show mode: dance library ---------------------------------------------------
+# Persistence in pipeline/shows.py. The deploy step inside a show remains
+# RECORD-ONLY, exactly like the per-job deploy gate above.
+
+def _dance_dict(d: shows.Dance) -> dict:
+    out = asdict(d)
+    out["repeatability_target"] = shows.REPEATABILITY_TARGET
+    return out
+
+
+def _load_dance_or_404(dance_id: str) -> shows.Dance:
+    try:
+        return shows.load_dance(dance_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such dance: {dance_id}")
+
+
+@app.get("/api/dances")
+def dances() -> list[dict]:
+    return [_dance_dict(d) for d in shows.list_dances()]
+
+
+@app.get("/api/dances/{dance_id}")
+def dance_detail(dance_id: str) -> dict:
+    return _dance_dict(_load_dance_or_404(dance_id))
+
+
+@app.post("/api/dances")
+def register_dance(payload: dict = Body(...)) -> dict:
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "dance needs a name")
+    if shows.find_dance(name):
+        raise HTTPException(400, f"dance '{name}' already exists")
+    fields = {k: payload[k] for k in
+              ("duration_s", "motion_csv", "policy_path", "preview", "notes",
+               "source_job") if k in payload}
+    return _dance_dict(shows.new_dance(name, **fields))
+
+
+@app.post("/api/dances/{dance_id}/promote")
+def promote_dance(dance_id: str, payload: dict = Body(...)) -> dict:
+    dance = _load_dance_or_404(dance_id)
+    try:
+        return _dance_dict(shows.promote(dance, payload.get("status", "")))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/dances/{dance_id}/sim-runs")
+def record_sim_run(dance_id: str, payload: dict = Body(...)) -> dict:
+    """Repeatability contract endpoint — see docs/show_mode_contracts.md.
+    Called by the sim-exam tool after each closed-loop run."""
+    dance = _load_dance_or_404(dance_id)
+    if not isinstance(payload.get("passed"), bool):
+        raise HTTPException(400, "payload needs boolean 'passed'")
+    dance = shows.record_sim_run(
+        dance, payload["passed"], metrics=payload.get("metrics"),
+        exam_id=payload.get("exam_id"), video=payload.get("video"))
+    return _dance_dict(dance)
+
+
+# ---- show mode: performances (pre-show checklist -> deploy gate -> outcome) -----
+
+def _show_dict(s: shows.Show) -> dict:
+    out = asdict(s)
+    out["next_step"] = s.next_step()
+    out["checklist_complete"] = s.checklist_complete()
+    out["checklist_spec"] = shows.CHECKLIST_STEPS
+    return out
+
+
+def _load_show_or_404(show_id: str) -> shows.Show:
+    try:
+        return shows.load_show(show_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such show: {show_id}")
+
+
+@app.get("/api/shows")
+def show_history() -> list[dict]:
+    return [_show_dict(s) for s in shows.list_shows()]
+
+
+@app.get("/api/shows/{show_id}")
+def show_detail(show_id: str) -> dict:
+    return _show_dict(_load_show_or_404(show_id))
+
+
+@app.post("/api/shows")
+def create_show(payload: dict = Body(...)) -> dict:
+    dance = _load_dance_or_404(payload.get("dance_id", ""))
+    operator = (payload.get("operator") or "").strip()
+    if not operator:
+        raise HTTPException(400, "operator name is required")
+    return _show_dict(shows.new_show(dance, operator))
+
+
+@app.post("/api/shows/{show_id}/steps/{step}")
+def complete_show_step(show_id: str, step: str, payload: dict = Body(...)) -> dict:
+    show = _load_show_or_404(show_id)
+    try:
+        return _show_dict(shows.complete_step(show, step, payload.get("value")))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/shows/{show_id}/deploy")
+def show_deploy_gate(show_id: str, payload: dict = Body(...)) -> dict:
+    """Show-mode deploy gate. RECORD-ONLY, like the per-job gate: unlocks only
+    after the full checklist, still requires the typed phrase, never contacts
+    the robot."""
+    show = _load_show_or_404(show_id)
+    if show.closed:
+        raise HTTPException(400, "show is closed")
+    if not show.checklist_complete():
+        raise HTTPException(400,
+            f"pre-show checklist incomplete — next step: '{show.next_step()}'")
+    if payload.get("confirm_phrase") != "DEPLOY":
+        raise HTTPException(400, 'deployment requires typing the phrase "DEPLOY"')
+    show.deploy = {"requested_at": time.time(),
+                   "note": "placeholder — nothing was sent to the robot"}
+    show.save()
+    show.log("deploy requested by operator — RECORDED ONLY (no robot contact)")
+    return {"recorded": True, "deployed": False, "show": _show_dict(show),
+            "note": "Deployment is not implemented yet. Nothing was sent to the robot."}
+
+
+@app.post("/api/shows/{show_id}/outcome")
+def record_outcome(show_id: str, payload: dict = Body(...)) -> dict:
+    show = _load_show_or_404(show_id)
+    if show.closed:
+        raise HTTPException(400, "show is already closed")
+    result = payload.get("result")
+    if result not in ("clean", "aborted", "incident"):
+        raise HTTPException(400, "result must be clean|aborted|incident")
+    show.outcome = {"result": result, "notes": payload.get("notes", ""),
+                    "at": time.time()}
+    show.closed = True
+    show.save()
+    show.log(f"outcome recorded: {result} — show closed")
+    return _show_dict(show)
 
 
 @app.get("/")
