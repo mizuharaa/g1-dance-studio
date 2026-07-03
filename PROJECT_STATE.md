@@ -251,6 +251,24 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   concurrency lock — follow-up dispatched.
 - 2026-07-03 (night): Training healthy — benchmark reward ~12.7, ep-len 360/500
   (~7s survival); Thriller a1 reward 5.4 and climbing. Budget ~100k/1.5M VND.
+- 2026-07-03 (night): **Three quality tracks landed (token-burn window).** (a) In-app
+  SYSTEM panel merged (pipeline/monitor.py + /api/system): live GPU%/cost/training in
+  the app so the user needn't ask — box-live fields being debugged in the fix pass.
+  (b) Music-sync designed + prototyped (pipeline/audio.py, docs/audio_sync_design.md):
+  KEY FACT — source video has NO audio track; motion prep adds 1.5s standing lead-in
+  so music must be delayed 1.5s to stay on-beat; produced a music-synced Thriller
+  preview (placeholder click track; drop real song at data/audio/thriller/music.wav).
+  (c) 39-agent APP QUALITY AUDIT → 29 confirmed findings (docs/app_audit_findings.md);
+  fix agent dispatched for bugs/robustness. Suite now 115 green pre-fix.
+  **TOP BUG (fixing): the safety vet gate's grounding (prep_motion._min_height_fk) is
+  ORPHANED — never wired into vet/find_window, so absolute-z floorwork/foot checks can
+  be fooled by an un-grounded CSV.**
+- 2026-07-03 (night): **PRODUCT BACKLOG (from audit, deferred features — not bugs):**
+  multi-dance set-lists/show sequencing; versioned policy artifact store + rollback
+  across retrains; per-venue records (vs hardcoded 2m); rehearsal/dry-run mode distinct
+  from live paid show; full multi-person/occlusion/subject-left-frame detection (needs
+  cloud extractor); wire audio into shows.py schema + show-time synced playback. Revisit
+  at Phase 8 / when the paid-service workflow is exercised end to end.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
