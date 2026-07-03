@@ -536,6 +536,19 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   on SSH blip) to verify a2's FINAL checkpoint and hot-swap if tighter. GROUND policy
   ready for robot day. Long-dance ~4446/6000 converging. **MAIN: tell deploy-kit to
   rebuild the FULL-scope bundle (gen_config --full) — ground-free preflight now unlockable.**
+- 2026-07-05 (early AM): **OVERNIGHT COMPLETE — ROBOT DAY VERIFIED GO (full staircase).**
+  All 5 build/audit agents merged (207 tests green): show-production, deploy-kit robot-day
+  package, app-consolidation (CRITICAL outcome-capture closed, MEC safety, promote-UI,
+  library security), pipeline-orphan (venue z-grounding, monitor cost-freeze, desktop
+  stale-port), runbook-hardening (PC2 install + joint-calibration check + troubleshooting).
+  **Thriller attempt-2 = 100% held-out → SHOW-READY, staged as ground policy; full-scope
+  ground bundle BUILT + authorized (deploy/bundles/thriller/ complete).** Preflight:
+  gantry=GO, ground-free=GO (only WARN = PC2 offline, expected). a1 preserved at
+  thriller_a1_fallback. MORNING STATUS written atop docs/ROBOT_DAY_PLAN.md. Non-blocking
+  background: a2_final autopilot (optional crisper upgrade, non-destructive marker at
+  thriller_a2_final/RESULT.txt — NOT auto-applied), long-dance verdict pending. Nothing
+  blocks robot day. RESUME (any session): read docs/ROBOT_DAY_PLAN.md top; the user runs
+  preflight then the staged day.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
