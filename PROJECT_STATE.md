@@ -144,6 +144,13 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   libxcb-cursor.so.0 → conda-forge `xcb-util-cursor` installed in g1dance +
   scripts/dance-studio now exports LD_LIBRARY_PATH=$CONDA_PREFIX/lib. App verified
   running windowed on the user's display (server 200, process alive).
+- 2026-07-03: **TRAINING ON HOLD (user order):** do not start any RL training until
+  the user lifts the hold ("don't start any training just yet" — away for a few hours).
+  Provisioning + video EXTRACTION are allowed and proceeding.
+- 2026-07-03: **Reference video delivered:** data/videos/Thriller Dance Final.mov
+  (44.3 s, 1498x1392, h264, ~35.4 fps — odd rate, possibly VFR; validated by ffprobe).
+  Phase 4 execution started on it: GVHMR on the box -> SMPL back to laptop -> GMR
+  retarget -> window/vet/preview as an app job; review package for the user's return.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
