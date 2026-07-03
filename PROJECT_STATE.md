@@ -207,6 +207,22 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   retarget_gvhmr.py --velocity-limit). Converter bug #777 ruled out. Next
   milestones: a1 curve verdict (~1h), benchmark cost calibration, policy export
   → sim exam (deploy-kit's pipeline/sim_exam.py) on whichever converges first.
+- 2026-07-03 (night): **TRAINING LIVE & LEARNING on mjlab 1.5.0** (4090, 4096 envs,
+  ~1.1s/iter). Stack facts: task Mjlab-Tracking-Flat-Unitree-G1; mjlab ships its OWN
+  csv_to_npz (no Isaac Sim needed); train takes LOCAL motion files
+  (--env.commands.motion.motion-file) so the W&B-registry hard-dep is moot (we still
+  upload for provenance); ONNX exporter at mjlab/rl/exporter_utils.py; push
+  randomization built in; box needed apt libegl1/libosmesa6. #777 converter bug ruled
+  out (mjlab's converter, healthy ep-lengths).
+  - Benchmark train-dance1-seg: reward 0.22→1.65, ep-len 16→56 by iter ~354 — clearly
+    learning. W&B: wandb.ai/luong-alois-vng-group/mjlab/runs/40g4byo3. 30k-iter ETA
+    ~9.5h ≈ 175k VND; usable checkpoints land earlier.
+  - Thriller attempt 1 (train-thriller-a1) auto-chained, recipe applied: re-retargeted
+    use_velocity_limit=True, prep_motion.py adds FK ground fix + standing pad/blend/hold
+    → 49.3s show cut, vet PASS, 0% over-velocity (was 3.1%). Stock config, 10k cap.
+  - **CROSS-CUTTING GOTCHA for any launch code:** mjlab num_envs DEFAULTS TO 1 — must
+    pass --env.scene.num-envs 4096 explicitly (deploy-kit/sim_exam/app take note).
+  - Budget: ~100k / 1.5M VND used at a1 launch.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
