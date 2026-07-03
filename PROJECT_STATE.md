@@ -549,6 +549,20 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   thriller_a2_final/RESULT.txt — NOT auto-applied), long-dance verdict pending. Nothing
   blocks robot day. RESUME (any session): read docs/ROBOT_DAY_PLAN.md top; the user runs
   preflight then the staged day.
+- 2026-07-05 (early AM): **LONG-DANCE (67s) VALIDATED — 2-3min target de-risked on the
+  TRAINING side.** train-dance2-long converged (reward 34.6), full-motion eval = 100%
+  clean AND 100% under 64-env noise, joint error 0.099 rad (TIGHTER than 49s Thriller's
+  0.117) → longer clips don't degrade with the single-clip + larger-adaptive-kernel
+  recipe. Remaining long-dance constraint is CHOREOGRAPHY not capability: stock traveling
+  mocap caps a clean in-2m-area window ~62s, so 2-3min show pieces must be choreographed
+  to stay roughly in place (already flagged for filming). Registered as dance
+  "Dance2-Long" (draft).
+- 2026-07-05 (early AM): **BOX DECISION (Claude, pre-decided): DO NOT delete the GreenNode
+  box until AFTER robot day.** Rationale: robot day is TODAY; if the policy needs a retrain
+  from a sim2real finding on the hardware, a live box lets us iterate same-day; recreating
+  it needs the user's console clicks + time. Cost is ~18k VND/h (trivial; budget 182k/1.5M).
+  Delete AFTER robot day once we know no immediate retrain is needed. (a2_final autopilot
+  still using the box; when it finishes the box idles but STAYS UP through robot day.)
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
