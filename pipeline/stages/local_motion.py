@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from ..config import DATA_DIR, PROJECT_ROOT
-from ..find_window import CSV_FPS, longest_window
+from ..find_window import CSV_FPS, longest_window, window_center
 from ..store import Job
 from .base import Reporter, SkipStage, StageBlocked
 
@@ -100,7 +100,13 @@ class RetargetStage:
         if e <= s:
             raise RuntimeError("no frame window satisfies the dance-area limits")
         seg = m[s:e + 1].copy()
-        seg[:, 0:2] -= seg[0, 0:2]  # re-center XY on the window start
+        # Re-center XY on the window's enclosing-circle centre (NOT frame 0), so the
+        # deployed motion's max excursion-from-origin equals the radius the vet gate
+        # certifies. Frame-0 recentering could leave the robot drifting up to ~2x the
+        # certified footprint and out of the dance area (production audit, HIGH).
+        cx, cy = window_center(m, s, e)
+        seg[:, 0] -= cx
+        seg[:, 1] -= cy
         motion_csv = out_dir / "motion.csv"
         np.savetxt(motion_csv, seg, delimiter=",", fmt="%.6f")
         st.meta["window"] = {

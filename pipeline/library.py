@@ -111,6 +111,16 @@ def import_library(archive: Path, *, overwrite: bool = False) -> list[str]:
             if not rec_path.is_file():
                 continue
             record = json.loads(rec_path.read_text())
+            # Trust boundary: never import a verification state. A backup archive is
+            # unauthenticated, so a crafted dance.json could inject a fake "show-ready"
+            # dance and bypass the signed-verdict gate. Reset to draft and force a fresh
+            # local signed sim-exam before it can be promoted (production audit, HIGH).
+            record["status"] = "draft"
+            record["sim_exam"] = None
+            record["policy_sha256"] = None
+            rep = record.get("repeatability")
+            if isinstance(rep, dict):
+                rep["consecutive_clean"] = 0
             dest_dir = shows.DANCES_DIR / did
             if dest_dir.exists() and not overwrite:
                 continue

@@ -232,6 +232,32 @@ def dedupe_dances() -> int:
             if DANCE_STATUSES.index(loser.status) > DANCE_STATUSES.index(keeper.status):
                 keeper.status = loser.status
                 changed = True
+        # Before deleting a loser's dir, rescue any keeper file-field that points
+        # inside it (a back-filled path would otherwise dangle). Copy the file into
+        # the keeper's own dir and rewrite the path (production audit, data-integrity).
+        # (preview lives in data/previews/, never under a dance dir, so it can't dangle)
+        file_fields = ("policy_path", "motion_csv")
+        for loser in losers:
+            try:
+                loser_abs = loser.dir.resolve()
+            except OSError:
+                loser_abs = loser.dir
+            for fld in file_fields:
+                val = getattr(keeper, fld)
+                if not val:
+                    continue
+                src = _abs(str(val))
+                try:
+                    inside = loser_abs in src.resolve().parents
+                except OSError:
+                    inside = False
+                if not inside or not src.is_file():
+                    continue
+                keeper.dir.mkdir(parents=True, exist_ok=True)
+                dst = keeper.dir / src.name
+                shutil.copyfile(src, dst)
+                setattr(keeper, fld, str(dst.relative_to(PROJECT_ROOT)))
+                changed = True
         if changed:
             keeper.save()
         for loser in losers:
