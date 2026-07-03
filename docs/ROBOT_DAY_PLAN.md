@@ -1,5 +1,29 @@
 # Robot Day — full staged plan (Thriller, first hardware session)
 
+> ## ✅ OVERNIGHT STATUS (2026-07-05 morning) — READ FIRST
+> **Everything is GO. The whole staircase is unlocked, up to the robot dancing on the ground.**
+>
+> - **Thriller is SHOW-READY.** Attempt-2 trained overnight to **100% held-out survival**
+>   (256/256 clean + 256/256 shoved, signed pass) — clears your ≥99% bar. Staged as the
+>   ground policy at `data/policies/thriller/`. Attempt-1 kept at
+>   `data/policies/thriller_a1_fallback/` as a fallback.
+> - **Both preflights pass**: `--stage gantry` = **GO**, `--stage ground-free` = **GO**
+>   (the only warning is "PC2 not reachable" — expected until you connect the robot).
+>   The ground bundle is built + authorized (show-ready). 207 tests green.
+> - **Quality note:** attempt-2 never falls but tracks a touch looser (avg body-point
+>   error 0.22 m vs attempt-1's 0.17 m) — the cost of the extra stability. It's the safer
+>   ground choice; attempt-1 is crisper-looking at 98.4%. A possibly-crisper attempt-2
+>   *final* checkpoint may have hot-swapped in overnight — check `data/policies/
+>   thriller_a2_final/RESULT.txt`; if it shows GROUND_READY=YES it's already staged.
+> - **New first-contact steps in this plan** (don't skip): get the controller onto PC2
+>   (Stage 0a — never done, likely time-sink), and the **joint-calibration check**
+>   (`deploy/check_joint_calibration.py`) — a mismatched robot zero = wrong motion = fall.
+> - **The one hard rule:** feet off the ground until the Step-3a kill→damping test passes;
+>   remote (damping) in your hand all day; abort at the first weird noise or twitch.
+>
+> Nothing is blocking you. Run the preflight, then walk the staircase gate by gate. — Claude
+
+
 **Read this top to bottom the night before. Print the one-pager: `docs/ROBOT_DAY_CHECKLIST.md`.**
 
 ---
