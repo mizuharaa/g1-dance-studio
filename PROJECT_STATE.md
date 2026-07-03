@@ -485,6 +485,20 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   pull. Materials: docs/ROBOT_DAY_PLAN.md, ROBOT_DAY_CHECKLIST.md, preflight_robot_day.
   **TOMORROW IS GO for the gantry stage.** Ground-free unlocks if attempt-2 hits ≥99%
   overnight, else user makes a conscious informed-override call on the day.
+- 2026-07-04 (night, user to bed): **FULL AUTONOMY for robot-day success tomorrow.**
+  User confirmed the **gantry can lower to a taut line** → full staircase unlocked
+  (gantry→ground-tethered→ground-free) IF a ≥99% policy exists. Overnight guarantees
+  in motion: (1) app-consolidation MERGED (203 tests; CRITICAL outcome-capture confirmed
+  closed, MEC-excursion safety fixed, promote-UI, library-import security); (2)
+  pipeline-orphan DESCOPED to venue.py/monitor.py/desktop.py only (MEC+library were
+  dup-assigned, now app-consolidation authoritative); (3) runbook-hardening agent
+  acfc735422cdfa4d8 adding first-contact gotchas: PC2 controller install (never done!)
+  + joint zero-offset calibration verify + estimator sanity + 'first 30 min'
+  troubleshooting; (4) orchestrator pushing attempt-2 → ≥99% (ground unlock) + rebuild
+  full bundle on convergence. **Robot day GANTRY = verified GO. Ground = unlocks if
+  attempt-2 ≥99% overnight, else conscious informed-override on the day.** MORNING SWEEP
+  owed by main: after agents land, re-merge/verify + final preflight + write MORNING
+  STATUS at top of docs/ROBOT_DAY_PLAN.md.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
