@@ -37,7 +37,17 @@ PUSH_FORCE_EQUIV_N = round(G1_MASS_KG * PUSH_DV_MPS / PUSH_DT_S, 1)  # ~875 N
 
 
 def build_verdict(eval_json: dict, policy_path: Path, motion_path: Path,
-                  venue_max_excursion_m: float = 1.5) -> dict:
+                  venue_max_excursion_m: float = 1.5,
+                  eval_motion_path: Path | None = None) -> dict:
+    """Build+sign the verdict.
+
+    ``motion_path`` is the DEPLOYABLE motion (the .csv the dance and bundle carry) —
+    ``motion_sha256`` binds to it, because that is what every consumer (shows.py,
+    gen_config, authorize) hashes (production-audit motion-sha seam). ``eval_motion_path``
+    is the .npz actually run through the held-out eval; its digest is recorded as
+    ``motion_npz_sha256`` for provenance only. When they are the same file (or
+    eval_motion_path is omitted) the two digests coincide, matching the old behaviour.
+    """
     nom = eval_json["conditions"]["nominal"]
     push = eval_json["conditions"]["push"]
     n = int(nom["num_episodes"])
@@ -49,7 +59,13 @@ def build_verdict(eval_json: dict, policy_path: Path, motion_path: Path,
         "dance": eval_json.get("dance", motion_path.stem),
         "policy": str(policy_path),
         "policy_sha256": full_sha256(policy_path) if policy_path.exists() else None,
+        # Deployable-motion identity — what consumers bind to.
         "motion_sha256": full_sha256(motion_path) if motion_path.exists() else None,
+        # Provenance: the .npz actually evaluated on the box (may differ in bytes).
+        "motion_npz_sha256": (
+            full_sha256(eval_motion_path)
+            if eval_motion_path and eval_motion_path.exists() else None
+        ),
         "venue_max_excursion_m": venue_max_excursion_m,
         "nominal": {
             "pass": nom["success_rate"] >= NOMINAL_MIN,
@@ -91,13 +107,18 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--eval-json", required=True)
     ap.add_argument("--policy", required=True)
-    ap.add_argument("--motion", required=True)
+    ap.add_argument("--motion", required=True,
+                    help="the DEPLOYABLE motion (.csv) consumers bind to")
+    ap.add_argument("--eval-motion", default=None,
+                    help="the .npz actually evaluated on the box (recorded as "
+                         "motion_npz_sha256 for provenance); defaults to --motion")
     ap.add_argument("--out", required=True)
     ap.add_argument("--max-excursion-m", type=float, default=1.5)
     a = ap.parse_args()
 
     eval_json = json.loads(Path(a.eval_json).read_text())
-    v = build_verdict(eval_json, Path(a.policy), Path(a.motion), a.max_excursion_m)
+    v = build_verdict(eval_json, Path(a.policy), Path(a.motion), a.max_excursion_m,
+                      eval_motion_path=Path(a.eval_motion) if a.eval_motion else None)
     Path(a.out).write_text(json.dumps(v, indent=2))
 
     ok, reason = authorize(v, policy_sha=v["policy_sha256"], motion_sha=v["motion_sha256"])
