@@ -73,3 +73,23 @@ sessions. Trainings survive laptop reboots (they run in tmux on the box).
   heldout_eval → if ≥99% survival = sim-verified; else attempt 3 (last).
 - Watchdog + auto-render now cover BOTH train-dance2-long and train-thriller-a2.
 - Box-hours ~8.5h ≈ 155k VND of 1.5M cap.
+
+## 2026-07-04 ~02:15 ICT — Thriller policy STAGED for gantry (robot day tomorrow AM)
+
+- **Best policy = attempt-1** (attempt-2 not converged: iter ~1122/4000, reward 23 climbing;
+  a1 remains best exported). Staged at data/policies/thriller/policy.onnx (+ model_3000.pt).
+- **policy_meta.json now COMPLETE** (was missing PD spec — critical for real robot):
+  per-joint kp (14.3-99.1), kd (0.91-6.31), effort limits (5-139 Nm), default_joint_pos
+  (29-dof), action_scale (incl 0.074 wrists, 0.35 knees), obs term order, impedance model
+  (kp=armature*(2pi*10)^2, kd=2*zeta*armature*2pi*10, zeta=2 overdamped — SIM gains ARE
+  deploy gains per BeyondMimic). Mirrored to docs/mjlab_policy_interface.json (tracked).
+- **ACTIVATION HAZARD found + fixed**: clip frame-0 differed from standby default_joint_pos
+  by up to 0.68 rad (39deg elbows, 38deg straight-vs-bent knees) → activation lurch.
+  FIX: generated thriller_deploy.csv/.npz = 2.5s cosine ramp default_joint_pos->dance
+  prepended (frame-0 delta now 0.000). Policy re-verified in-engine on the ramped motion:
+  100% full completion, 0.117 rad err. NO retrain needed. **Deploy-kit: use thriller_deploy
+  for the gantry, NOT thriller_show.**
+- **Gantry-safety Q (base_lin_vel):** actor obs includes base_lin_vel with training noise
+  Unoise(-0.5,+0.5) [tracking_env_cfg]. On gantry feet-off-ground base_lin_vel~0, well
+  within that noise band → in-distribution. Current policy IS gantry-safe. (Real free-stand
+  later needs the onboard estimator feeding base_lin_vel — DLIO/LiDAR+IMU, per derisk doc.)
