@@ -229,6 +229,88 @@ def build_thriller_demo() -> dict:
     return report
 
 
+AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"}
+
+
+def attach_audio_for_dance(
+    dance, *,
+    source_audio: Path | None = None,
+    extract_from_video: Path | None = None,
+    placeholder_bpm: float | None = None,
+    window_start_s: float = 0.0,
+) -> dict:
+    """Give a dance its music and return the audio record to store on it.
+
+    Exactly one source is used, tried in order: an explicit audio file, extraction
+    from a video, or a generated placeholder click track. The track is aligned to
+    the dance's prepped-motion timeline (music delayed past the standing intro) and,
+    if the dance has a silent preview, muxed onto a copy so the preview plays WITH
+    the music. Returns the dict for shows.set_audio(); it does NOT persist itself.
+    """
+    from pipeline.config import DATA_DIR
+    if not dance.duration_s or dance.duration_s <= 0:
+        raise ValueError("dance has no duration — cannot align music to it")
+    danced_s = float(dance.duration_s)
+    align = compute_alignment(danced_s, window_start_s=window_start_s)
+
+    audio_dir = DATA_DIR / "dances" / dance.id / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    if source_audio is not None:
+        src = Path(source_audio).expanduser()
+        if not src.is_file():
+            raise ValueError(f"audio file not found: {src}")
+        if src.suffix.lower() not in AUDIO_EXTS:
+            raise ValueError(f"unsupported audio type: {src.suffix} "
+                             f"(want one of {sorted(AUDIO_EXTS)})")
+        track = audio_dir / ("music" + src.suffix.lower())
+        shutil.copyfile(src, track)
+        source = "attached_file"
+    elif extract_from_video is not None:
+        vid = Path(extract_from_video).expanduser()
+        if not vid.is_file():
+            raise ValueError(f"video not found: {vid}")
+        track = audio_dir / "music.wav"
+        if extract_audio(vid, track) is None:
+            raise ValueError("that video has no audio track to extract — "
+                             "attach a separate music file instead")
+        source = "extracted_from_video"
+    else:
+        if not shutil.which("ffmpeg"):
+            raise ValueError("ffmpeg not found — cannot generate a placeholder track")
+        track = audio_dir / "music.wav"
+        make_placeholder_track(align.trim_duration_s, track,
+                               bpm=placeholder_bpm or 118.0)
+        source = "placeholder_click_track"
+
+    rel = lambda p: str(Path(p).relative_to(PROJECT_ROOT)) if str(p).startswith(str(PROJECT_ROOT)) else str(p)
+    record = {"track": rel(track), "source": source, "align": align.to_dict(),
+              "muxed_preview": None, "attached_at": None}
+
+    # Mux onto the dance's preview if we have a local silent preview to lay it on.
+    preview = _resolve_local_preview(dance)
+    if preview is not None and preview.exists() and shutil.which("ffmpeg"):
+        out = DATA_DIR / "previews" / f"{dance.id}_with_music.mp4"
+        try:
+            mux_audio_onto_video(preview, track, align, out)
+            record["muxed_preview"] = "/previews/" + out.name
+        except subprocess.CalledProcessError:
+            record["muxed_preview"] = None  # non-fatal: keep the audio, skip the mux
+    return record
+
+
+def _resolve_local_preview(dance) -> Path | None:
+    """Find a local preview MP4 for a dance to mux music onto, if any."""
+    from pipeline.config import DATA_DIR
+    prev = dance.preview
+    if not prev:
+        return None
+    if prev.startswith("/previews/"):
+        return DATA_DIR / "previews" / prev.split("/")[-1]
+    p = Path(prev)
+    return p if p.is_absolute() else PROJECT_ROOT / prev
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Dance audio sync")
     sub = ap.add_subparsers(dest="cmd", required=True)

@@ -30,7 +30,8 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from pipeline.config import DATA_DIR, STAGE_ORDER
-from pipeline import body_models, cloud, monitor, shows, store
+from pipeline import audio as audio_mod
+from pipeline import body_models, cloud, monitor, setlist, shows, store
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -483,6 +484,115 @@ def record_sim_run(dance_id: str, payload: dict = Body(...)) -> dict:
     return _dance_dict(dance)
 
 
+# ---- music / audio per dance ----------------------------------------------------
+
+@app.post("/api/dances/{dance_id}/audio")
+def attach_dance_audio(dance_id: str, payload: dict = Body(...)) -> dict:
+    """Give a dance its music track (source: an on-disk audio file, extraction from
+    a video, or a generated placeholder). Aligns it to the prepped-motion timeline
+    (music delayed past the standing intro) and muxes it onto the preview so the
+    preview plays with sound. Presentation only — never touches show-ready status."""
+    dance = _load_dance_or_404(dance_id)
+    src_audio = payload.get("source_path")
+    vid = payload.get("extract_from_video")
+    kwargs: dict = {}
+    if src_audio:
+        kwargs["source_audio"] = Path(src_audio).expanduser()
+    elif vid:
+        kwargs["extract_from_video"] = Path(vid).expanduser()
+    else:
+        kwargs["placeholder_bpm"] = float(payload.get("bpm") or 118.0)
+    if payload.get("window_start_s") is not None:
+        kwargs["window_start_s"] = float(payload["window_start_s"])
+    try:
+        record = audio_mod.attach_audio_for_dance(dance, **kwargs)
+        return _dance_dict(shows.set_audio(dance_id, record))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/dances/{dance_id}/audio")
+def clear_dance_audio(dance_id: str) -> dict:
+    _load_dance_or_404(dance_id)
+    return _dance_dict(shows.set_audio(dance_id, None))
+
+
+@app.get("/api/dances/{dance_id}/audio-file")
+def dance_audio_file(dance_id: str) -> FileResponse:
+    """Serve a dance's music track for the preview player."""
+    dance = _load_dance_or_404(dance_id)
+    if not dance.audio or not dance.audio.get("track"):
+        raise HTTPException(404, "this dance has no music attached")
+    track = Path(dance.audio["track"])
+    if not track.is_absolute():
+        track = PROJECT_ROOT / dance.audio["track"]
+    if not track.is_file():
+        raise HTTPException(404, "music file is missing on disk")
+    return FileResponse(track)
+
+
+# ---- set-lists: an ordered sequence of dances = one show ------------------------
+
+def _setlist_dict(sl: setlist.SetList) -> dict:
+    return setlist.resolve(sl, _dance_lookup)
+
+
+def _dance_lookup(dance_id: str):
+    try:
+        return shows.load_dance(dance_id)
+    except (FileNotFoundError, ValueError):
+        return None
+
+
+@app.get("/api/setlists")
+def setlists() -> list[dict]:
+    return [_setlist_dict(sl) for sl in setlist.list_setlists()]
+
+
+@app.get("/api/setlists/{setlist_id}")
+def setlist_detail(setlist_id: str) -> dict:
+    try:
+        return _setlist_dict(setlist.load_setlist(setlist_id))
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such set-list: {setlist_id}")
+
+
+@app.post("/api/setlists")
+def create_setlist(payload: dict = Body(...)) -> dict:
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "set-list needs a name")
+    sl = setlist.new_setlist(name, notes=payload.get("notes", ""))
+    if payload.get("items"):
+        try:
+            sl = setlist.set_items(sl.id, payload["items"])
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    return _setlist_dict(sl)
+
+
+@app.post("/api/setlists/{setlist_id}")
+def edit_setlist(setlist_id: str, payload: dict = Body(...)) -> dict:
+    try:
+        if "name" in payload or "notes" in payload:
+            setlist.rename(setlist_id, payload.get("name") or setlist.load_setlist(setlist_id).name,
+                           notes=payload.get("notes"))
+        if "items" in payload:
+            setlist.set_items(setlist_id, payload["items"])
+        return _setlist_dict(setlist.load_setlist(setlist_id))
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such set-list: {setlist_id}")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/setlists/{setlist_id}")
+def remove_setlist(setlist_id: str) -> dict:
+    if not setlist.delete_setlist(setlist_id):
+        raise HTTPException(404, f"no such set-list: {setlist_id}")
+    return {"deleted": setlist_id}
+
+
 # ---- show mode: performances (pre-show checklist -> deploy gate -> outcome) -----
 
 def _show_dict(s: shows.Show) -> dict:
@@ -516,7 +626,12 @@ def create_show(payload: dict = Body(...)) -> dict:
     operator = (payload.get("operator") or "").strip()
     if not operator:
         raise HTTPException(400, "operator name is required")
-    return _show_dict(shows.new_show(dance, operator))
+    mode = payload.get("mode", "live")
+    try:
+        return _show_dict(shows.new_show(dance, operator, mode=mode,
+                                         setlist_id=payload.get("setlist_id")))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.post("/api/shows/{show_id}/steps/{step}")

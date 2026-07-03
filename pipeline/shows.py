@@ -126,6 +126,8 @@ class Dance:
     notes: str = ""
     policy_sha256: str | None = None    # full sha of the exam-passed policy (finding #24/#27)
     incident: dict | None = None        # last live incident/abort that demoted it (finding #9)
+    audio: dict | None = None           # music track + alignment (pipeline/audio.py); see
+                                        # docs/show_production.md. None = silent dance.
     # Repeatability: updated by the sim-exam tool via POST /api/dances/{id}/sim-runs
     # (JSON contract in docs/show_mode_contracts.md).
     repeatability: dict = field(default_factory=lambda: {
@@ -370,6 +372,20 @@ def attach_policy(dance_id: str, policy_path: str, *, notes: str | None = None) 
         return dance
 
 
+def set_audio(dance_id: str, audio: dict | None) -> Dance:
+    """Attach (or clear, with None) a dance's music record. Locked load->save.
+
+    Audio is presentation only — it does NOT touch the policy, verification, or
+    show-ready status (music has no bearing on whether the robot stays upright)."""
+    with _record_lock(DANCES_DIR / dance_id):
+        dance = load_dance(dance_id)
+        if audio is not None:
+            audio = {**audio, "attached_at": time.time()}
+        dance.audio = audio
+        dance.save()
+        return dance
+
+
 # ---- shows (performances) --------------------------------------------------------
 
 @dataclass
@@ -384,6 +400,10 @@ class Show:
     deploy: dict | None = None      # {"requested_at": ts, "note": ...} record-only
     outcome: dict | None = None     # {"result": "clean"|"aborted"|"incident", "notes", "at"}
     closed: bool = False
+    # "live" = a real paid performance (an incident/abort demotes the dance).
+    # "rehearsal" = a dry-run: same flow, logged separately, NEVER demotes the dance.
+    mode: str = "live"
+    setlist_id: str | None = None   # set if this show is one item of a set-list run
 
     @property
     def dir(self) -> Path:
@@ -408,12 +428,16 @@ class Show:
         return self.next_step() is None
 
 
-def new_show(dance: Dance, operator: str) -> Show:
+def new_show(dance: Dance, operator: str, *, mode: str = "live",
+             setlist_id: str | None = None) -> Show:
+    if mode not in ("live", "rehearsal"):
+        raise ValueError("mode must be 'live' or 'rehearsal'")
     show = Show(id=time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6],
                 dance_id=dance.id, dance_name=dance.name,
-                operator=operator, created_at=time.time())
+                operator=operator, created_at=time.time(), mode=mode,
+                setlist_id=setlist_id)
     show.save()
-    show.log(f"show created for dance '{dance.name}' by operator '{operator}'")
+    show.log(f"{mode} show created for dance '{dance.name}' by operator '{operator}'")
     return show
 
 
@@ -488,9 +512,12 @@ def record_outcome(show: Show, result: str, notes: str = "") -> Show:
         show.outcome = {"result": result, "notes": notes, "at": time.time()}
         show.closed = True
         show.save()
-        show.log(f"outcome recorded: {result} — show closed")
+        show.log(f"outcome recorded: {result} ({show.mode}) — show closed")
         dance_id = show.dance_id
-    if result in ("incident", "aborted"):
+        is_live = show.mode == "live"
+    # Only a LIVE incident/abort demotes the dance. A rehearsal is a dry-run: it is
+    # logged for the record but must never knock a show-ready dance out of the library.
+    if result in ("incident", "aborted") and is_live:
         with _record_lock(DANCES_DIR / dance_id):
             try:
                 dance = load_dance(dance_id)
