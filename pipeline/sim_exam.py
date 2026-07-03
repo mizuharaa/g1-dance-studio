@@ -225,6 +225,79 @@ class WbtOnnxPolicy(PolicyAdapter):
         return out[0][0].astype(np.float64)
 
 
+class MjlabOnnxPolicy(PolicyAdapter):
+    """mjlab (1.5.x) tracking export, task Mjlab-Tracking-Flat-Unitree-G1.
+
+    mjlab's ONNX (runner.export_policy_to_onnx) has the same graph shape as wbt
+    (inputs obs[1,D] f32 + time_step[1,1] f32; output `actions` first) BUT carries
+    no wbt metadata_props. The physical config the exam needs to run closed-loop PD
+    control and rebuild the observation — joint order, gains, default pose, action
+    scale, and the ORDERED obs-term spec — is read from a sibling `policy_meta.json`
+    sidecar the training orchestrator emits from the mjlab env cfg. This keeps the
+    gate independent of the policy under test: reference truth still comes from the
+    motion CSV and the obs is rebuilt here from MuJoCo state; the sidecar only
+    supplies engine-config facts (the robot's real gains etc.), not policy outputs.
+
+    Sidecar schema (policy_meta.json):
+      { "engine": "mjlab-1.5.0", "joint_names": [..29..],
+        "kp": [..], "kd": [..], "default_joint_pos": [..],
+        "action_scale": <float|[..]>, "anchor_body_name": "torso_link",
+        "obs_terms": [["command",58],["motion_anchor_pos_b",3],
+                      ["motion_anchor_ori_b",6],["imu_lin_vel",3],
+                      ["imu_ang_vel",3],["joint_pos",29],["joint_vel",29],
+                      ["actions",29]] }
+    obs_terms is order-sensitive and its widths must sum to the ONNX obs input.
+    """
+
+    def __init__(self, path: Path, meta_path: Path | None = None):
+        import onnxruntime as ort  # lazy: heavy import
+
+        self.sess = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        meta_path = meta_path or path.with_name("policy_meta.json")
+        if not meta_path.exists():
+            raise FileNotFoundError(
+                f"mjlab export needs a sidecar {meta_path.name} next to {path.name} "
+                "(joint_names, kp, kd, default_joint_pos, action_scale, obs_terms). "
+                "Training orchestrator emits it from the mjlab env cfg."
+            )
+        meta = json.loads(meta_path.read_text())
+        self.joint_names = list(meta["joint_names"])
+        n = len(self.joint_names)
+        self.kp = np.asarray(meta["kp"], dtype=np.float64)
+        self.kd = np.asarray(meta["kd"], dtype=np.float64)
+        self.default_pos = np.asarray(meta["default_joint_pos"], dtype=np.float64)
+        a_scale = meta["action_scale"]
+        self.action_scale = np.full(n, float(a_scale)) if np.isscalar(a_scale) else np.asarray(a_scale, np.float64)
+        for attr in ("kp", "kd", "default_pos", "action_scale"):
+            if len(getattr(self, attr)) != n:
+                raise ValueError(f"policy_meta {attr}: length != {n} joints")
+        # Sidecar obs_terms is [name, WIDTH] (per-term output dim). The PolicyAdapter
+        # contract is (name, HISTORY_LENGTH); mjlab's tracking obs is single-frame, so
+        # history is 1 for every term (a term may optionally carry [name, width, hist]).
+        self._obs_widths = [(name, int(spec[0])) for name, *spec in meta["obs_terms"]]
+        self.obs_terms = [
+            (name, int(spec[1]) if len(spec) > 1 else 1) for name, *spec in meta["obs_terms"]
+        ]
+        self.anchor_body_name = meta.get("anchor_body_name", "torso_link")
+        # validate the obs spec against the ONNX input width up front — a mismatch
+        # here is the difference between a real exam and garbage-in false-fails.
+        onnx_d = self.sess.get_inputs()[0].shape[-1]
+        spec_d = sum(w * h for (_, w), (_, h) in zip(self._obs_widths, self.obs_terms))
+        if isinstance(onnx_d, int) and spec_d != onnx_d:
+            raise ValueError(
+                f"obs_terms (width*history) sum to {spec_d} but ONNX obs input is {onnx_d}; "
+                "sidecar obs_terms is wrong/out-of-order — fix before trusting a verdict"
+            )
+        self._term_widths = dict(self._obs_widths)
+
+    def act(self, obs: np.ndarray, tick: int) -> np.ndarray:
+        out = self.sess.run(
+            ["actions"],
+            {"obs": obs[None].astype(np.float32), "time_step": np.array([[float(tick)]], np.float32)},
+        )
+        return out[0][0].astype(np.float64)
+
+
 class StubPolicy(PolicyAdapter):
     """Harness-verification policy: replays the reference with optional noise.
 
@@ -277,7 +350,20 @@ def load_policy(spec: str, model: mujoco.MjModel, motion: Motion, seed: int = 0)
         return StubPolicy(model, motion, noise=0.0, seed=seed)
     if spec == "stub-noisy":
         return StubPolicy(model, motion, noise=2.0, seed=seed)
-    return WbtOnnxPolicy(Path(spec))
+    path = Path(spec)
+    # Dispatch by what the export actually carries. mjlab (our live trainer since
+    # Isaac died on the GreenNode image) ships a policy_meta.json sidecar and no ONNX
+    # metadata; wbt bakes metadata into the ONNX. Prefer the sidecar when present.
+    if path.with_name("policy_meta.json").exists():
+        return MjlabOnnxPolicy(path)
+    try:
+        return WbtOnnxPolicy(path)
+    except ValueError as e:
+        raise ValueError(
+            f"{path.name}: no policy_meta.json sidecar and no wbt ONNX metadata — "
+            "cannot determine gains/obs spec. For mjlab exports, emit policy_meta.json "
+            f"next to the ONNX (see MjlabOnnxPolicy docstring). [{e}]"
+        ) from e
 
 
 # --------------------------------------------------------------------------- exam env
@@ -419,6 +505,18 @@ class ExamEnv:
             return r.reshape(3, 3).T @ self.data.qvel[0:3]
         if term == "base_ang_vel":
             return self.data.qvel[3:6].copy()  # free joint ang vel is body-frame
+        # mjlab IMU terms (task Mjlab-Tracking-Flat-Unitree-G1): the builtin IMU
+        # sensor reports base-frame linear/angular velocity — same physical quantity
+        # as base_lin_vel/base_ang_vel here. CONVENTION TO CONFIRM against mjlab
+        # src/mjlab/tasks/tracking/mdp (imu sensor site & any gravity term); if mjlab
+        # measures at a non-torso IMU site or includes projected gravity, this needs
+        # the site offset. Flagged in deploy_kit_built.md.
+        if term == "imu_lin_vel":
+            r = np.zeros(9)
+            mujoco.mju_quat2Mat(r, self.data.qpos[3:7])
+            return r.reshape(3, 3).T @ self.data.qvel[0:3]
+        if term == "imu_ang_vel":
+            return self.data.qvel[3:6].copy()
         if term == "joint_pos":
             return self.joint_pos() - self.policy.default_pos
         if term == "joint_vel":
