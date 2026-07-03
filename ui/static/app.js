@@ -263,16 +263,80 @@ let currentDance = null;   // dance object shown in the run panel
 let currentShow = null;    // active show (performance) object
 
 function setMode(mode) {
-  const show = mode === "show";
-  $("#studio-main").hidden = show;
-  $("#show-main").hidden = !show;
-  $("#mode-studio").classList.toggle("active", !show);
-  $("#mode-show").classList.toggle("active", show);
+  for (const m of ["studio", "show", "system"]) {
+    $(`#${m}-main`).hidden = m !== mode;
+    $(`#mode-${m}`).classList.toggle("active", m === mode);
+  }
   localStorage.setItem("g1.mode", mode);
-  if (show) { refreshDances(); refreshShowHistory(); }
+  if (mode === "show") { refreshDances(); refreshShowHistory(); }
+  if (mode === "system") refreshSystem();
 }
 $("#mode-studio").onclick = () => setMode("studio");
 $("#mode-show").onclick = () => setMode("show");
+$("#mode-system").onclick = () => setMode("system");
+
+// ---- system monitor ----------------------------------------------------------
+function fmtVnd(n) { return Math.round(n).toLocaleString("en-US") + " VND"; }
+
+function renderSystem(s) {
+  const dot = $("#sys-dot"), fresh = $("#sys-freshness");
+  const gpu = s.gpu;
+  if (s.reachable && !s.stale) {
+    dot.className = "dot " + (gpu && gpu.busy ? "busy" : "ok");
+    fresh.textContent = "live · " + new Date(s.checked_at * 1000).toLocaleTimeString();
+  } else if (s.stale) {
+    dot.className = "dot bad";
+    fresh.textContent = "stale — box unreachable, last seen " +
+      (s.last_good_at ? new Date(s.last_good_at * 1000).toLocaleTimeString() : "—");
+  } else {
+    dot.className = "dot off";
+    fresh.textContent = s.detail || "not connected";
+  }
+
+  const g = $("#sys-gpu");
+  if (gpu) {
+    g.innerHTML = `
+      <div class="stat"><span class="k">GPU load</span><span class="v">${gpu.utilization_pct}%</span></div>
+      <div class="stat"><span class="k">VRAM</span><span class="v">${Math.round(gpu.memory_used_mib)}/${Math.round(gpu.memory_total_mib)} MiB</span></div>
+      <div class="stat"><span class="k">Power</span><span class="v">${Math.round(gpu.power_w)} W</span></div>
+      <div class="stat"><span class="k">Temp</span><span class="v">${Math.round(gpu.temperature_c)}°C</span></div>`;
+  } else {
+    g.innerHTML = `<p class="empty">${s.reachable ? "No GPU visible." : (s.detail || "Box not reachable.")}</p>`;
+  }
+
+  const jb = $("#sys-jobs");
+  if (s.jobs && s.jobs.length) {
+    jb.innerHTML = s.jobs.map(j => {
+      const pct = j.progress != null ? Math.round(j.progress * 100) : null;
+      const run = j.running ? '<span class="badge pass">running</span>'
+                            : `<span class="badge warn">${j.state || "idle"}</span>`;
+      const bar = pct != null ? `<div class="bar"><div class="fill" style="width:${pct}%"></div></div>` : "";
+      const iter = j.iteration != null ? `iter ${j.iteration}/${j.max_iteration}` : "";
+      const rew = j.mean_reward != null ? ` · reward ${j.mean_reward.toFixed(2)}` : "";
+      const ep = j.mean_episode_length != null ? ` · ep-len ${Math.round(j.mean_episode_length)}` : "";
+      const wb = j.wandb_url ? ` · <a href="${j.wandb_url}" target="_blank">W&amp;B ↗</a>` : "";
+      return `<div class="job-row"><div class="job-head"><strong>${j.name}</strong> ${run}</div>
+        <div class="hint">${iter}${rew}${ep}${wb}</div>${bar}</div>`;
+    }).join("");
+  } else {
+    jb.innerHTML = '<p class="empty">No training jobs detected on the box.</p>';
+  }
+
+  const c = s.cost || {};
+  const frac = Math.min(1, c.cap_fraction || 0);
+  const capCls = c.over_cap ? "fail" : frac > 0.8 ? "warn" : "pass";
+  $("#sys-cost").innerHTML = `
+    <div class="stat"><span class="k">Box uptime</span><span class="v">${c.hours} h</span></div>
+    <div class="stat"><span class="k">Rate</span><span class="v">${fmtVnd(c.rate_vnd_per_hour)}/h</span></div>
+    <div class="stat"><span class="k">Accrued</span><span class="v">${fmtVnd(c.accrued_vnd)} (~$${c.accrued_usd})</span></div>
+    <div class="bar cap"><div class="fill ${capCls}" style="width:${Math.round(frac * 100)}%"></div></div>
+    <p class="hint">${fmtVnd(c.accrued_vnd)} of ${fmtVnd(c.cap_vnd)} cap (${Math.round(frac * 100)}%)</p>`;
+}
+
+async function refreshSystem() {
+  try { renderSystem(await api("/api/system")); }
+  catch (e) { $("#sys-freshness").textContent = "error: " + e.message; }
+}
 
 function statusBadge(d) {
   const cls = { "draft": "warn", "sim-verified": "pass", "show-ready": "pass" };
@@ -446,3 +510,4 @@ setInterval(() => {
   if (!$("#studio-main").hidden) { refreshJobs(); if (selectedJob) showJob(selectedJob); }
 }, 2500);
 setInterval(refreshCloud, 30000);
+setInterval(() => { if (!$("#system-main").hidden) refreshSystem(); }, 20000);

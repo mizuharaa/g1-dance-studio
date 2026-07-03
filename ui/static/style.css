@@ -143,3 +143,21 @@ button.outcome { background: var(--panel2); color: var(--text); font-size: 16px;
                  padding: 10px 18px; }
 button.outcome:hover { outline: 1px solid var(--accent); }
 #show-preview { margin: 10px 0; }
+
+/* ---- system monitor panel ---- */
+.hint.note { border-left: 3px solid var(--warn); padding-left: 10px; margin: 6px 0; }
+.sys-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px; margin-top: 8px; }
+.stat { display: flex; flex-direction: column; gap: 2px; background: var(--panel2);
+  border-radius: 6px; padding: 8px 10px; }
+.stat .k { font-size: 11px; color: var(--dim); text-transform: uppercase;
+  letter-spacing: .04em; }
+.stat .v { font-size: 18px; font-weight: 700; }
+.job-row { border-top: 1px solid var(--panel2); padding: 10px 0; }
+.job-row:first-child { border-top: none; }
+.job-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.bar .fill { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.bar .fill.pass { background: var(--ok); }
+.bar .fill.warn { background: var(--warn); }
+.bar .fill.fail { background: var(--fail); }
+.bar.cap { height: 12px; margin: 8px 0 4px; }

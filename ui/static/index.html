@@ -12,6 +12,7 @@
   <nav id="mode-switch">
     <button id="mode-studio" class="mode active">Studio</button>
     <button id="mode-show" class="mode">Show</button>
+    <button id="mode-system" class="mode">System</button>
   </nav>
 </header>
 
@@ -156,6 +157,28 @@
   <section id="show-history-panel" class="show-panel">
     <h2>Show history</h2>
     <ul id="show-history" class="clickable-list"></ul>
+  </section>
+</main>
+
+<main id="system-main" hidden>
+  <section>
+    <h2>Cloud GPU box <span id="sys-dot" class="dot off"></span>
+      <span id="sys-freshness" class="hint"></span></h2>
+    <p class="hint note">The GreenNode console shows the instance <em>state</em> (Active),
+      not live GPU load. This panel reads the hardware directly over SSH.</p>
+    <div id="sys-gpu" class="sys-grid"><p class="empty">Checking the box&hellip;</p></div>
+  </section>
+
+  <section>
+    <h2>Training jobs</h2>
+    <div id="sys-jobs"><p class="empty">No training jobs detected.</p></div>
+  </section>
+
+  <section>
+    <h2>Accrued GPU cost</h2>
+    <div id="sys-cost"></div>
+    <p class="hint">Billing runs from instance creation to <strong>deletion</strong>
+      (stopping does not pause it). Delete the box when a phase is done.</p>
   </section>
 </main>
 

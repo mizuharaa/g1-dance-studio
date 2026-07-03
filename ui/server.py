@@ -30,7 +30,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from pipeline.config import DATA_DIR, STAGE_ORDER
-from pipeline import body_models, cloud, shows, store
+from pipeline import body_models, cloud, monitor, shows, store
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -91,6 +91,8 @@ def _start_worker() -> None:
     _reconcile_jobs()
     shows.seed_initial_dances()
     threading.Thread(target=_worker_loop, name="job-worker", daemon=True).start()
+    threading.Thread(target=_system_refresh_loop, name="system-monitor",
+                     daemon=True).start()
 
 
 def _job_dict(job: store.Job) -> dict:
@@ -240,6 +242,33 @@ def cloud_test() -> dict:
     global _cloud_last
     _cloud_last = cloud.test_connection()
     return _cloud_last
+
+
+# ---- system monitor (read-only box observability) --------------------------------
+# Surfaces GPU load, training progress, and accrued GreenNode cost in the app so the
+# user doesn't have to ask "is the GPU running / how's training / what's it cost".
+# A background refresher keeps a cached snapshot so the endpoint returns instantly and
+# a slow box never blocks a request.
+
+_system_snapshot: dict = {}
+
+
+def _system_refresh_loop() -> None:
+    global _system_snapshot
+    while True:
+        try:
+            _system_snapshot = monitor.snapshot()
+        except Exception:  # snapshot() shouldn't raise, but never kill the thread
+            pass
+        time.sleep(20)
+
+
+@app.get("/api/system")
+def system_status() -> dict:
+    """Latest cached box snapshot (GPU, training jobs, cost). Cheap to poll."""
+    if not _system_snapshot:
+        return monitor.snapshot()
+    return _system_snapshot
 
 
 # ---- body models ----------------------------------------------------------------
