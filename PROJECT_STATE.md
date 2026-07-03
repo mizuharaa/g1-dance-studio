@@ -129,11 +129,14 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   blocker — provisioning can start now. Cost anchor: 16.08M VND/mo ÷ 730 h ≈
   22,000 VND/h, minus 25% ≈ **16,500 VND/h ≈ $0.64/h** for the 1×4090 flavor
   (assuming pro-rata; confirm). Strategy unchanged: DELETE (not stop) at phase end.
-  OPEN questions sent back to GreenNode: (1) is the hourly rate the monthly price
-  pro-rated, and does the console's unlabeled price mean monthly? (2) is the 25%
-  + postpaid flag already active on alois@vng.com.vn (console showed prepaid/0
-  credits on 2026-07-02)? (3) does STOP pause compute billing or only DELETE ends
-  it? (4) VAT treatment for internal teams.
+  Questions ANSWERED (user via GreenNode, 2026-07-03): (1) 16.08M VND is the
+  BEFORE-discount base price; (2) **25% + month-end billing IS active on
+  alois@vng.com.vn — creation will succeed now**; (3) billing ends ONLY on
+  deletion (stop saves nothing — power through phases, delete at phase end);
+  (4) +10% VAT applies. Effective 1×4090 rate ≈ 22,000 × 0.75 × 1.10 ≈
+  **18,200 VND/h ≈ $0.70/h**. Benchmark ≈ $5–8; overnight show-dance training
+  ≈ $17–34. ALL CLOUD BLOCKERS CLEARED — next: create volume + notebook
+  (guide Parts C–D, SSH pubkey pre-generated) and provision.
 - 2026-07-02 (night): **Body models INSTALLED** — user delivered SMPL v1.1.0 +
   SMPL-X v1.1 zips; pipeline/body_models.py verified all 9 model files, GMR symlink
   done (ready=true). Password rotation: user declined for now ("no need").
