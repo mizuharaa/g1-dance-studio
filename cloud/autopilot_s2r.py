@@ -19,10 +19,14 @@ import subprocess
 import sys
 import time
 
+import sys as _sys
+
 NB = "/workspace/notebook-data"
 PY = f"{NB}/envs/mjlab/bin/python"
-JOB_STATUS = f"{NB}/jobs/train-thriller-s2r.status.json"
-OUT = f"{NB}/exports/thriller_s2r"
+# argv[1] = train job name (default train-thriller-s2r); OUT dir derives from it.
+JOB_NAME = _sys.argv[1] if len(_sys.argv) > 1 else "train-thriller-s2r"
+JOB_STATUS = f"{NB}/jobs/{JOB_NAME}.status.json"
+OUT = f"{NB}/exports/{JOB_NAME.replace('train-thriller-', 'thriller_').replace('-', '_')}"
 MOTION = f"{NB}/motions/thriller_deploy.npz"
 
 
@@ -89,15 +93,15 @@ def main():
             break
         if st == "failed":
             write_result(["VERDICT=TRAIN_FAILED",
-                          f"see {NB}/jobs/train-thriller-s2r.log"])
+                          f"see {NB}/jobs/{JOB_NAME}.log"])
             sys.exit(1)
         time.sleep(60)
     log("training done — evaluating checkpoints")
 
     # train.py resolves its log root from the invocation context: a1/a2 landed under
     # cloud/logs/, the s2r wrapper lands under logs/ — search both.
-    runs = sorted(glob.glob(f"{NB}/logs/rsl_rl/g1_tracking/*train-thriller-s2r*")
-                  + glob.glob(f"{NB}/cloud/logs/rsl_rl/g1_tracking/*train-thriller-s2r*"),
+    runs = sorted(glob.glob(f"{NB}/logs/rsl_rl/g1_tracking/*{JOB_NAME}*")
+                  + glob.glob(f"{NB}/cloud/logs/rsl_rl/g1_tracking/*{JOB_NAME}*"),
                   key=os.path.getmtime)
     if not runs:
         write_result(["VERDICT=NO_RUN_DIR"])
