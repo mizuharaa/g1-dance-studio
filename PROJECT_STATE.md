@@ -613,6 +613,18 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   192.168.123.2) LIVE with Claude; (2) verify Docker on PC2 → Path B, else Path A. Baseline
   regardless: health check + check_joint_calibration.py (SDK, no Docker/internet). Robot's
   first real policy run stays GANTRY-FIRST either path.
+- 2026-07-05 (AT ROBOT): **First real-robot contact — SDK comms CONFIRMED.** Laptop
+  reads live LowState from the G1 over Ethernet (enp0s31f6, DDS, tv conda env has
+  unitree_sdk2py). Fixed check_joint_calibration.py key names (meta uses
+  default_joint_pos_rad + joint_order_29dof). Ran it live: 16/29 joints 'off' up to 63°,
+  BUT pattern = limp/hanging gravity pose (legs straight, arms dangling), NOT an encoder
+  miscalibration (G1 encoders are absolute/factory-cal). Awaiting user's physical
+  observation (slack vs stiff) to confirm. **REAL DEPLOY REQUIREMENT surfaced: the robot
+  must be brought smoothly to default_joint_pos (ready pose: bent knees/set arms) BEFORE
+  the policy runs — a controller startup step; the activation ramp assumes the robot is
+  ALREADY at default. Any deploy path (reference controller or laptop-side runtime) must
+  do damping → move-to-default → run.** Robot on gantry, feet off, powered. Colleague's
+  g1-siu/g1plus_pc4 setup on PC2 = unrelated, do not touch.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
