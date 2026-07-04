@@ -1409,3 +1409,22 @@ human-supervised session (NOT autonomous — no ground motion has run):
   realistic survival all pass; drift irrelevant on tether) — pending rollout video visual
   sign-off (rendering) + a working remote. If s2r-b also passes with drift <=1.0 m it becomes
   the show candidate.
+
+## 2026-07-05 — ATTEMPT-2 (s2r-b) VERDICT: drift FIXED (0.64m), quality kept; both candidates STAGED for hardware.
+- train-thriller-s2r-b (single delta: motion_global_root_pos weight 0.5->1.0): nominal survival
+  128/128, rr_mpkpe 0.086, **drift max 0.64 m** (attempt-1: 1.55; a2 baseline: 0.81; bar 1.0),
+  ankle mean 6.05 / RMS 8.17 Nm, global mpkpe 0.52->0.177. Gate: 5/9 pass; 4 misses are
+  MARGINAL (mean 6.05 vs 6.0; 20ms+push survival 94.5% vs 95% = 1 run of 128; p95 17.2/20.6 vs
+  15/20) — the audit's own floor estimate is 5-7 Nm/ankle, so the mean sits AT the physical floor.
+- **DECISION: stop iterating in sim** (attempt-1 vs -2 differ within seed noise on shared bars;
+  bars not revised a third time — misses recorded honestly). **s2r-b = PRIMARY hardware candidate**
+  (staged data/policies/thriller_s2r/: policy.onnx + gap_check.json + policy_meta.json copy +
+  thriller_deploy.npz), attempt-1 = fallback (data/policies/thriller_s2r_fallback/, better stress
+  survival 96.1%, worse drift). data/policies/thriller/ (a2, hardware-proven) UNTOUCHED as the
+  running deploy artifact until a candidate passes hardware.
+- Attempt-1 visual sign-off done by Claude (ghost-reference render, 4 timestamps): full arm
+  amplitude, pose mirrors reference, offset = drift only. s2r-b render in flight ->
+  data/previews/rollout_s2r_b.mp4 for the user. Attempt-1 video at data/previews/rollout_s2r.mp4.
+- NEXT HARDWARE STEP (needs remote): ONE tethered ground-run-legodom of s2r-b (--max-secs 30),
+  full telemetry auto-captured, yaw-align offset printed+recorded; then the deferred measurement
+  steps (standing baseline, trim sweep). Remote still unavailable this session.
