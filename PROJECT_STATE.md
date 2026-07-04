@@ -908,3 +908,20 @@ human-supervised session (NOT autonomous — no ground motion has run):
   re-gate at nominal>=0.95 full-length.
 - TODAY: ground DANCE not possible. stand-hold (no policy) IS valid -> Stage 0 read + Stage A
   tethered stand-hold remain the safe, ready steps. Robot untouched today.
+
+## 2026-07-04 ~14:20 ICT — First GROUND session (tethered). Stand-hold works; tether bears weight.
+- Ran stand-hold (no policy) on the GROUND, fully tethered, human on damping. 3 clean cycles.
+- SAFETY SPINE PROVEN ON GROUND: motion-service release, firm move-to-default ramp, indefinite
+  hold, and damp-on-signal all worked; robot ended SOFT on every stop (SIGTERM->damp->os._exit).
+  Lesson: signal the PYTHON pid directly (exec/-u), not the bash wrapper, or the child orphans.
+- FINDING (important): holding pose is GAIN-INDEPENDENT. 2.0x and 3.0x approach gains gave a
+  near-identical stance (hip_pitch sag ~22deg, ankle_pitch ~-40 vs cmd -21, knees on target).
+  A PD deflection would scale ~1/kp; it didn't move -> the legs rest against an EXTERNAL
+  constraint, i.e. the TETHER/HARNESS is bearing weight and holding a suspended crouch. The
+  feet are not truly load-bearing => this was NOT a real weight-bearing stand test. Torso stayed
+  vertical (waist_pitch ~0.4), pose rock-steady, no oscillation/faults.
+- IMPLICATION: to validate a real stand, slacken the tether so the feet load — deliberately,
+  higher risk (first real weight-bearing, no e-stop, and NO working ground dance policy for
+  dynamic recovery). Gains are not the lever.
+- NEXT (sim, no robot): fix the ground retrain (reference re-anchoring + startup ee-termination
+  grace), retrain, re-gate nominal>=0.95 full-length. THEN a real weight-bearing stand test.
