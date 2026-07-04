@@ -103,6 +103,13 @@ TORSO_ANCHOR = os.environ.get("TORSO_ANCHOR", "1") != "0"
 # every motion run now records automatically so hardware numbers have provenance.
 TELEMETRY = os.environ.get("TELEMETRY", "1") != "0"
 TELEMETRY_DIR = Path(os.environ.get("TELEMETRY_DIR", str(ROOT / "data" / "telemetry")))
+# Constant ankle_pitch trim (DEGREES) applied to the STAND-HOLD targets ONLY — enables
+# the audit's ±3 deg posture sweep (posture -> ankle torque -> heat mapping; first-
+# principles audit §4 exp #6) without code edits. Clamped to ±6 deg, loudly printed
+# when nonzero, recorded in the run telemetry. No other mode reads this.
+ANKLE_TRIM_DEG = float(os.environ.get("ANKLE_TRIM_DEG", "0"))
+ANKLE_TRIM_MAX_DEG = 6.0
+ANKLE_PITCH_IDX = [4, 10]  # left/right ankle_pitch in the 29-joint order
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
@@ -401,7 +408,8 @@ def read_odom(sub, timeout_s=0.5):
     publishing but the estimator stalled), which would fly the policy blind. Non-fatal by
     design: the caller decides. A ground run that needs odometry must treat None as NO-GO
     (never fall back to fabricated terms mid-run)."""
-    msg = sub.Read(int(timeout_s * 1000))
+    # Read() takes SECONDS (same units-bug class as read_state; fixed 2026-07-05).
+    msg = sub.Read(timeout_s)
     if msg is None:
         return None
     st = getattr(msg, "stamp", None)
@@ -881,6 +889,18 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None):
     _finalize_and_exit(0)   # guarantee soft + exit promptly (DDS teardown can hang)
 
 
+def _stand_hold_targets(meta, trim_deg=None):
+    """Ready-pose hold targets with a constant ANKLE_TRIM_DEG bias on BOTH ankle_pitch
+    joints (stand-hold ONLY — the audit §4 exp #6 posture->torque->heat sweep).
+    Returns (targets[29], applied_trim_deg); trim clamped to ±ANKLE_TRIM_MAX_DEG."""
+    trim = ANKLE_TRIM_DEG if trim_deg is None else float(trim_deg)
+    trim = float(np.clip(trim, -ANKLE_TRIM_MAX_DEG, ANKLE_TRIM_MAX_DEG))
+    tgt = meta.default.astype(float).copy()
+    for i in ANKLE_PITCH_IDX:
+        tgt[i] += np.deg2rad(trim)
+    return tgt, trim
+
+
 def mode_stand_hold(meta, iface, watch, secs):
     """GROUND stage A (no policy): firm move-to-default, then HOLD the ready pose
     standing (tethered) indefinitely until Ctrl-C / remote-damp. Pure PD — proves the
@@ -899,20 +919,28 @@ def mode_stand_hold(meta, iface, watch, secs):
     _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
     _install_damp_on_signals()
     kp, kd = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE  # firm, overdamped
+    hold_target, trim_deg = _stand_hold_targets(meta)
+    if trim_deg != 0.0:
+        print("!" * 72)
+        print(f"!! ANKLE_TRIM_DEG={trim_deg:+.1f} deg — BOTH ankle_pitch hold targets biased "
+              f"(clamp ±{ANKLE_TRIM_MAX_DEG:.0f}).")
+        print("!! Posture->torque->heat sweep (audit §4 exp #6). Ramp AND hold use the "
+              "trimmed pose.")
+        print("!" * 72)
     print(f"STAND-HOLD: firm move-to-default over {secs:.1f}s, then hold indefinitely "
           f"(approach gains {APPROACH_KP_SCALE:.1f}x). Ctrl-C / remote-damp to stop.")
     global _TELEM
-    telem = _TELEM = Telemetry("stand-hold", meta)
+    telem = _TELEM = Telemetry("stand-hold", meta, extra={"ankle_trim_deg": trim_deg})
     try:
-        _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, secs, kp, kd, meta)
+        _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, hold_target, secs, kp, kd, meta)
         print("at default — HOLDING. Watch stance; damp when done.")
         tick = 0
         while True:  # SIGINT/SIGTERM handler damps + exits; this loop just streams the hold
-            _send_cmd(pub, low_cmd, crc, mode_machine, meta.default, kp, kd, meta)
+            _send_cmd(pub, low_cmd, crc, mode_machine, hold_target, kp, kd, meta)
             # Record the hold (tau_est/temps/pose): this is the exact test class that
             # produced the unauditable '20 Nm continuous' number — now it's captured.
             q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
-            telem.add(tick, q, dq, msg, imu_quat, gyro, np.zeros(meta.n), meta.default)
+            telem.add(tick, q, dq, msg, imu_quat, gyro, np.zeros(meta.n), hold_target)
             tick += 1
             time.sleep(1.0 / CONTROL_HZ)
     except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
