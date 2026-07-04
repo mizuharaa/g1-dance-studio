@@ -1074,3 +1074,15 @@ human-supervised session (NOT autonomous — no ground motion has run):
   load -> it sagged into a crouch and danced from there. Boosting ONLY the leg kp/kd (kept overdamped,
   torque clamped) let the legs bear weight and stand. Diagnosis via joint telemetry + user's eyes.
 - NEXT: confirm it's GENUINELY weight-bearing (slacken tether at 3s) then extend 5s->10s->20s->full.
+
+## 2026-07-04 ~19:45 ICT — LATERAL FALLING was a HARDWARE FAULT (stuck right hand). Fixed -> balances.
+- Root cause of the sideways falls: the RIGHT HAND was mis-installed, locked at a wrong angle ->
+  CoM pulled off-center -> persistent right lean -> lateral fall. NOT a policy robustness gap
+  (my retrain call was premature). User re-installed the hand correctly.
+- Post-fix telemetry (3s, config APPROACH_KP_SCALE=3.0 + GROUND_LEG_KP_SCALE=2.0 sagittal-only):
+  L_knee 35 / R_knee 36 (asymmetry -1deg, was +8-9), torso mean roll +1.1deg (level), swing 6.6deg.
+  User: "it looks balanced now." Symmetry+level are tether-independent -> genuine CoM fix.
+- SHOW WORKFLOW (user, important): during the show the robot is WALKED up to the stage via the
+  remote and is in RUN/WALK mode (onboard, standing+balanced) BEFORE the dance is initiated. So our
+  deploy hands off from an ALREADY-STANDING pose (not from limp/crouch) -> easier + more robust.
+- NEXT: extend duration (5s->full) now balance works; then test the real walk-mode->dance handoff.
