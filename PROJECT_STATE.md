@@ -925,3 +925,17 @@ human-supervised session (NOT autonomous — no ground motion has run):
   dynamic recovery). Gains are not the lever.
 - NEXT (sim, no robot): fix the ground retrain (reference re-anchoring + startup ee-termination
   grace), retrain, re-gate nominal>=0.95 full-length. THEN a real weight-bearing stand test.
+
+## 2026-07-04 ~14:35 ICT — Weight-bearing stand-hold: legs sag under load (EXPECTED, not a fault).
+- Slackened tether so feet bear weight; ran stand-hold 8s ramp @2.0x. Feet loading engaged
+  (pose became load-dependent, unlike the tether-borne case). Under load the legs SETTLED
+  (2 identical reads) into a stable deep squat: knee 55/66, hip_pitch +12/+6, ankle -50
+  (cmd knee 38, hip -18, ankle -21). Torso vertical (waist_pitch 0.4). Asymmetric (R knee 66 vs L 55).
+- INTERPRETATION (important, avoid misfiling): a static PD-to-default is a spring to a pose,
+  NOT a balance controller. Sag under body weight is EXPECTED once the onboard balancer is
+  released. The robot stands fine on its OWN onboard controller (normal standby). Weight-bearing
+  in the dance comes from the ACTIVELY-BALANCING policy, not from stand-hold. Stand-hold was the
+  pre-check and did its job: safety spine proven, feet-loading confirmed, static-PD gap measured.
+- CONCLUSION: today's real blocker is unchanged — the ground POLICY retrain failed. No robot dance
+  today. Next = fix retrain in sim (re-anchoring + startup ee-termination grace), retrain, re-gate.
+- Robot damped/soft. 4 clean stop cycles total this session; always ended soft.
