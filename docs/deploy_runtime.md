@@ -24,8 +24,24 @@ clamped to joint limits, gains are the SIM gains from policy_meta (never stock).
 conda activate tv
 python -m pipeline.deploy_runtime --mode read                       # safe, first
 CONFIRMED_BY_HUMAN=alois python -m pipeline.deploy_runtime --mode move-to-default --i-will-watch-the-robot
+# cautious first dance: FIRST 3 seconds only, then smooth ramp to damping
+CONFIRMED_BY_HUMAN=alois python -m pipeline.deploy_runtime --mode run --i-will-watch-the-robot --max-secs 3
+# full dance once the short segment looks clean:
 CONFIRMED_BY_HUMAN=alois python -m pipeline.deploy_runtime --mode run --i-will-watch-the-robot
 ```
+
+**`run` sequence (no damping gap, no lurch):** releases the motion service once →
+STAGE 1 firm cosine move-to-default (4 s, `APPROACH_KP_SCALE=2.0×`, both kp+kd scaled to
+stay overdamped) → 0.6 s hold → STAGE 2 policy loop at trained gains. The robot is already
+AT default and `thriller_deploy` starts from default, so entry is seamless. `--max-secs N`
+caps the policy segment (cautious first test) then smooth-ramps kp→0 to damping. NaN/inf,
+|action|>8, cycle overrun, or any exception → immediate damping. Mirrors the h1_2 example's
+posture→behavior pattern.
+
+**GANTRY note (feet off ground):** the policy trained WITH ground contact, so on the
+gantry the LEGS will move oddly / won't "stand" — EXPECTED. The gantry `run` checks the
+policy executes at 50 Hz without fault or violent motion and that the ARMS track; real leg
+behavior is only meaningful with weight on the feet (tethered ground).
 
 ## READ-ONLY result on the real robot (2026-07-05, limp on gantry)
 - obs: 160-D, **0 non-finite**, range [-1.13, 0.99]. Exact terms (command/joint_pos/
