@@ -585,6 +585,19 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   the right architecture for the isolated robot net. Build next; gantry-test it (safe,
   feet-off) before any ground use. Robot-day plan/preflight assumed Docker path — needs a
   non-Docker deploy path added.
+- 2026-07-05 (AM): **DEPLOY FIX — run the policy LAPTOP-SIDE over Ethernet, not
+  PC2-Docker.** The existing teleop already drives the robot from the laptop via
+  unitree_sdk2_python over 192.168.123.x (no Docker). A dance runtime works the same:
+  ONNX policy on the laptop → LowCmd to robot over Ethernet. NO robot-internet, NO Docker,
+  NO image pull needed — sidesteps the whole blocker. **Network insight:** Ethernet-to-
+  robot + company-wifi-for-internet run SIMULTANEOUSLY (separate interfaces); the local
+  router/Quest is teleop-only, NOT needed for the dance — so at the office the user can be
+  ONLINE with Claude AND control the robot at once. If online at office: build the
+  laptop-side runtime live (obs from sim_exam MjlabOnnxPolicy, gains from policy_meta.json,
+  LowCmd via unitree_sdk2_python, 50Hz, damping-mode safety) + gantry-test it (safe,
+  feet-off). TODO: this laptop-side runtime is unbuilt; robot-day preflight/scripts assumed
+  the Docker path. Baseline today regardless = health check + check_joint_calibration.py
+  (SDK, no Docker).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
