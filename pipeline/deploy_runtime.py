@@ -357,6 +357,25 @@ def mode_read(meta, ref, session, iface, timeout_s):
     last_action = np.zeros(meta.n)
     obs, terms = build_obs(meta, ref, q, dq, imu_quat, gyro, last_action, tick=0)
 
+    # ODOM CHECK (read-only): is the onboard estimate ground-run-odom depends on live?
+    print("\n=== ONBOARD ESTIMATE (rt/odommodestate) ===")
+    try:
+        odom = odom_subscriber()
+        samples = [read_odom(odom, timeout_s=0.3) for _ in range(5)]
+        samples = [s for s in samples if s is not None]
+        if not samples:
+            print("  NOT PUBLISHED — ground-run-odom would REFUSE (NO-GO). Estimator-free "
+                  "ground-run or Stage A stand-hold only until this is live.")
+        else:
+            p, v = samples[-1]
+            moved = np.linalg.norm(samples[-1][0] - samples[0][0])
+            print(f"  LIVE ({len(samples)}/5 reads): pos={np.round(p,3).tolist()} "
+                  f"vel={np.round(v,3).tolist()} height={p[2]:+.3f}m")
+            print(f"  drift across reads: {moved*1000:.1f} mm (should be ~0 at rest). "
+                  f"vel_src={ODOM_VEL_SOURCE}. ground-run-odom OK to attempt (tethered).")
+    except Exception as e:  # noqa: BLE001 - diagnostic only, never fatal
+        print(f"  odom read error (non-fatal): {e}")
+
     # obs sanity
     bad = (~np.isfinite(obs)).sum()
     big = int((np.abs(obs) > 50).sum())
