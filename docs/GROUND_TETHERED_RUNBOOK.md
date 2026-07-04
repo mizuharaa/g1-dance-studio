@@ -132,6 +132,46 @@ is a separate go/no-go decision with the human present, not part of this documen
 
 ---
 
+## Stage B-ODOM — PROVEN gantry policy, fed the onboard estimate (PREFERRED)
+
+Added 2026-07-04 after finding the robot publishes a base-state estimate on
+`rt/odommodestate` (~184 Hz: position + velocity + height). This lets the **gantry
+policy — already 100% in sim** — run on the ground with an HONEST 160-D obs (real
+`base_lin_vel` + re-anchored `motion_anchor_pos_b`) instead of the estimator-free
+retrain (which failed to balance). This is the preferred Stage B.
+
+```
+# 3 seconds first — tethered, remote in hand
+GROUND_MAX_ACTION=10 python -m pipeline.deploy_runtime --mode ground-run-odom \
+  --iface enp0s31f6 --max-secs 3 --i-will-watch-the-robot
+```
+Same `3 → 5 → 10 → 20 → full` progression as Stage B.
+
+Path-specific notes (all verified OFFLINE 2026-07-04, `tools/sim_ground_odom.py`):
+- **Action cap.** The gantry policy's real action range reaches ~8.5 during the dance
+  (that is why the gantry run used `MAX_ACTION=12`). The default `GROUND_MAX_ACTION=6`
+  would false-trip ~4% of ticks — **set `GROUND_MAX_ACTION=10`** for this mode (above the
+  8.5 legitimate max, below a runaway). Start there; do not drop to 6 or it will damp on
+  normal dance moves.
+- **Odometry is a hard dependency.** The mode reads `rt/odommodestate` before releasing
+  the motion service and **refuses (NO-GO) if it is not being published**, and damps if
+  the stream drops mid-run. It never falls back to fabricated terms.
+- **TWO things must be confirmed on the first tethered run** (they could not be validated
+  without motion):
+  1. **Odom survives motion-service release.** It publishes with the service released
+     (observed at rest), but confirm `position`/`velocity` keep updating sanely once the
+     policy has control. If it freezes → damp; the obs goes stale.
+  2. **Velocity source.** Default `ODOM_VEL_SOURCE=diff` derives world velocity from
+     position differencing (frame-unambiguous, mildly noisy). Only switch to
+     `ODOM_VEL_SOURCE=field` (the EKF velocity, smoother) after a gentle **sway test**
+     confirms the field's frame matches (push the torso +x; the reported body-frame
+     `base_lin_vel` must point the right way regardless of heading).
+- **Re-anchoring.** The torso position origin is captured at policy start (robot at the
+  reference pose), so absolute-frame offset and slow XY drift cancel — the obs matches how
+  the reference anchor behaves in training.
+
+---
+
 ## What each safety layer does (so you trust the abort path)
 
 - `--i-will-watch-the-robot` + `CONFIRMED_BY_HUMAN=alois`: both required for any motion

@@ -989,3 +989,19 @@ human-supervised session (NOT autonomous — no ground motion has run):
   (4) whose estimator is it (onboard vs colleague's stack) + persistence.
 - NEXT (recommended): wire deploy_runtime to consume rt/odommodestate -> build HONEST 160-dim obs
   -> sim-check -> tethered-first ground bring-up of the PROVEN gantry policy.
+
+## 2026-07-04 ~16:10 ICT — Odometry-fed ground obs path BUILT + offline-validated (sim/code only).
+- deploy_runtime.py: added odom_subscriber/read_odom (rt/odommodestate), build_obs_odom (HONEST
+  base_lin_vel = R.T@v_world + re-anchored motion_anchor_pos_b = R.T@(ref_disp-robot_disp)), and
+  mode `ground-run-odom` running the PROVEN gantry policy with the estimate (GROUND cap, --max-secs,
+  full safety spine, NO-GO if odom absent, always-soft).
+- Tests: tests/test_deploy_odom.py (6) — perfect-tracking->anchor=0, base_lin_vel body-frame, reduces
+  to gantry fake when static, dim/finite. Full deploy suite 20/20 green.
+- Offline pipeline smoke (tools/sim_ground_odom.py): real ONNX policy over full 51.8s motion with
+  odom-from-reference (+noise): 0 non-finite, base_lin_vel mean 0.25/max 1.26 m/s (vs fake 0), robust
+  to noise. FINDING: gantry policy's real action range ~8.5 -> GROUND_MAX_ACTION=6 false-trips ~4%;
+  ground-run-odom needs GROUND_MAX_ACTION=10 (documented in runbook Stage B-ODOM).
+- Runbook: added Stage B-ODOM (preferred path) w/ the 2 supervised validations (odom survives
+  motion-service release; velocity-frame sway test) + re-anchoring notes.
+- OPEN (needs tethered bring-up, no robot while away): confirm odom persists under our control +
+  velocity-field frame. Estimator-free v3 deprioritized (odom path is primary, no GPU needed).

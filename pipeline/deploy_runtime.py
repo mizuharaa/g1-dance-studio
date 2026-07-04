@@ -180,6 +180,41 @@ def read_state(sub, timeout_s=2.0):
     return q, dq, quat, gyro, msg
 
 
+# ---- ONBOARD state estimate (rt/odommodestate) --------------------------------
+# The robot's onboard EKF publishes a base pose+velocity estimate at ~184 Hz on
+# rt/odommodestate (SportModeState_). This is the state estimator the estimator-free
+# path lacked — with it we can build the FULL 160-D obs HONESTLY on the ground and
+# deploy the PROVEN gantry policy, instead of feeding zeros/approximations.
+# position = base position in a fixed odom world frame (accumulates); velocity[3];
+# body height. Confirmed live 2026-07-04 (184 Hz, clean ~0 vel at rest).
+ODOM_TOPIC = "rt/odommodestate"
+# base_lin_vel needs BODY-frame velocity. The odom velocity FIELD's frame (body vs
+# world) is a Unitree convention we have NOT yet confirmed on hardware in motion, so
+# the SAFE default derives world velocity from position differencing (frame-unambiguous)
+# and rotates it into the body frame with the IMU orientation. Switch to "field" only
+# after a supervised sway test confirms the field's frame. Env-overridable.
+ODOM_VEL_SOURCE = os.environ.get("ODOM_VEL_SOURCE", "diff")  # "diff" | "field"
+
+
+def odom_subscriber():
+    from unitree_sdk2py.core.channel import ChannelSubscriber
+    from unitree_sdk2py.idl.unitree_go.msg.dds_ import SportModeState_
+    sub = ChannelSubscriber(ODOM_TOPIC, SportModeState_)
+    sub.Init()
+    return sub
+
+
+def read_odom(sub, timeout_s=0.5):
+    """Return (pos[3], vel_field[3]) from rt/odommodestate, or None if not received.
+
+    Non-fatal by design: the caller decides. A ground run that needs odometry must
+    treat None as NO-GO (don't fall back to fabricated terms mid-run)."""
+    msg = sub.Read(int(timeout_s * 1000))
+    if msg is None:
+        return None
+    return np.array(list(msg.position), float), np.array(list(msg.velocity), float)
+
+
 # ---- observation builder (real robot state -> 160-D mjlab obs) -----------------
 def build_obs(meta: Meta, ref: Reference, q, dq, imu_quat, gyro, last_action, tick):
     ref_jp, ref_jv, ref_apos, ref_aquat = ref.at(tick)
@@ -192,6 +227,45 @@ def build_obs(meta: Meta, ref: Reference, q, dq, imu_quat, gyro, last_action, ti
         "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, imu_quat),  # 6
         "base_lin_vel": np.zeros(3),                                     # 3 (gantry ~= 0)
         "base_ang_vel": gyro,                                            # 3 (IMU gyro)
+        "joint_pos": q - meta.default,                                  # 29
+        "joint_vel": dq,                                                # 29
+        "actions": last_action,                                         # 29
+    }
+    parts, widths_ok = [], True
+    for name, w in OBS_LAYOUT:
+        v = np.asarray(terms[name], float).reshape(-1)
+        if v.shape[0] != w:
+            widths_ok = False
+            print(f"  !! term {name}: width {v.shape[0]} != expected {w}")
+        parts.append(v)
+    obs = np.concatenate(parts)
+    assert obs.shape[0] == 160 and widths_ok, f"obs dim {obs.shape[0]} != 160"
+    return obs, terms
+
+
+def build_obs_odom(meta: Meta, ref: Reference, q, dq, imu_quat, gyro, last_action,
+                   tick, robot_disp, v_world):
+    """HONEST 160-D obs for GROUND deploy of the PROVEN full-obs gantry policy.
+
+    Same as build_obs, but the two terms build_obs fakes are computed from the onboard
+    estimate (rt/odommodestate) instead:
+      * motion_anchor_pos_b = R_robᵀ · (ref_disp − robot_disp) — the reference-vs-robot
+        torso position error in the body frame. Both displacements are measured FROM the
+        policy-start pose (re-anchoring), so absolute-origin and slow XY drift cancel, and
+        at t=0 (robot at the reference) the term is ~0, matching training.
+      * base_lin_vel = R_robᵀ · v_world — torso linear velocity in the body frame.
+    `robot_disp` = odom_pos − odom_pos0 (world frame). `v_world` = world-frame base
+    velocity (from position differencing by default; see ODOM_VEL_SOURCE).
+    """
+    ref_jp, ref_jv, ref_apos, ref_aquat = ref.at(tick)
+    ref_disp = ref_apos - ref.apos[0]
+    R_rob = quat_wxyz_to_mat(imu_quat)
+    terms = {
+        "command": np.concatenate([ref_jp, ref_jv]),                    # 58
+        "motion_anchor_pos_b": R_rob.T @ (ref_disp - robot_disp),       # 3 (HONEST)
+        "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, imu_quat),  # 6
+        "base_lin_vel": R_rob.T @ v_world,                              # 3 (HONEST)
+        "base_ang_vel": gyro,                                            # 3
         "joint_pos": q - meta.default,                                  # 29
         "joint_vel": dq,                                                # 29
         "actions": last_action,                                         # 29
@@ -634,10 +708,104 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order):
     _finalize_and_exit(0)
 
 
+def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
+    """GROUND stage B (ODOMETRY-FED): run the PROVEN full-obs gantry policy on the
+    ground, building the two estimator-dependent obs terms HONESTLY from the onboard
+    estimate (rt/odommodestate) instead of faking them. Same safety spine + conservative
+    GROUND_MAX_ACTION cap as mode_ground_run; --max-secs required; always ends soft.
+
+    This is the path the odometry finding (2026-07-04) opened: the gantry policy is 100%
+    in sim, and the only reason it could not go to the ground was the missing torso
+    pose/velocity — which the robot publishes. No estimator-free retrain needed.
+    """
+    if not watch:
+        raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
+    if not max_secs or max_secs <= 0:
+        raise SystemExit("REFUSED: ground-run-odom requires --max-secs > 0 (cautious capped segment)")
+    _require_human("ground-run-odom")
+    make_dds(iface)
+    sub = lowstate_subscriber()
+    odom = odom_subscriber()
+    # NO-GO if the estimate is not actually flowing — never fall back to fabricated terms.
+    o0 = read_odom(odom, timeout_s=1.0)
+    if o0 is None:
+        raise SystemExit(f"REFUSED: no {ODOM_TOPIC} within 1s — the onboard estimate this "
+                         "mode depends on is not being published. NO-GO.")
+    q0, _, _, _, msg0 = read_state(sub)
+    mode_machine = int(msg0.mode_machine)
+    _release_motion_service()
+    pub, low_cmd, crc = _lowcmd_setup()
+    global _DAMP_CTX
+    _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
+    _install_damp_on_signals()
+    dt = 1.0 / CONTROL_HZ
+    kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
+    n_ticks = min(ref.T, int(max_secs * CONTROL_HZ))
+    print(f"GROUND-RUN-ODOM: stage-1 firm move-to-default (4s)+hold, then PROVEN gantry "
+          f"policy (160-dim HONEST obs from {ODOM_TOPIC}, vel_src={ODOM_VEL_SOURCE}) "
+          f"{n_ticks}/{ref.T} ticks @ {CONTROL_HZ:.0f}Hz [--max-secs {max_secs:.1f}], "
+          f"action cap {GROUND_MAX_ACTION:.1f}. Tethered. Ctrl-C / remote-damp to stop.")
+    last_action = np.zeros(meta.n)
+    last_target = meta.default.copy()
+    odom_pos0 = None
+    prev_pos, prev_t = None, None
+    try:
+        _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
+        _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
+        # Capture the re-anchor origin at policy start (robot is now at the reference pose).
+        o = read_odom(odom, timeout_s=0.5)
+        if o is None:
+            raise RuntimeError("lost odom at policy start -> damp")
+        odom_pos0 = o[0].copy()
+        prev_pos, prev_t = o[0].copy(), time.time()
+        print("at default — starting odometry-fed policy. Keep tension on the tether; "
+              "damp at the first sign of a fault, lurch, or lean.")
+        for tick in range(n_ticks):
+            t0 = time.time()
+            q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+            o = read_odom(odom, timeout_s=0.5)
+            if o is None:
+                raise RuntimeError(f"lost {ODOM_TOPIC} at tick {tick} -> damp")
+            pos, vel_field = o
+            robot_disp = pos - odom_pos0
+            if ODOM_VEL_SOURCE == "field":
+                v_world = vel_field   # ASSUMES field is world-frame; validate before use
+            else:  # "diff" — frame-unambiguous world velocity from position differencing
+                pdt = max(1e-3, t0 - prev_t)
+                v_world = (pos - prev_pos) / pdt
+            prev_pos, prev_t = pos.copy(), t0
+            obs, _ = build_obs_odom(meta, ref, q, dq, imu_quat, gyro, last_action, tick,
+                                    robot_disp, v_world)
+            if not np.all(np.isfinite(obs)):
+                raise RuntimeError(f"non-finite obs at tick {tick}")
+            action = run_policy(session, obs, tick)
+            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > GROUND_MAX_ACTION):
+                raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
+            last_action = action
+            last_target = action_to_target(meta, action)
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
+            elapsed = time.time() - t0
+            if elapsed > 2 * dt:
+                raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
+            time.sleep(max(0.0, dt - elapsed))
+        print("ground segment done — smooth ramp to damping.")
+        steps = int(0.6 * CONTROL_HZ)
+        for s in range(steps + 1):
+            f = 1.0 - s / steps
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp * f, meta.kd, meta)
+            time.sleep(dt)
+    except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
+        print(f"\nSTOP: {e} -> damping")
+    finally:
+        _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
+    _finalize_and_exit(0)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode",
-                    choices=["read", "move-to-default", "run", "stand-hold", "ground-run"],
+                    choices=["read", "move-to-default", "run", "stand-hold", "ground-run",
+                             "ground-run-odom"],
                     default="read")
     ap.add_argument("--meta", default=str(DEFAULT_META))
     ap.add_argument("--motion-npz", default=str(DEFAULT_MOTION))
@@ -691,6 +859,10 @@ def main():
         return mode_move_to_default(meta, session, ref, a.iface, a.secs, a.i_will_watch_the_robot) or 0
     if a.mode == "run":
         return mode_run(meta, session, ref, a.iface, a.i_will_watch_the_robot, a.max_secs) or 0
+    if a.mode == "ground-run-odom":
+        # PROVEN gantry policy (meta/ref/session above) + honest odometry-fed obs.
+        return mode_ground_run_odom(meta, session, ref, a.iface, a.i_will_watch_the_robot,
+                                    a.max_secs) or 0
 
 
 if __name__ == "__main__":
