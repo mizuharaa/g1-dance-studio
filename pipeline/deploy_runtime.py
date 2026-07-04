@@ -57,7 +57,7 @@ CONTROL_HZ = 50.0
 # Firm approach gains for reaching the ready pose (verified on hardware 2026-07-05):
 # scale BOTH kp and kd so the joint stays overdamped. Env-overridable.
 APPROACH_KP_SCALE = float(os.environ.get("APPROACH_KP_SCALE", "2.0"))
-MAX_ACTION = 8.0            # |action| above this -> damp (safety)
+MAX_ACTION = float(os.environ.get("MAX_ACTION", "8.0"))  # |action|>this -> damp; gantry legs spike, env-tunable
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
