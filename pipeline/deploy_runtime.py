@@ -233,42 +233,63 @@ def _require_human(mode):
     print(f"[{mode}] human-confirmed. Damping is your remote's job if anything looks wrong.")
 
 
-def _lowcmd_publisher():
+PR_MODE = 0  # Mode.PR (series control for pitch/roll) — matches h1_2 low_level example
+
+
+def _release_motion_service():
+    """Release the built-in sport/balance service so rt/lowcmd is accepted for the LEGS.
+    Matches h1_2_low_level_example Init(). WARNING: disables onboard balance — only safe
+    with feet OFF the ground on the gantry, remote (damping) in hand."""
+    from unitree_sdk2py.comm.motion_switcher.motion_switcher_client import MotionSwitcherClient
+    print("!! RELEASING onboard motion/balance service — the robot will NOT self-balance.\n"
+          "   Feet OFF ground, remote in hand, ready to damp.")
+    msc = MotionSwitcherClient()
+    msc.SetTimeout(5.0)
+    msc.Init()
+    status, result = msc.CheckMode()
+    tries = 0
+    while result.get("name"):
+        msc.ReleaseMode()
+        status, result = msc.CheckMode()
+        time.sleep(1)
+        tries += 1
+        if tries > 10:
+            raise SystemExit("could not release motion service after 10 tries — abort")
+    print("   motion service released — rt/lowcmd accepted for full-body.")
+
+
+def _lowcmd_setup():
+    """Publisher + ONE reusable LowCmd from the factory (pre-allocates motor_cmd[]) + CRC.
+    Reuse the object every tick (mutate fields) — matches the h1_2 example."""
     from unitree_sdk2py.core.channel import ChannelPublisher
     from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowCmd_
+    from unitree_sdk2py.idl.default import unitree_hg_msg_dds__LowCmd_
+    from unitree_sdk2py.utils.crc import CRC
     pub = ChannelPublisher("rt/lowcmd", LowCmd_)
     pub.Init()
-    return pub, LowCmd_
+    low_cmd = unitree_hg_msg_dds__LowCmd_()   # factory: motor_cmd[] pre-allocated
+    return pub, low_cmd, CRC()
 
 
-def _crc():
-    from unitree_sdk2py.utils.crc import CRC
-    return CRC()
-
-
-def _send_cmd(pub, LowCmd_, crc, mode_machine, targets, kp, kd, meta, damping=False):
-    """Build + publish one LowCmd. damping=True -> zero position gain, small kd, hold."""
-    cmd = LowCmd_()
-    cmd.mode_pr = 0
-    cmd.mode_machine = mode_machine
+def _send_cmd(pub, low_cmd, crc, mode_machine, targets, kp, kd, meta, damping=False):
+    """Mutate the REUSED low_cmd and publish. damping=True -> hold, kp=0, small kd."""
+    low_cmd.mode_pr = PR_MODE
+    low_cmd.mode_machine = mode_machine
     for i in range(29):
-        mc = cmd.motor_cmd[i]
-        mc.mode = 1
+        mc = low_cmd.motor_cmd[i]
+        mc.mode = 1          # enable
+        mc.dq = 0.0
+        mc.tau = 0.0
         if damping:
             mc.q = 0.0
-            mc.dq = 0.0
             mc.kp = 0.0
             mc.kd = 2.0
-            mc.tau = 0.0
         else:
-            q_t = float(np.clip(targets[i], meta.q_lo[i], meta.q_hi[i]))
-            mc.q = q_t
-            mc.dq = 0.0
+            mc.q = float(np.clip(targets[i], meta.q_lo[i], meta.q_hi[i]))
             mc.kp = float(kp[i])
             mc.kd = float(kd[i])
-            mc.tau = 0.0
-    cmd.crc = crc.Crc(cmd)
-    pub.Write(cmd)
+    low_cmd.crc = crc.Crc(low_cmd)
+    pub.Write(low_cmd)
 
 
 def mode_move_to_default(meta, session, ref, iface, secs, watch):
@@ -277,10 +298,10 @@ def mode_move_to_default(meta, session, ref, iface, secs, watch):
     _require_human("move-to-default")
     make_dds(iface)
     sub = lowstate_subscriber()
-    pub, LowCmd_ = _lowcmd_publisher()
-    crc = _crc()
     q0, _, _, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
+    _release_motion_service()
+    pub, low_cmd, crc = _lowcmd_setup()
     kp = meta.kp * 0.3   # conservative for the approach
     kd = meta.kd
     steps = int(secs * CONTROL_HZ)
@@ -291,12 +312,12 @@ def mode_move_to_default(meta, session, ref, iface, secs, watch):
             target = (1 - a) * q0 + a * meta.default
             if not np.all(np.isfinite(target)):
                 raise RuntimeError("non-finite target")
-            _send_cmd(pub, LowCmd_, crc, mode_machine, target, kp, kd, meta)
+            _send_cmd(pub, low_cmd, crc, mode_machine, target, kp, kd, meta)
             time.sleep(1.0 / CONTROL_HZ)
         print("at default pose. Holding (damping).")
     finally:
         for _ in range(20):
-            _send_cmd(pub, LowCmd_, crc, mode_machine, meta.default, kp, kd, meta, damping=True)
+            _send_cmd(pub, low_cmd, crc, mode_machine, meta.default, kp, kd, meta, damping=True)
             time.sleep(1.0 / CONTROL_HZ)
 
 
@@ -306,10 +327,10 @@ def mode_run(meta, session, ref, iface, watch):
     _require_human("run")
     make_dds(iface)
     sub = lowstate_subscriber()
-    pub, LowCmd_ = _lowcmd_publisher()
-    crc = _crc()
     _, _, _, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
+    _release_motion_service()
+    pub, low_cmd, crc = _lowcmd_setup()
     dt = 1.0 / CONTROL_HZ
     last_action = np.zeros(meta.n)
     print(f"RUN: {ref.T} ticks @ {CONTROL_HZ:.0f}Hz. Ctrl-C or remote-damp to stop.")
@@ -325,7 +346,7 @@ def mode_run(meta, session, ref, iface, watch):
                 raise RuntimeError(f"bad action at tick {tick}")
             last_action = action
             target = action_to_target(meta, action)
-            _send_cmd(pub, LowCmd_, crc, mode_machine, target, meta.kp, meta.kd, meta)
+            _send_cmd(pub, low_cmd, crc, mode_machine, target, meta.kp, meta.kd, meta)
             elapsed = time.time() - t0
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
@@ -334,7 +355,7 @@ def mode_run(meta, session, ref, iface, watch):
         print(f"\nSTOP: {e} -> damping")
     finally:
         for _ in range(40):
-            _send_cmd(pub, LowCmd_, crc, mode_machine, meta.default, meta.kp, meta.kd, meta, damping=True)
+            _send_cmd(pub, low_cmd, crc, mode_machine, meta.default, meta.kp, meta.kd, meta, damping=True)
             time.sleep(dt)
 
 
