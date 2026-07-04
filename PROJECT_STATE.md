@@ -1379,3 +1379,33 @@ human-supervised session (NOT autonomous — no ground motion has run):
   edit digs NEW penetration.
 - Production artifacts untouched (data/policies/** read-only for this lane); no commits made
   by this lane.
+
+## 2026-07-05 (measurement session + retrain verdict) — s2r attempt-1: dance QUALITY KEPT, torque SOLVED, drift regressed; attempt-2 running.
+- **Measurement session (user at robot, remote unavailable -> motion steps deferred):**
+  (0) MASS MEASURED: **34.6 kg** as-deployed (standard battery, hands, covers) = model +1.26 kg,
+  inside the retrain DR band, within 0.4 kg of config center -> no config change. "~35 kg" retired.
+  (1a) LIMP CAPTURE (read-only, committed cee4839): obs staleness p95 **1.78 ms**, 0% repeated
+  ticks -> NO sensor-side latency (audit exp #4 CLOSED; latency DR stays hygiene).
+  tau_est zero-offset <=0.26 Nm on all 12 leg motors (sensor trustworthy). Thermal flat; NOTE
+  right_shoulder_pitch idles at 59 C (others 39-49) — eyeball next session.
+  Standing baseline / trim sweep / legodom rerun DEFERRED until a damping remote is in hand
+  (declined user request to stand the robot without one — no independent stop; rule held).
+- **s2r attempt-1 gate (full matrix, 128 envs):** nominal survival 128/128; ankle mean 5.8 /
+  RMS 7.8 Nm (thermal ~3.4 C/min -> 10+ min runtime; 35% cooler than a2's 10.1 RMS);
+  survival 96.1% @ 20 ms+push (passes realistic-worst), 50.8% @ 40 ms+push (informational);
+  per-section: ZERO nominal falls everywhere incl. 13-18 s brace; torque unloaded most exactly
+  in the old worst 40-50 s lean cluster (4.6 Nm mean). **Global mpkpe 0.52 DECOMPOSED:
+  root-relative mpkpe 0.084 vs a2 0.089 — dance quality PRESERVED (crisper than baseline);
+  the inflation is pure world-XY DRIFT: s2r max 1.55 m vs a2 0.81 m (mid-dance 1.33, recovers
+  to ~0.35 by end).** Drift is fine for the tethered HW test, at the 1.5 m excursion limit for
+  a show.
+- **GATE v3 (evidence-based revision, c2062fe):** quality bar = root-relative mpkpe <=0.10;
+  new drift bar max XY <=1.0 m nominal; worst GATED condition = 20 ms+push (measured sensing
+  latency ~0 makes 40 ms bars unrealistic -> informational only).
+- **ATTEMPT-2 LAUNCHED (train-thriller-s2r-b):** single delta motion_global_root_pos weight
+  0.5 -> 1.0 (targets the drift, the only regression). Autopilot (parameterized) + gate v3 +
+  poller armed; verdict at exports/thriller_s2r_b/RESULT.txt (~2.5 h).
+- **DECISION STANDING:** s2r attempt-1 is cleared for ONE tethered HW test (quality+torque+
+  realistic survival all pass; drift irrelevant on tether) — pending rollout video visual
+  sign-off (rendering) + a working remote. If s2r-b also passes with drift <=1.0 m it becomes
+  the show candidate.
