@@ -1132,3 +1132,26 @@ human-supervised session (NOT autonomous — no ground motion has run):
   step (when kinematics is blind), correct with kinematics when a foot is solidly planted (complementary
   filter / the piece the onboard EKF did before it froze on service release). Keeps the proven policy.
   Alt: retrain with heavier estimator-noise/disturbance randomization (slower, GPU). Motors OK.
+
+## 2026-07-04 ~22:15 ICT — AUDIT + DISAMBIGUATION: estimator was a RED HERRING; PIVOT to arm-over-balance.
+- Independent first-principles audit + a decisive offline disambiguation test resolved the 14-16s brace.
+- DISAMBIGUATION (perfect vs leg-odom vs fused obs -> same policy, measure |action-perfect|):
+  * estimator corrupts the action EQUALLY in clean (0.35) and stepping (0.36) windows -> estimator is
+    NOT concentrated at the failure. In clean 0-10s |action-perfect| max was 2.76 yet robot danced fine;
+    at the failing 14-16s it's only 0.79. So estimator error does NOT cause the brace.
+  * with a PERFECT estimate the policy STILL commands violent moves at 14-16s (action jump 0.81 clean ->
+    2.05 stepping). => the stepping section is CHOREOGRAPHY-hard/dynamic, not estimator-hard.
+  CONCLUSION: NO estimator (leg-odom/fused/perfect) fixes 14-16s. The fused-estimator polish was
+  optimizing the wrong variable (audit called this). Fusion stays in tree (offline-validated) but is NOT
+  the fix.
+- STRUCTURAL BLOCKERS of the full-body-low-level path (audit): (1) THERMAL — boosted leg gains needed to
+  stand overheat at 30s; show is 2-3min -> likely show-killer. (2) hard stepping moves it can't execute on
+  ground. (3) faked XY anchor (robot_disp XY==0) = uncorrected lateral drift over a long dance.
+- HIGHEST-LEVERAGE PIVOT (audit #1, now empirically supported): let ONBOARD control BALANCE+LEGS (it
+  walks the robot up already) and drive the ARM dance via low-level. Thriller is ~arms. This is ALREADY
+  PROVEN on THIS robot: ~/robot start_teleop_armsonly.sh does arm control (--arm=G1_29, g1_arm7 arm_sdk
+  weight-blend) WHILE onboard balances. Eliminates estimator+thermal+stepping+XY at once.
+- PROCESS FIX: prove the root cause with a cheap decisive test (disambiguation) BEFORE building the fix.
+  I built fusion before proving the diagnosis; the audit+disambiguation corrected course.
+- DECISION PENDING (user): pivot to arm-dance-over-onboard-balance (reliable, loses leg choreo) vs keep
+  full-body (fragile, thermal-capped). Recommend PIVOT for a show-grade product.
