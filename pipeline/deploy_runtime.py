@@ -68,7 +68,11 @@ RESTORE_MOTION_MODE = os.environ.get("RESTORE_MOTION_MODE", "ai")
 # ankles, idx 0-11) so the legs can hold standing under load; arms keep their trained gains
 # so the dance tracks. Tune UP on the tether while watching for oscillation. Env-overridable.
 GROUND_LEG_KP_SCALE = float(os.environ.get("GROUND_LEG_KP_SCALE", "1.0"))
-LEG_JOINT_IDX = list(range(12))  # left leg 0-5, right leg 6-11 (hip pitch/roll/yaw,knee,ankle p/r)
+# Boost ONLY the SAGITTAL weight-bearing joints (hip pitch, knee, ankle pitch). The ROLL
+# joints (hip_roll idx 1/7, ankle_roll idx 5/11) are what the policy uses for SIDEWAYS
+# balance — stiffening them fought the policy and the robot fell sideways into the tether
+# (observed 2026-07-04, 5s run). Leave roll/yaw at trained gains so lateral balance is free.
+LEG_JOINT_IDX = [0, 3, 4, 6, 9, 10]  # L/R hip_pitch, knee, ankle_pitch
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
