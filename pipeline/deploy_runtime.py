@@ -48,6 +48,10 @@ DEFAULT_POLICY = ROOT / "data/policies/thriller/policy.onnx"
 IFACE = "enp0s31f6"
 TORSO_NPZ_IDX = 15          # torso_link: mjlab body 16 minus the dropped world body
 CONTROL_HZ = 50.0
+# Firm approach gains for reaching the ready pose (verified on hardware 2026-07-05):
+# scale BOTH kp and kd so the joint stays overdamped. Env-overridable.
+APPROACH_KP_SCALE = float(os.environ.get("APPROACH_KP_SCALE", "2.0"))
+MAX_ACTION = 8.0            # |action| above this -> damp (safety)
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
@@ -292,6 +296,31 @@ def _send_cmd(pub, low_cmd, crc, mode_machine, targets, kp, kd, meta, damping=Fa
     pub.Write(low_cmd)
 
 
+def _ramp_to_pose(pub, low_cmd, crc, mode_machine, q_start, q_end, secs, kp, kd, meta):
+    """Cosine-interpolate joint targets q_start -> q_end over `secs`, streaming LowCmd at
+    CONTROL_HZ with the given (firm) gains. Non-finite target -> raise (caller damps)."""
+    steps = max(1, int(secs * CONTROL_HZ))
+    for s in range(steps + 1):
+        a = 0.5 - 0.5 * np.cos(np.pi * s / steps)   # 0 -> 1
+        target = (1 - a) * q_start + a * q_end
+        if not np.all(np.isfinite(target)):
+            raise RuntimeError("non-finite target in ramp")
+        _send_cmd(pub, low_cmd, crc, mode_machine, target, kp, kd, meta)
+        time.sleep(1.0 / CONTROL_HZ)
+
+
+def _hold(pub, low_cmd, crc, mode_machine, q, secs, kp, kd, meta):
+    for _ in range(max(1, int(secs * CONTROL_HZ))):
+        _send_cmd(pub, low_cmd, crc, mode_machine, q, kp, kd, meta)
+        time.sleep(1.0 / CONTROL_HZ)
+
+
+def _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0):
+    for _ in range(max(1, int(secs * CONTROL_HZ))):
+        _send_cmd(pub, low_cmd, crc, mode_machine, meta.default, meta.kp, meta.kd, meta, damping=True)
+        time.sleep(1.0 / CONTROL_HZ)
+
+
 def mode_move_to_default(meta, session, ref, iface, secs, watch):
     if not watch:
         raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
@@ -302,62 +331,71 @@ def mode_move_to_default(meta, session, ref, iface, secs, watch):
     mode_machine = int(msg0.mode_machine)
     _release_motion_service()
     pub, low_cmd, crc = _lowcmd_setup()
-    scale = float(os.environ.get("APPROACH_KP_SCALE", "0.3"))  # tunable approach stiffness
-    kp = meta.kp * scale
-    kd = meta.kd * scale   # scale damping WITH stiffness -> stays overdamped, no buzz
-    steps = int(secs * CONTROL_HZ)
-    print(f"moving to default over {secs:.1f}s at {CONTROL_HZ:.0f}Hz (kp/kd scale={scale:.1f})...")
+    kp, kd = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE  # firm, both scaled -> overdamped
+    print(f"moving to default over {secs:.1f}s at {CONTROL_HZ:.0f}Hz "
+          f"(approach gains {APPROACH_KP_SCALE:.1f}x)...")
     try:
-        for s in range(steps + 1):
-            a = 0.5 - 0.5 * np.cos(np.pi * s / steps)   # cosine 0->1
-            target = (1 - a) * q0 + a * meta.default
-            if not np.all(np.isfinite(target)):
-                raise RuntimeError("non-finite target")
-            _send_cmd(pub, low_cmd, crc, mode_machine, target, kp, kd, meta)
-            time.sleep(1.0 / CONTROL_HZ)
+        _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, secs, kp, kd, meta)
         print("at default pose. Holding (damping).")
     finally:
-        for _ in range(20):
-            _send_cmd(pub, low_cmd, crc, mode_machine, meta.default, kp, kd, meta, damping=True)
-            time.sleep(1.0 / CONTROL_HZ)
+        _damp(pub, low_cmd, crc, mode_machine, meta)
 
 
-def mode_run(meta, session, ref, iface, watch):
+def mode_run(meta, session, ref, iface, watch, max_secs=None):
+    """Stage 1: firm move-to-default (no damping gap). Stage 2: policy loop from default.
+    Mirrors the h1_2 example's posture->behavior pattern."""
     if not watch:
         raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
     _require_human("run")
     make_dds(iface)
     sub = lowstate_subscriber()
-    _, _, _, _, msg0 = read_state(sub)
+    q0, _, _, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
     _release_motion_service()
     pub, low_cmd, crc = _lowcmd_setup()
     dt = 1.0 / CONTROL_HZ
+    kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
+    n_ticks = ref.T if not max_secs else min(ref.T, int(max_secs * CONTROL_HZ))
+    print(f"RUN: stage-1 firm move-to-default (4s) + hold, then policy {n_ticks}/{ref.T} ticks "
+          f"@ {CONTROL_HZ:.0f}Hz{' [--max-secs %.1f]' % max_secs if max_secs else ''}. "
+          f"Ctrl-C / remote-damp to stop.")
     last_action = np.zeros(meta.n)
-    print(f"RUN: {ref.T} ticks @ {CONTROL_HZ:.0f}Hz. Ctrl-C or remote-damp to stop.")
+    last_target = meta.default.copy()
     try:
-        for tick in range(ref.T):
+        # STAGE 1 — reach the ready pose at firm gains, seamlessly (no damping gap).
+        _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
+        _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
+        print("at default — starting policy. (Legs may look odd on the gantry: the policy "
+              "trained with ground contact. Watch for fault/violence; arms should track.)")
+        # STAGE 2 — policy loop at TRAINED gains. Robot is already AT default and the
+        # ramped motion (thriller_deploy) starts from default -> no lurch on entry.
+        for tick in range(n_ticks):
             t0 = time.time()
             q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
             obs, _ = build_obs(meta, ref, q, dq, imu_quat, gyro, last_action, tick)
             if not np.all(np.isfinite(obs)):
-                raise RuntimeError("non-finite obs")
+                raise RuntimeError(f"non-finite obs at tick {tick}")
             action = run_policy(session, obs, tick)
-            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > 8):
-                raise RuntimeError(f"bad action at tick {tick}")
+            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > MAX_ACTION):
+                raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
             last_action = action
-            target = action_to_target(meta, action)
-            _send_cmd(pub, low_cmd, crc, mode_machine, target, meta.kp, meta.kd, meta)
+            last_target = action_to_target(meta, action)
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
             elapsed = time.time() - t0
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
             time.sleep(max(0.0, dt - elapsed))
-    except BaseException as e:  # noqa: BLE001 - ANY failure -> damp
+        # NORMAL end (or --max-secs reached): smooth ramp-down — fade kp->0 holding pose.
+        print("policy segment done — smooth ramp to damping.")
+        steps = int(0.6 * CONTROL_HZ)
+        for s in range(steps + 1):
+            f = 1.0 - s / steps
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp * f, meta.kd, meta)
+            time.sleep(dt)
+    except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
         print(f"\nSTOP: {e} -> damping")
     finally:
-        for _ in range(40):
-            _send_cmd(pub, low_cmd, crc, mode_machine, meta.default, meta.kp, meta.kd, meta, damping=True)
-            time.sleep(dt)
+        _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
 
 
 def main():
@@ -369,6 +407,9 @@ def main():
     ap.add_argument("--iface", default=IFACE)
     ap.add_argument("--timeout-s", type=float, default=2.0)
     ap.add_argument("--secs", type=float, default=4.0, help="move-to-default duration")
+    ap.add_argument("--max-secs", type=float, default=None,
+                    help="run: cap the policy segment to this many seconds (cautious first "
+                         "test), then smooth-ramp to damping. Default = full motion.")
     ap.add_argument("--i-will-watch-the-robot", action="store_true",
                     help="required for any motion mode; you are watching, remote in hand")
     a = ap.parse_args()
@@ -383,7 +424,7 @@ def main():
     if a.mode == "move-to-default":
         return mode_move_to_default(meta, session, ref, a.iface, a.secs, a.i_will_watch_the_robot) or 0
     if a.mode == "run":
-        return mode_run(meta, session, ref, a.iface, a.i_will_watch_the_robot) or 0
+        return mode_run(meta, session, ref, a.iface, a.i_will_watch_the_robot, a.max_secs) or 0
 
 
 if __name__ == "__main__":
