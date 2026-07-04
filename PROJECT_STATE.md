@@ -668,6 +668,18 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   it the ground feeds the policy wrong data → fall; (2) staged tethered→free ground per the
   runbook. That estimator is a separate build (not done). Webcam works (reclaim pipewire
   as needed). Budget fine.
+- 2026-07-05 (user away ~1h): **Prepping for a STAGED TETHERED-GROUND try on return.**
+  RULE HELD: no robot motion (or even read-only) while user away — no human = no motion.
+  Running SIM/CODE ONLY: (1) obs-restricted Thriller retrain (agent af55f59b0755ac816,
+  drops estimator-dependent position obs → data/policies/thriller_ground/, GPU box alive);
+  (2) staged ground mode in deploy_runtime + docs/GROUND_TETHERED_RUNBOOK.md (agent
+  aaa5ed6183f9b2c35): stand-hold → ground-run --max-secs (short, gated) → extend, all
+  always-soft-on-exit. RETURN SEQUENCE (human-supervised): read-only brain check →
+  stand-hold (watch stability, tether bearing weight) → ground-run 3s → extend. Retrain is
+  GPU-hours; may not finish in 1h — if not, everything else staged, tethered try waits on
+  the verified policy (NEVER rush an unverified policy onto the robot). Ground still =
+  human present + tether rigged + damping-in-hand + Claude watching webcam; NOT autonomous.
+  Videos of today's gantry Thriller: data/previews/thriller_gantry_{realtime,2x}.mp4.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
