@@ -1170,3 +1170,16 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - PLAN for B: (1) let motors COOL now (74C, no runs). (2) find MIN leg gain that still stands (walk-mode
   standing start removes the stand-up-boost need) -> lower gain = far less heat, attacks the thermal root.
   (3) re-test thermal at that gain with the fixed monitor. THEN address the 14-16s stepping choreography.
+
+## 2026-07-04 ~23:05 ICT — THERMAL WALL confirmed at the ANKLE; gain reduction does NOT fix it.
+- Clean test (fixed monitor, real-time, aborted 62C): stand-hold @1.5x, RIGHT ANKLE PITCH 47->62C in 34s,
+  rate 22.5 C/min -> 94C@2min, 117C@3min (fault ~90C). Reducing 2.0->1.5 barely helped: ankle holds ~20Nm
+  CONTINUOUS, and that torque is set by WEIGHT+POSTURE, not gain -> lower gain can't fix it.
+- ROOT: our policy commands a pose that loads the ankle ~20Nm continuously (CoM likely well forward of the
+  ankle). The ONBOARD controller stands indefinitely without overheating because it keeps ankle torque near
+  zero (efficient balance strategy / CoM over feet). This is the mechanism behind the audit's #1.
+- IMPLICATION: full-body-low-level path B has a FUNDAMENTAL thermal wall at the ankle_pitch motor.
+  Only lever left for B: shift standing POSTURE to center CoM over feet -> drop ankle torque (speculative,
+  real tuning). Otherwise B is thermally non-viable for a 2-3 min (let alone 10-15 min) show.
+- Reinforces PIVOT (audit #1): onboard balances (efficient, no ankle cook) + policy drives ARMS.
+- Robot damped safe. Motors will need cooldown again before any further test.
