@@ -78,7 +78,7 @@ LEG_JOINT_IDX = [0, 3, 4, 6, 9, 10]  # L/R hip_pitch, knee, ankle_pitch
 # on hardware omits it -> the legs sag -> we gain-boosted -> the boosted PD fighting the residual
 # sag error burned ~20 Nm at the ankle (thermal wall). With FF, the ankle carries its true
 # ~0.2 Nm. Root fix; keeps the full-body dance, no retrain, no boost. On by default for ground.
-GRAVITY_FF = os.environ.get("GRAVITY_FF", "1") == "1"
+GRAVITY_FF = os.environ.get("GRAVITY_FF", "0") == "1"  # default OFF: not the fix (real ankle load is balance-correction from a sim2real gap, not gravity)
 GRAVITY_FF_SCALE = float(os.environ.get("GRAVITY_FF_SCALE", "1.0"))  # ramp-in / trim knob
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.

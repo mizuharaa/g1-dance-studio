@@ -1199,3 +1199,21 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - LIKELY ALSO helps balance/stepping: no sag + no over-stiffened joints => robot tracks the policy's intended
   targets like in sim, where it works. To verify on HW (tethered) once motors cool.
 - Motors were 62C; need cooldown before the hardware test of the FF fix.
+
+## 2026-07-05 ~00:15 ICT — DECISIVE: thermal/balance/stepping are ONE sim2real gap. Answer = RETRAIN.
+- Gravity-FF hardware test (5s, trained gains, no boost): ankle torque still ~15Nm mean (60-65 max), NOT
+  the ~0 predicted. Two reasons: (a) my gravity_comp computed HANGING (base-supported) torques not
+  standing-on-feet; (b) more fundamentally, the real ankle load ISN'T gravity.
+- DECISIVE offline check — SIM ankle torque during the policy rollout: mean 0.0, max 0.3 Nm (knee 0.4).
+  Real robot: ~15Nm. => 0->15Nm SIM2REAL GAP. In sim the policy keeps CoM over feet (ankle ~free); on
+  real HW imperfect tracking (latency/actuator response) makes the ankle constantly balance-correct = 15Nm.
+- ROOT (shared): thermal (ankle overworks only on real HW), the sag/gain-boost need, AND the stepping brace
+  are ALL the same sim2real gap — the policy assumes near-perfect tracking the real robot doesn't provide.
+  No deploy-side patch (estimator/gains/FF) can close a 15Nm gap. FF defaulted OFF (not the fix).
+- UNCOMPROMISED ANSWER (audit #2, now empirically forced): targeted RETRAIN with real conditions modeled —
+  (1) latency randomization (prime suspect), (2) actuator-response DR, (3) torque/energy reward penalty
+  (learns low ankle torque -> cool by design), (4) obs noise matching leg-odom, (5) mass/gain/push DR.
+  Keeps full-body dance; reuses leg-odom + deploy runtime + safety spine. GPU box alive.
+- Band-aid era (estimator/smoothing/fusion/gains/FF) is over; all were deploy-time patches on a train-time
+  problem. Next: author the sim2real retrain config + verify in sim (check sim ankle torque stays low AND
+  survives latency/push), THEN one clean tethered HW test.
