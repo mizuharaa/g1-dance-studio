@@ -1217,3 +1217,43 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - Band-aid era (estimator/smoothing/fusion/gains/FF) is over; all were deploy-time patches on a train-time
   problem. Next: author the sim2real retrain config + verify in sim (check sim ankle torque stays low AND
   survives latency/push), THEN one clean tethered HW test.
+
+## 2026-07-05 (resumed session) — RETRAIN CONFIG AUTHORED + CRITICAL MEASUREMENT CORRECTION. Audit running.
+- Resumed per HANDOVER.md. Two tracks: (a) retrain config + sim verification harness (main thread),
+  (b) ultracode first-principles audit of the whole approach (workflow wf_e9b5dd2c-6a8: 8 investigator
+  lenses -> adversarial verify -> synthesis; running in background).
+- **CRITICAL CORRECTION — the "sim ankle 0 Nm" was a MEASUREMENT ARTIFACT.** cloud/sim_ankle.py read
+  `data.actuator_force[joint_name_index]`, but actuator_force is ACTUATOR-ordered, not joint-ordered —
+  it read the wrong column (cross-check at same instant: qfrc_actuator left ankle 10.1 Nm vs
+  actuator_force[jn_idx] 0.004 Nm). Correct joint-space measurement (data.qfrc_actuator at resolved
+  joint ids): the deployed policy in NOMINAL sim (no injected latency) uses ankle_pitch |tau|
+  **mean ~6 Nm, p95 ~15 Nm, transients to the 50 Nm effort clamp**. So the real story is NOT
+  "0 -> 15 Nm all-sim2real": ~6 Nm mean is INHERENT to this policy+choreography; hardware excess is
+  ~2.5x, not infinite. Implications: (1) the torque/energy PENALTY is the headline retrain item (the
+  policy must LEARN a low-ankle strategy it doesn't have even in sim); (2) latency DR remains supported
+  by measurement — injected 40 ms constant delay: falls + ankle mean 9.9/p95 33.6 Nm, mpkpe 0.151 -> 0.315;
+  (3) sim ankle 50 Nm clamp hits mean the sim ankle ALREADY saturates transiently — the real 60-65 Nm max
+  reading is plausibly the same events with real-world excess.
+- **Gate limitation found: heldout_eval.py never overrode episode_length_s=10.0** — the "100% held-out"
+  verdicts certified only the FIRST 10 s of the dance (full-motion verification came from the separate
+  in-engine eval). New harness runs the FULL motion.
+- **BUILT (committed): cloud/sim2real_task.py** — registers task `Mjlab-Tracking-Flat-Unitree-G1-Sim2Real`
+  implementing the 5-item plan with native mjlab features (no source edits): cmd-bus delay 0-8 physics
+  steps (0-40 ms, hold_prob 0.8) via ActuatorCfg fused DelayBuffer; obs delay 0-1 control steps on the 6
+  measured actor terms; pd_gains scale 0.85-1.15; effort_limits 0.80-1.00; joint frictionloss 0-0.4 Nm;
+  armature scale 0.9-1.4 (ankle/waist 4-bar armature is a documented guess in g1_constants.py);
+  base_com x widened to ±5 cm; torso mass 0.95-1.15; hand payload +0-0.6 kg/wrist; encoder_bias ±0.02;
+  rewards: joint_torques_l2 -2e-5 (all) + custom ankle_torque_l2 -4e-4 (qfrc-based, order-safe) +
+  action_rate_l2 -0.2 (a2's winning delta). Obs stays 160-dim -> deploy runtime unchanged.
+  **Deep-copies the robot cfg (G1_ARTICULATION is module-level shared — mutating it would contaminate
+  the stock task in-process; verified stock stays clean).** + cloud/train_sim2real.py (wrapper entry).
+- **BUILT: cloud/sim_gap_check.py** — full-motion, held-out-seed eval across 7 conditions (nominal /
+  noise / 10-20-40 ms constant cmd delay / delay+push), measuring survival + leg-joint |tau|
+  (qfrc_actuator) + mpkpe + the actuator_force cross-check. GATE for the retrained policy: survival
+  >=99% AND ankle mean<=5 Nm AND p95<=15 Nm under worst condition, mpkpe<=0.25 nominal. Smoke-tested on
+  box (quick mode); FULL baseline on the DEPLOYED a2 model_1500 checkpoint running detached on the box
+  (reports/sim_gap_check_a2_1500_full.json, logs/sim_gap_check_a2_full.log).
+- **TRAINING DELIBERATELY NOT LAUNCHED YET** — waiting on (1) full baseline numbers, (2) audit synthesis
+  (may re-rank recipe items, e.g. static CoM/system-ID emphasis vs latency). Both running; recipe weights
+  (ankle penalty -4e-4, delay ranges) will be finalized against them, then train (~3-4k iters, ~$1-2).
+- Robot untouched (user at work, no motion authorized). Box GPU otherwise idle; budget ~182k/1.5M VND.

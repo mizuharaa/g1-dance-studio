@@ -12,7 +12,12 @@ thermal wall, the sag/gain-boost, and the stepping brace. **Next: a targeted sim
 All deploy-side patching is done (it can't close the gap).**
 
 ## THE DECISIVE FINDING (why we retrain — don't re-litigate)
-- Sim policy dances with **ankle torque mean 0.0 Nm** (keeps CoM over feet). Real robot: **~15 Nm**.
+- **CORRECTION (2026-07-05, resumed session): the sim number below was a measurement artifact.**
+  sim_ankle.py read actuator_force by JOINT index but that array is ACTUATOR-ordered. Correct
+  joint-space measurement (qfrc_actuator): sim ankle is **~6 Nm mean / 15 Nm p95** nominally —
+  the retrain still stands, but the headline item is the TORQUE PENALTY (policy is ankle-hungry
+  even in sim), with latency DR closing the ~2.5x hardware excess. See PROJECT_STATE 2026-07-05.
+- ~~Sim policy dances with **ankle torque mean 0.0 Nm** (keeps CoM over feet).~~ Real robot: **~15 Nm**.
 - That 0→15 Nm gap is the SHARED root of all three walls:
   - **Thermal**: ankle overworks only on real HW → 22.5 °C/min at 1.5× gains → fault < 2 min.
   - **Sag / needing 2× gain boost**: real tracking can't match sim.
