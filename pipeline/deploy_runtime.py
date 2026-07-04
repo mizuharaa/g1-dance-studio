@@ -58,6 +58,10 @@ CONTROL_HZ = 50.0
 # scale BOTH kp and kd so the joint stays overdamped. Env-overridable.
 APPROACH_KP_SCALE = float(os.environ.get("APPROACH_KP_SCALE", "2.0"))
 MAX_ACTION = float(os.environ.get("MAX_ACTION", "8.0"))  # |action|>this -> damp; gantry legs spike, env-tunable
+# On exit, re-activate the onboard motion service we released, so the robot is handed back
+# to onboard control and the REMOTE/app can pair again. Leaving it released strands the
+# robot (remote can't reconnect — learned the hard way 2026-07-04). "" disables.
+RESTORE_MOTION_MODE = os.environ.get("RESTORE_MOTION_MODE", "ai")
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
@@ -502,9 +506,32 @@ def _damp_burst(reps=30):
         time.sleep(0.01)   # ~let DDS transmit; 30*10ms ~= 0.3s of damping
 
 
+def _restore_motion_service():
+    """Best-effort: re-activate the onboard motion service we released, so the robot is
+    handed back to onboard control and the remote/app can pair again. NEVER let a failure
+    here block the exit — the robot is already soft (damped) before this runs. Verified on
+    hardware that SelectMode on a limp robot does not lurch. Set RESTORE_MOTION_MODE="" off."""
+    if not RESTORE_MOTION_MODE:
+        return
+    try:
+        from unitree_sdk2py.comm.motion_switcher.motion_switcher_client import MotionSwitcherClient
+        msc = MotionSwitcherClient()
+        msc.SetTimeout(3.0)
+        msc.Init()
+        msc.SelectMode(RESTORE_MOTION_MODE)
+        print(f"   restored onboard motion service ('{RESTORE_MOTION_MODE}') — remote/app can pair.",
+              flush=True)
+    except Exception as e:  # noqa: BLE001 - restore is best-effort, exit anyway
+        print(f"   WARN: could not restore motion service ({e}); if the remote won't pair, run "
+              f"SelectMode('{RESTORE_MOTION_MODE}') manually or reboot the robot.", flush=True)
+
+
 def _finalize_and_exit(code=0):
-    """Guarantee soft robot, then exit PROMPTLY (DDS teardown can hang -> os._exit)."""
+    """Guarantee soft robot, hand control back to onboard (so the remote can pair), then exit
+    PROMPTLY (DDS teardown can hang -> os._exit). Damp happens FIRST, so safety never waits
+    on the restore."""
     _damp_burst(30)
+    _restore_motion_service()
     try:
         sys.stdout.flush()
     except Exception:

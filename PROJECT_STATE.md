@@ -1036,3 +1036,17 @@ human-supervised session (NOT autonomous — no ground motion has run):
   anchor XY=tracking-assumption/drift-free, anchor Z=real leg-odom height feedback). Full safety spine,
   GROUND_MAX_ACTION=10, --max-secs. Runbook: Stage B-LEGODOM is now PREFERRED; B-ODOM superseded.
 - READY: tethered try of ground-run-legodom (human-supervised). Stage 0 read still valid to pre-check.
+
+## 2026-07-04 ~18:00 ICT — Motion-service left RELEASED stranded the robot; added auto-restore.
+- ROOT CAUSE of "nothing happens": our runs call MotionSwitcherClient.ReleaseMode and never
+  restored it. CheckMode confirmed name='' (released). SelectMode('ai') restored the DDS service
+  (CheckMode->'ai') BUT the remote/app still would not pair -> the Bluetooth/pairing failure is
+  ONBOARD-PC level, separate from the DDS service. Recovery = REBOOT the robot (coordinate w/ the
+  colleague's Docker). Robot safe/limp throughout; no fall.
+- FIX (committed): deploy_runtime _restore_motion_service() re-SelectMode(RESTORE_MOTION_MODE, default
+  'ai') inside _finalize_and_exit, AFTER the damp — so EVERY exit path (normal/Ctrl-C/SIGTERM/crash)
+  hands control back to onboard and the remote can pair. Best-effort, never blocks the (already-soft)
+  exit. env RESTORE_MOTION_MODE='' to disable.
+- STATUS: leg-odom ground path proved a BALANCED segment before the strand (3s ok per user). Once the
+  robot is rebooted + remote pairs, resume the staged runs (5s->10s->20s->full); the runtime now cleans
+  up the motion service each run so this can't recur.
