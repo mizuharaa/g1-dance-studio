@@ -1,0 +1,428 @@
+{
+  "file": "/home/alois/g1-dance/data/telemetry/20260704-233131_stage0_limp-hanging-zerocal.npz",
+  "n_rows": 9000,
+  "run_meta": {
+    "tool": "deploy/capture_stage0.py",
+    "purpose": "stage-0 READ-ONLY measurement: obs staleness (audit \u00a74#4), standing tau_est baseline (\u00a74#5), thermal rate (\u00a76.5/\u00a76.7)",
+    "label": "limp-hanging-zerocal",
+    "iface": "enp0s31f6",
+    "minutes": 3.0,
+    "read_only": true,
+    "sample_hz": 50.0,
+    "topics": [
+      "rt/lowstate",
+      "rt/odommodestate (optional)"
+    ],
+    "lowstate_tick_field": "LowState_.tick (uint32, unitree_hg IDL _LowState_.py:28, nominally 1 ms/count)"
+  },
+  "staleness": {
+    "n": 9000,
+    "duration_s": 179.9741821380012,
+    "wall_read_interval_ms": {
+      "p50": 20.099157001823187,
+      "p95": 25.183552800444886,
+      "max": 53.775198000948876
+    },
+    "tick_unit_ms_est": 0.999973230976954,
+    "tick_advance_ms": {
+      "p50": 19.99946461953908,
+      "p95": 24.99933077442385,
+      "max": 53.998554472755515
+    },
+    "repeated_tick_fraction": 0.0,
+    "staleness_ms": {
+      "p50": 1.1410955388782895,
+      "p95": 1.7756409260655346,
+      "max": 3.1846220727748005
+    },
+    "tick_rate_vs_wall_ppm": -26.02303811949369,
+    "latency_beyond_2ms": false
+  },
+  "torque": {
+    "n_samples": 9000,
+    "per_joint": {
+      "left_hip_pitch_joint": {
+        "mean_nm": -0.12886363565921782,
+        "rms_nm": 0.13140667977908008,
+        "p95_abs_nm": 0.1677911877632141
+      },
+      "left_hip_roll_joint": {
+        "mean_nm": -0.263671875,
+        "rms_nm": 0.263671875,
+        "p95_abs_nm": 0.263671875
+      },
+      "left_hip_yaw_joint": {
+        "mean_nm": 0.11530362309681044,
+        "rms_nm": 0.11608458582713577,
+        "p95_abs_nm": 0.1677911877632141
+      },
+      "left_knee_joint": {
+        "mean_nm": -0.17888671875,
+        "rms_nm": 0.1796211451871406,
+        "p95_abs_nm": 0.17578125
+      },
+      "left_ankle_pitch_joint": {
+        "mean_nm": -0.07854928988715013,
+        "rms_nm": 0.10282711715604137,
+        "p95_abs_nm": 0.16458430886268616
+      },
+      "left_ankle_roll_joint": {
+        "mean_nm": -0.16167944553204708,
+        "rms_nm": 0.16999562880714159,
+        "p95_abs_nm": 0.19230221211910248
+      },
+      "right_hip_pitch_joint": {
+        "mean_nm": 0.1183238642083274,
+        "rms_nm": 0.11966723648259181,
+        "p95_abs_nm": 0.1677911877632141
+      },
+      "right_hip_roll_joint": {
+        "mean_nm": -0.177705078125,
+        "rms_nm": 0.1781698070186322,
+        "p95_abs_nm": 0.17578125
+      },
+      "right_hip_yaw_joint": {
+        "mean_nm": 0.13280983546541797,
+        "rms_nm": 0.1355406879792368,
+        "p95_abs_nm": 0.1677911877632141
+      },
+      "right_knee_joint": {
+        "mean_nm": 0.229130859375,
+        "rms_nm": 0.23312471691451897,
+        "p95_abs_nm": 0.263671875
+      },
+      "right_ankle_pitch_joint": {
+        "mean_nm": -0.01057371981214318,
+        "rms_nm": 0.07282336666405315,
+        "p95_abs_nm": 0.1337369978427887
+      },
+      "right_ankle_roll_joint": {
+        "mean_nm": -0.0926496338173747,
+        "rms_nm": 0.09897922269860532,
+        "p95_abs_nm": 0.11793166399002075
+      },
+      "waist_yaw_joint": {
+        "mean_nm": -0.13734641162057717,
+        "rms_nm": 0.14014257248544773,
+        "p95_abs_nm": 0.1677911877632141
+      },
+      "waist_roll_joint": {
+        "mean_nm": -0.08087549417672886,
+        "rms_nm": 0.08549081014845891,
+        "p95_abs_nm": 0.09924008697271347
+      },
+      "waist_pitch_joint": {
+        "mean_nm": -0.007265711027242812,
+        "rms_nm": 0.0440661888118913,
+        "p95_abs_nm": 0.07795105874538422
+      },
+      "left_shoulder_pitch_joint": {
+        "mean_nm": -0.05277777777777778,
+        "rms_nm": 0.05743353646704259,
+        "p95_abs_nm": 0.0625
+      },
+      "left_shoulder_roll_joint": {
+        "mean_nm": -0.058597222222222224,
+        "rms_nm": 0.06051715780577347,
+        "p95_abs_nm": 0.0625
+      },
+      "left_shoulder_yaw_joint": {
+        "mean_nm": 0.05145138888888889,
+        "rms_nm": 0.05670724649950441,
+        "p95_abs_nm": 0.0625
+      },
+      "left_elbow_joint": {
+        "mean_nm": -0.05728472222222222,
+        "rms_nm": 0.05983556750703455,
+        "p95_abs_nm": 0.0625
+      },
+      "left_wrist_roll_joint": {
+        "mean_nm": -0.0564375,
+        "rms_nm": 0.059391445091023,
+        "p95_abs_nm": 0.0625
+      },
+      "left_wrist_pitch_joint": {
+        "mean_nm": -0.018819444444444444,
+        "rms_nm": 0.019172044082610376,
+        "p95_abs_nm": 0.01953125
+      },
+      "left_wrist_yaw_joint": {
+        "mean_nm": 0.017037760416666665,
+        "rms_nm": 0.01824195050256471,
+        "p95_abs_nm": 0.01953125
+      },
+      "right_shoulder_pitch_joint": {
+        "mean_nm": 0.04526388888888889,
+        "rms_nm": 0.053188279306211395,
+        "p95_abs_nm": 0.0625
+      },
+      "right_shoulder_roll_joint": {
+        "mean_nm": -0.06093055555555556,
+        "rms_nm": 0.061710288625335584,
+        "p95_abs_nm": 0.0625
+      },
+      "right_shoulder_yaw_joint": {
+        "mean_nm": 0.05432638888888889,
+        "rms_nm": 0.058270054964411656,
+        "p95_abs_nm": 0.0625
+      },
+      "right_elbow_joint": {
+        "mean_nm": 0.05590972222222222,
+        "rms_nm": 0.05911309194153939,
+        "p95_abs_nm": 0.0625
+      },
+      "right_wrist_roll_joint": {
+        "mean_nm": -0.042138888888888885,
+        "rms_nm": 0.05131939745900721,
+        "p95_abs_nm": 0.0625
+      },
+      "right_wrist_pitch_joint": {
+        "mean_nm": 0.016343315972222223,
+        "rms_nm": 0.017866319992725567,
+        "p95_abs_nm": 0.01953125
+      },
+      "right_wrist_yaw_joint": {
+        "mean_nm": 0.01630859375,
+        "rms_nm": 0.01784733093993854,
+        "p95_abs_nm": 0.01953125
+      }
+    },
+    "legs": {
+      "left_hip_pitch_joint": {
+        "mean_nm": -0.12886363565921782,
+        "rms_nm": 0.13140667977908008,
+        "p95_abs_nm": 0.1677911877632141
+      },
+      "left_hip_roll_joint": {
+        "mean_nm": -0.263671875,
+        "rms_nm": 0.263671875,
+        "p95_abs_nm": 0.263671875
+      },
+      "left_hip_yaw_joint": {
+        "mean_nm": 0.11530362309681044,
+        "rms_nm": 0.11608458582713577,
+        "p95_abs_nm": 0.1677911877632141
+      },
+      "left_knee_joint": {
+        "mean_nm": -0.17888671875,
+        "rms_nm": 0.1796211451871406,
+        "p95_abs_nm": 0.17578125
+      },
+      "left_ankle_pitch_joint": {
+        "mean_nm": -0.07854928988715013,
+        "rms_nm": 0.10282711715604137,
+        "p95_abs_nm": 0.16458430886268616
+      },
+      "left_ankle_roll_joint": {
+        "mean_nm": -0.16167944553204708,
+        "rms_nm": 0.16999562880714159,
+        "p95_abs_nm": 0.19230221211910248
+      },
+      "right_hip_pitch_joint": {
+        "mean_nm": 0.1183238642083274,
+        "rms_nm": 0.11966723648259181,
+        "p95_abs_nm": 0.1677911877632141
+      },
+      "right_hip_roll_joint": {
+        "mean_nm": -0.177705078125,
+        "rms_nm": 0.1781698070186322,
+        "p95_abs_nm": 0.17578125
+      },
+      "right_hip_yaw_joint": {
+        "mean_nm": 0.13280983546541797,
+        "rms_nm": 0.1355406879792368,
+        "p95_abs_nm": 0.1677911877632141
+      },
+      "right_knee_joint": {
+        "mean_nm": 0.229130859375,
+        "rms_nm": 0.23312471691451897,
+        "p95_abs_nm": 0.263671875
+      },
+      "right_ankle_pitch_joint": {
+        "mean_nm": -0.01057371981214318,
+        "rms_nm": 0.07282336666405315,
+        "p95_abs_nm": 0.1337369978427887
+      },
+      "right_ankle_roll_joint": {
+        "mean_nm": -0.0926496338173747,
+        "rms_nm": 0.09897922269860532,
+        "p95_abs_nm": 0.11793166399002075
+      }
+    },
+    "ankle_pitch": {
+      "left_ankle_pitch_joint": {
+        "mean_nm": -0.07854928988715013,
+        "rms_nm": 0.10282711715604137,
+        "p95_abs_nm": 0.16458430886268616
+      },
+      "right_ankle_pitch_joint": {
+        "mean_nm": -0.01057371981214318,
+        "rms_nm": 0.07282336666405315,
+        "p95_abs_nm": 0.1337369978427887
+      }
+    }
+  },
+  "thermal": {
+    "duration_min": 2.99956970230002,
+    "per_motor": {
+      "left_hip_pitch_joint": {
+        "start_C": 39.0,
+        "end_C": 39.0,
+        "rate_C_per_min": 0.0
+      },
+      "left_hip_roll_joint": {
+        "start_C": 39.0,
+        "end_C": 39.0,
+        "rate_C_per_min": 0.0
+      },
+      "left_hip_yaw_joint": {
+        "start_C": 39.0,
+        "end_C": 39.0,
+        "rate_C_per_min": 0.0
+      },
+      "left_knee_joint": {
+        "start_C": 40.0,
+        "end_C": 40.0,
+        "rate_C_per_min": 0.0
+      },
+      "left_ankle_pitch_joint": {
+        "start_C": 48.0,
+        "end_C": 48.0,
+        "rate_C_per_min": 0.0
+      },
+      "left_ankle_roll_joint": {
+        "start_C": 46.0,
+        "end_C": 46.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_hip_pitch_joint": {
+        "start_C": 39.0,
+        "end_C": 39.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_hip_roll_joint": {
+        "start_C": 40.0,
+        "end_C": 40.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_hip_yaw_joint": {
+        "start_C": 41.0,
+        "end_C": 41.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_knee_joint": {
+        "start_C": 39.2,
+        "end_C": 39.0,
+        "rate_C_per_min": -0.06667623020950178
+      },
+      "right_ankle_pitch_joint": {
+        "start_C": 49.0,
+        "end_C": 49.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_ankle_roll_joint": {
+        "start_C": 49.0,
+        "end_C": 49.0,
+        "rate_C_per_min": 0.0
+      },
+      "waist_yaw_joint": {
+        "start_C": 40.0,
+        "end_C": 40.0,
+        "rate_C_per_min": 0.0
+      },
+      "waist_roll_joint": {
+        "start_C": 48.0,
+        "end_C": 48.0,
+        "rate_C_per_min": 0.0
+      },
+      "waist_pitch_joint": {
+        "start_C": 47.0,
+        "end_C": 47.0,
+        "rate_C_per_min": 0.0
+      },
+      "left_shoulder_pitch_joint": {
+        "start_C": 58.0,
+        "end_C": 58.0,
+        "rate_C_per_min": 0.0
+      },
+      "left_shoulder_roll_joint": {
+        "start_C": 54.0,
+        "end_C": 54.0,
+        "rate_C_per_min": 0.0
+      },
+      "left_shoulder_yaw_joint": {
+        "start_C": 56.0,
+        "end_C": 55.2,
+        "rate_C_per_min": -0.26670492083800235
+      },
+      "left_elbow_joint": {
+        "start_C": 51.0,
+        "end_C": 51.0,
+        "rate_C_per_min": 0.0
+      },
+      "left_wrist_roll_joint": {
+        "start_C": 53.4,
+        "end_C": 53.4,
+        "rate_C_per_min": 0.0
+      },
+      "left_wrist_pitch_joint": {
+        "start_C": 49.8,
+        "end_C": 49.0,
+        "rate_C_per_min": -0.26670492083800235
+      },
+      "left_wrist_yaw_joint": {
+        "start_C": 50.0,
+        "end_C": 50.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_shoulder_pitch_joint": {
+        "start_C": 59.0,
+        "end_C": 59.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_shoulder_roll_joint": {
+        "start_C": 55.0,
+        "end_C": 55.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_shoulder_yaw_joint": {
+        "start_C": 56.0,
+        "end_C": 56.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_elbow_joint": {
+        "start_C": 51.0,
+        "end_C": 51.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_wrist_roll_joint": {
+        "start_C": 52.0,
+        "end_C": 52.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_wrist_pitch_joint": {
+        "start_C": 51.0,
+        "end_C": 51.0,
+        "rate_C_per_min": 0.0
+      },
+      "right_wrist_yaw_joint": {
+        "start_C": 49.0,
+        "end_C": 49.0,
+        "rate_C_per_min": 0.0
+      }
+    },
+    "hottest_motor": {
+      "name": "right_shoulder_pitch_joint",
+      "end_C": 59.0,
+      "rate_C_per_min": 0.0
+    },
+    "fastest_heating_motor": {
+      "name": "left_hip_pitch_joint",
+      "end_C": 39.0,
+      "rate_C_per_min": 0.0
+    }
+  },
+  "odom": {
+    "fraction_present": 1.0
+  }
+}
