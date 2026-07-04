@@ -1328,3 +1328,54 @@ human-supervised session (NOT autonomous — no ground motion has run):
   replication; measurement scripts + raw outputs must be committed.
 - Robot untouched all session (rule held: no human present = no motion, not even reads).
   Budget: ~185k/1.5M VND; retrain ~45k more.
+
+## 2026-07-04 (arm-dance build) — ARM-DANCE-OVER-ONBOARD-BALANCE RUNTIME BUILT (offline-verified).
+- **pipeline/arm_dance_runtime.py** — the bookable-show-baseline runtime: streams the
+  dance's 14 ARM joints (DDS 15..28, mapped BY NAME from policy_meta joint_order) over
+  Unitree's **rt/arm_sdk** weight-blend while onboard balance STAYS ACTIVE (never
+  ReleaseMode, never rt/lowcmd — pinned by test). Weight = motor_cmd[29].q (kNotUsedJoint0,
+  0=onboard owns arms, 1=sdk owns). Sequence: weight 0→1 (2 s, holding current pose) →
+  cosine approach to frame 0 (2 s) → dance 1:1 @ 50 Hz wall-clock (music guidance
+  unchanged: frame0 + 4.0 s) → cosine return → weight 1→0. EVERY exit path (Ctrl-C/
+  SIGTERM/crash/normal) ramps weight→0 (deploy_runtime damp-on-exit pattern). Gates:
+  --i-will-watch-the-robot + CONFIRMED_BY_HUMAN=alois + --max-secs (0=full needs
+  ARM_FULL_RUN=1). Telemetry reused. Gains: default = policy_meta arm gains ×
+  ARM_KP_SCALE (soft first contact; WILL sag), ARM_GAINS=teleop preset = hardware-proven
+  kp 80/40 kd 3/1.5 for show quality.
+- **Recon (citations in docs/ARM_DANCE_DESIGN.md):** interface confirmed in
+  ~/robot/xr_teleoperate robot_arm.py (motion_mode branch) + official
+  g1_arm7_sdk_dds_example.py (50 Hz, kp60/kd1.5, arms+waist commandable). HONESTY NOTE:
+  start_teleop_armsonly.sh ran WITHOUT --motion, i.e. the daily teleop used the DEBUG
+  path (ReleaseMode + rt/lowcmd) — arm gains/DDS plumbing are hardware-proven, the
+  arm_sdk weight path itself is NOT yet exercised on this robot → first 5 s supervised
+  test verifies it (open question #1 in the doc).
+- **Verified offline:** tests/test_arm_dance.py (25 tests: mapping can't touch legs,
+  ramp monotonicity, no-lurch, gates, max-secs math, fake-LowCmd send checks) — full
+  suite 285 passed / 3 skipped. Mocked end-to-end smoke: normal + injected-crash runs
+  both end at weight 0, only motors 15..28 ever commanded. Robot untouched.
+- **Runbook:** docs/ARM_DANCE_DESIGN.md §4 (read mode → 5 s arm-run → Ctrl-C abort test
+  → 15/60 s → gains pass → full dance + music). v1 is ARMS-ONLY (waist stays onboard).
+
+## 2026-07-05 (choreography-edit build) — TARGETED SECTION-EDIT TOOL BUILT + DRY-RUN VALIDATED (contingency for s2r gate).
+- **tools/edit_choreography.py** (new; +tests/test_edit_choreography.py, 10 tests; suite 295
+  green): music-sync-preserving difficulty editor for the 30 fps deploy CSV — per-section LEG
+  amplitude blend toward the section's stance interpolation (arms/waist/root-XY/quat untouched,
+  frame count NEVER changes), cosine edge blends (velocity-continuous), optional global
+  quasi-static ankle-load proxy cap (hip/ankle/waist-pitch pull toward median, <=3 passes,
+  0.85 step, +-0.2 s smoothed). Validators built in: proxy before/after per section, FK
+  foot-height (no new penetration >5 mm), no new velocity spikes, vet_motion gate — any fail
+  = loud FAILED + exit 1.
+- **KEY PHYSICS FINDING (validated by FK guard):** the 43-47 s Thriller lean lives in the ROOT
+  orientation, so pulling pitch joints toward median moves the feet AWAY from the CoM and makes
+  the ankle proxy WORSE on the deep-lean frames. The cap is therefore per-frame GUARDED (proxy
+  is frame-independent under FK): reductions kept only where they help, counterproductive
+  frames reverted + reported as residual-over-cap. Implication: if attempt-2 fails ON THE LEAN,
+  the fix is a root-pitch/choreography change or leg-scale on that window, not the cap.
+- **Dry-run** (data/motions/edits/thriller_deploy_edit_dryrun.{csv,json}, NOT staged anywhere):
+  sections 13-17.5 s + 43-47 s @ leg-scale 0.6, cap 35 Nm. Proxy global max 58.2->54.8 Nm,
+  13-17.5 s mean 19.7->16.9, 43-47 s p95 54.9->52.9; over-cap frames 88->78; foot mins,
+  velocity max, frame-0 pose and z-reference all unchanged; vet PASS. Grounding policy for
+  edits: never re-reference untouched frames (input floor = training floor); only lift if an
+  edit digs NEW penetration.
+- Production artifacts untouched (data/policies/** read-only for this lane); no commits made
+  by this lane.
