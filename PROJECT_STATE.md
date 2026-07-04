@@ -625,6 +625,20 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   ALREADY at default. Any deploy path (reference controller or laptop-side runtime) must
   do damping → move-to-default → run.** Robot on gantry, feet off, powered. Colleague's
   g1-siu/g1plus_pc4 setup on PC2 = unrelated, do not touch.
+- 2026-07-05 (AT ROBOT — MILESTONE): **First successful COMMANDED motion — robot moved
+  into the ready pose under our deploy runtime.** pipeline/deploy_runtime.py (laptop-side,
+  tv env, unitree_hg over Ethernet) verified end-to-end on hardware: read LowState → build
+  160-D obs → ONNX → LowCmd. Fixes en route: factory ctor unitree_hg_msg_dds__LowCmd_() +
+  reuse; MotionSwitcherClient ReleaseMode (frees balance for full-body low-level, gantry-
+  only); Mode.PR=0; matched h1_2 low-level example. **Gain finding: policy kp too soft to
+  statically hold a pose vs gravity (limbs sag); move-to-default needs firmer gains — 2×
+  (scale both kp+kd to stay overdamped) reaches the ready pose cleanly.** APPROACH_KP_SCALE
+  env tunable. move-to-default damps at end (settles back) — for the dance, run must
+  position-then-dance seamlessly. **NEXT: run the Thriller policy on the GANTRY (feet off
+  ground) — EXPECT legs to flail (policy trained with ground contact; none on gantry),
+  focus on arms/torso tracking + no fault/violence.** User is the physical e-stop (remote
+  damping); considering a webcam for Claude to observe (Claude drives+sees, user stays
+  hand-on-damping — Claude will NOT run autonomous motion without the human e-stop).
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just

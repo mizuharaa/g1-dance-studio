@@ -302,10 +302,11 @@ def mode_move_to_default(meta, session, ref, iface, secs, watch):
     mode_machine = int(msg0.mode_machine)
     _release_motion_service()
     pub, low_cmd, crc = _lowcmd_setup()
-    kp = meta.kp * 0.3   # conservative for the approach
-    kd = meta.kd
+    scale = float(os.environ.get("APPROACH_KP_SCALE", "0.3"))  # tunable approach stiffness
+    kp = meta.kp * scale
+    kd = meta.kd * scale   # scale damping WITH stiffness -> stays overdamped, no buzz
     steps = int(secs * CONTROL_HZ)
-    print(f"moving to default over {secs:.1f}s at {CONTROL_HZ:.0f}Hz (kp=30%)...")
+    print(f"moving to default over {secs:.1f}s at {CONTROL_HZ:.0f}Hz (kp/kd scale={scale:.1f})...")
     try:
         for s in range(steps + 1):
             a = 0.5 - 0.5 * np.cos(np.pi * s / steps)   # cosine 0->1
