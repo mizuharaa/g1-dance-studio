@@ -1257,3 +1257,9 @@ human-supervised session (NOT autonomous — no ground motion has run):
   (may re-rank recipe items, e.g. static CoM/system-ID emphasis vs latency). Both running; recipe weights
   (ankle penalty -4e-4, delay ranges) will be finalized against them, then train (~3-4k iters, ~$1-2).
 - Robot untouched (user at work, no motion authorized). Box GPU otherwise idle; budget ~182k/1.5M VND.
+- **External robot-watching webcam CONNECTED + verified** (user): HP Webcam HD 4310 = /dev/video4
+  (video0-3 = laptop built-in). pipewire grabs it — reclaim before capture:
+  `systemctl --user restart pipewire.service pipewire.socket`, then
+  `ffmpeg -f v4l2 -video_size 1280x720 -i /dev/video4 -frames:v 1 …`. First frame: G1 on gantry
+  line inside fenced area, powered, standby pose, full body in frame. Scene dim — more light
+  recommended for observing fast motion.
