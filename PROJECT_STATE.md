@@ -1155,3 +1155,18 @@ human-supervised session (NOT autonomous — no ground motion has run):
   I built fusion before proving the diagnosis; the audit+disambiguation corrected course.
 - DECISION PENDING (user): pivot to arm-dance-over-onboard-balance (reliable, loses leg choreo) vs keep
   full-body (fragile, thermal-capped). Recommend PIVOT for a show-grade product.
+
+## 2026-07-04 ~22:45 ICT — THERMAL: real concern at 2x gains (motor 46->80C in ~1-2min). Harness bug owned.
+- Path B chosen. Thermal test (stand-hold @ APPROACH_KP_SCALE=2.0, feet bearing weight): a leg motor went
+  46C -> 80C (Unitree WARNING temp) in ~1-2 min from near-cool. Fast — NOT hours-of-accumulation. Thermal
+  IS a genuine concern at these gains (audit was right); user's "not an issue" is too optimistic at 2x.
+- HARNESS BUG (owned): the monitor read a STALE DDS backlog (all 46C) instead of latest state -> went blind
+  to the real rising temp -> the 68C auto-abort never fired -> hold ran hot+unattended to 80C before a
+  fresh read caught it. FIXED: monitor now drains to latest msg, samples 1/s, aborts at 62C real-time.
+  Robot damped safe (dropped to 74C on unload). Lesson: DDS subscribers read a queue; always drain to latest.
+- CAVEATS softening it: (1) stand-hold boosts ALL joints 2x incl. hip_roll (ran hottest 74C); the DANCE only
+  boosts SAGITTAL legs 2x (hip_roll stays 1x) -> real dance thermal is LESS than this test. (2) but sagittal
+  ankle_pitch (boosted in dance) hit 80C -> still real.
+- PLAN for B: (1) let motors COOL now (74C, no runs). (2) find MIN leg gain that still stands (walk-mode
+  standing start removes the stand-up-boost need) -> lower gain = far less heat, attacks the thermal root.
+  (3) re-test thermal at that gain with the fixed monitor. THEN address the 14-16s stepping choreography.
