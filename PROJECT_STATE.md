@@ -569,6 +569,22 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   Thriller ground policy is locked. Long-dance policy preserved to data/policies/
   dance2_long/. All overnight objectives achieved; robot day GO. Box still up per keep-
   through-robot-day decision (all data on laptop; user can kill the meter anytime).
+- 2026-07-05 (AM, user heading to office): **DEPLOY-RUNTIME BLOCKER surfaced by user —
+  robot network has NO INTERNET.** Per ~/robot/RUNBOOK.md: two nets = Ethernet cable to
+  robot (192.168.123.x, control) + a SEPARATE local router ('no internet cable needed')
+  for laptop/Quest wifi (company wifi blocks device-to-device). Existing teleop uses
+  unitree_sdk2_python + CycloneDDS directly — NO Docker. The dance deploy assumed
+  motion_tracking_controller in Docker (qiayuanl/unitree:jazzy) on PC2 — that image is
+  NOT on PC2/laptop and CANNOT be pulled at the office (no internet). Docker-save fallback
+  also dead (no Docker/image on laptop). ⇒ **Today is realistically DIAGNOSTICS + gantry,
+  NOT dance-on-hardware** unless PC2 already has Docker+image (user to check first:
+  ssh unitree@192.168.123.164; docker images). Safe no-controller work today: health
+  check, deploy/check_joint_calibration.py (SDK-based, no Docker), SDK comms/state read
+  on gantry. **REAL FIX to build: a DOCKER-FREE deploy runtime** — run the ONNX policy via
+  unitree_sdk2_python + onnxruntime directly (we have the obs layout, gains, SDK). This is
+  the right architecture for the isolated robot net. Build next; gantry-test it (safe,
+  feet-off) before any ground use. Robot-day plan/preflight assumed Docker path — needs a
+  non-Docker deploy path added.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
