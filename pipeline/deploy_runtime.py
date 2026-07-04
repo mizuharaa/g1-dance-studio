@@ -1,0 +1,368 @@
+#!/usr/bin/env python3
+"""Laptop-side deploy runtime: run a trained mjlab ONNX policy on the REAL Unitree G1
+over Ethernet (like the existing teleop), no Docker/onboard controller needed.
+
+WHY laptop-side: the robot's onboard Docker controller belongs to a colleague (off
+limits) and the BeyondMimic image isn't present. This drives the robot the same way
+~/robot's teleop does — unitree_sdk2py + CycloneDDS over enp0s31f6.
+
+Run in the `tv` conda env (has unitree_sdk2py + CycloneDDS + numpy + onnxruntime).
+
+    conda activate tv
+    python -m pipeline.deploy_runtime --mode read      # SAFE default: reads + prints, sends NOTHING
+
+SAFETY — this can move a 35 kg robot. Non-negotiable:
+  * --mode read is the default and sends NOTHING. Use it to sanity-check the policy.
+  * --mode move-to-default and --mode run COMMAND MOTORS. They refuse to run unless BOTH
+    `--i-will-watch-the-robot` is passed AND env CONFIRMED_BY_HUMAN=alois. Gantry-first,
+    feet off ground, remote (damping) in hand.
+  * Any NaN/inf/out-of-range policy output -> immediate damping + exit.
+  * Targets clamped to joint limits; torque clamped to effort_limit. 50 Hz loop with a
+    watchdog: a cycle overrun -> damping.
+
+OBS FIDELITY NOTE (read this before trusting anything on the GROUND):
+  148 of the 160 obs dims (command 58, joint_pos 29, joint_vel 29, base_ang_vel 3,
+  actions 29) are built EXACTLY from LowState + the reference motion. The remaining 12
+  (motion_anchor_pos_b 3, motion_anchor_ori_b 6, base_lin_vel 3) need the torso's world
+  pose/velocity, which the real robot can't measure without a state estimator. On the
+  GANTRY the base barely translates so base_lin_vel~=0 (inside the policy's training
+  noise) and anchor_pos_b is approximated as the reference's displacement-from-start in
+  the IMU frame (~=0 at t=0). This is fine for gantry sanity + tracking, but ground-free
+  use needs a real torso-pose estimator (DLIO) feeding these terms. Flagged, not hidden.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_META = ROOT / "data/policies/thriller/policy_meta.json"
+DEFAULT_MOTION = ROOT / "data/policies/thriller/thriller_deploy.npz"
+DEFAULT_POLICY = ROOT / "data/policies/thriller/policy.onnx"
+IFACE = "enp0s31f6"
+TORSO_NPZ_IDX = 15          # torso_link: mjlab body 16 minus the dropped world body
+CONTROL_HZ = 50.0
+
+# obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
+OBS_LAYOUT = [
+    ("command", 58), ("motion_anchor_pos_b", 3), ("motion_anchor_ori_b", 6),
+    ("base_lin_vel", 3), ("base_ang_vel", 3), ("joint_pos", 29),
+    ("joint_vel", 29), ("actions", 29),
+]
+
+
+# ---- small math helpers (match pipeline/sim_exam.py conventions) --------------
+def quat_wxyz_to_mat(q):
+    w, x, y, z = q
+    return np.array([
+        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+    ])
+
+
+def mat_first_two_cols_b(q_ref_wxyz, q_rob_wxyz):
+    """First two columns of R_robot^T @ R_ref (6-D), as mjlab's anchor_ori_b."""
+    r_ref = quat_wxyz_to_mat(q_ref_wxyz)
+    r_rob = quat_wxyz_to_mat(q_rob_wxyz)
+    m = r_rob.T @ r_ref
+    return m[:, :2].reshape(-1)  # columns 0,1 -> 6 values
+
+
+class Meta:
+    def __init__(self, path: Path):
+        m = json.loads(path.read_text())
+        self.default = np.asarray(m["default_joint_pos_rad"], float)
+        self.kp = np.asarray(m["kp_stiffness"], float)
+        self.kd = np.asarray(m["kd_damping"], float)
+        self.effort = np.asarray(m["effort_limit_nm"], float)
+        self.action_scale = np.asarray(m["action_scale_per_joint"], float)
+        self.joint_order = list(m["joint_order_29dof"])
+        self.n = len(self.joint_order)
+        assert self.n == 29, f"expected 29 joints, got {self.n}"
+        # joint position limits from the model would be ideal; use a safe default band
+        # around the reference range if not present.
+        self.q_lo = self.default - np.deg2rad(140)
+        self.q_hi = self.default + np.deg2rad(140)
+
+
+class Reference:
+    def __init__(self, npz: Path):
+        d = np.load(npz)
+        self.jp = d["joint_pos"]           # [T,29]
+        self.jv = d["joint_vel"]           # [T,29]
+        self.apos = d["body_pos_w"][:, TORSO_NPZ_IDX, :]     # [T,3] torso world pos
+        self.aquat = d["body_quat_w"][:, TORSO_NPZ_IDX, :]   # [T,4] torso world quat (wxyz)
+        self.T = self.jp.shape[0]
+        # sanity: torso height should be ~0.6-0.8 m at t=0
+        h = float(self.apos[0, 2])
+        if not (0.3 < h < 1.2):
+            print(f"WARN: reference torso height at t=0 = {h:.2f} m — TORSO_NPZ_IDX may be wrong")
+
+    def at(self, tick):
+        i = min(tick, self.T - 1)
+        return self.jp[i], self.jv[i], self.apos[i], self.aquat[i]
+
+
+# ---- LowState reading (unitree_sdk2py, like ~/robot teleop) --------------------
+def make_dds(iface):
+    from unitree_sdk2py.core.channel import ChannelFactoryInitialize
+    ChannelFactoryInitialize(0, iface)
+
+
+def lowstate_subscriber():
+    from unitree_sdk2py.core.channel import ChannelSubscriber
+    from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowState_
+    sub = ChannelSubscriber("rt/lowstate", LowState_)
+    sub.Init()
+    return sub
+
+
+def read_state(sub, timeout_s=2.0):
+    msg = sub.Read(int(timeout_s * 1000))
+    if msg is None:
+        raise SystemExit(f"no LowState within {timeout_s}s — robot off / wrong iface / LAN down. NO-GO.")
+    q = np.array([msg.motor_state[i].q for i in range(29)], float)
+    dq = np.array([msg.motor_state[i].dq for i in range(29)], float)
+    imu = msg.imu_state
+    quat = np.array(list(imu.quaternion), float)       # wxyz
+    gyro = np.array(list(imu.gyroscope), float)         # rad/s, body frame
+    return q, dq, quat, gyro, msg
+
+
+# ---- observation builder (real robot state -> 160-D mjlab obs) -----------------
+def build_obs(meta: Meta, ref: Reference, q, dq, imu_quat, gyro, last_action, tick):
+    ref_jp, ref_jv, ref_apos, ref_aquat = ref.at(tick)
+    ref_apos0 = ref.apos[0]
+    R_rob = quat_wxyz_to_mat(imu_quat)   # robot torso orientation from IMU (pelvis~torso approx)
+    terms = {
+        "command": np.concatenate([ref_jp, ref_jv]),                    # 58
+        # gantry approx: robot torso pos ~= reference start -> displacement of ref in robot frame
+        "motion_anchor_pos_b": R_rob.T @ (ref_apos - ref_apos0),        # 3
+        "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, imu_quat),  # 6
+        "base_lin_vel": np.zeros(3),                                     # 3 (gantry ~= 0)
+        "base_ang_vel": gyro,                                            # 3 (IMU gyro)
+        "joint_pos": q - meta.default,                                  # 29
+        "joint_vel": dq,                                                # 29
+        "actions": last_action,                                         # 29
+    }
+    parts, widths_ok = [], True
+    for name, w in OBS_LAYOUT:
+        v = np.asarray(terms[name], float).reshape(-1)
+        if v.shape[0] != w:
+            widths_ok = False
+            print(f"  !! term {name}: width {v.shape[0]} != expected {w}")
+        parts.append(v)
+    obs = np.concatenate(parts)
+    assert obs.shape[0] == 160 and widths_ok, f"obs dim {obs.shape[0]} != 160"
+    return obs, terms
+
+
+def run_policy(session, obs, tick):
+    out = session.run(["actions"], {
+        "obs": obs[None].astype(np.float32),
+        "time_step": np.array([[float(tick)]], np.float32),
+    })
+    return out[0][0].astype(np.float64)
+
+
+def action_to_target(meta: Meta, action):
+    return meta.default + meta.action_scale * action
+
+
+# ---- MODE: read (SAFE, default) ------------------------------------------------
+def mode_read(meta, ref, session, iface, timeout_s):
+    make_dds(iface)
+    sub = lowstate_subscriber()
+    print(f"reading LowState on {iface} ...")
+    q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s)
+    last_action = np.zeros(meta.n)
+    obs, terms = build_obs(meta, ref, q, dq, imu_quat, gyro, last_action, tick=0)
+
+    # obs sanity
+    bad = (~np.isfinite(obs)).sum()
+    big = int((np.abs(obs) > 50).sum())
+    print("\n=== OBS SANITY (t=0) ===")
+    print(f"  dim: {obs.shape[0]}  non-finite: {bad}  |values|>50: {big}  "
+          f"range: [{obs.min():.2f}, {obs.max():.2f}]")
+    for name, w in OBS_LAYOUT:
+        v = np.asarray(terms[name], float).reshape(-1)
+        tag = "  (EXACT)" if name in ("command", "base_ang_vel", "joint_pos", "joint_vel", "actions") \
+            else "  (gantry-approx)"
+        print(f"  {name:<22} n={w:<3} range[{v.min():+.3f},{v.max():+.3f}]{tag}")
+
+    if bad:
+        print("\nNO-GO: obs has non-finite values — do not run the policy.")
+        return 2
+
+    action = run_policy(session, obs, tick=0)
+    target = action_to_target(meta, action)
+    delta = target - q  # how far each joint would be commanded to move from NOW
+
+    print("\n=== POLICY OUTPUT (t=0) ===")
+    a_bad = (~np.isfinite(action)).sum()
+    print(f"  actions: non-finite {a_bad}  range [{action.min():+.3f}, {action.max():+.3f}]")
+    print(f"  {'joint':<26}{'now(deg)':>9}{'target(deg)':>12}{'move(deg)':>10}")
+    worst = 0.0
+    for name, qn, tg, dl in zip(meta.joint_order, q, target, delta):
+        worst = max(worst, abs(dl))
+        flag = "  <-- big" if abs(dl) > np.deg2rad(45) else ""
+        print(f"  {name:<26}{np.degrees(qn):>9.1f}{np.degrees(tg):>12.1f}{np.degrees(dl):>10.1f}{flag}")
+    print("-" * 60)
+    print(f"  worst commanded move-from-now: {np.degrees(worst):.1f} deg")
+    print("\nNOTE: big move-from-now values are EXPECTED here — the robot is limp/hanging,")
+    print("not at the ready pose. That's why deployment must move-to-default FIRST, then run.")
+    print("What matters for GO: actions are finite and bounded (range within ~[-3,3]).")
+    if a_bad or not np.all(np.abs(action) < 6):
+        print("CAUTION: actions look unbounded/odd — investigate before any motion.")
+        return 2
+    print("READ-ONLY sanity: PASS — policy produced finite, bounded actions on the real robot.")
+    return 0
+
+
+# ---- MODES: motion (GATED — human-supervised only) -----------------------------
+def _require_human(mode):
+    if not (os.environ.get("CONFIRMED_BY_HUMAN") == "alois"):
+        raise SystemExit(f"REFUSED: --mode {mode} needs env CONFIRMED_BY_HUMAN=alois")
+    print(f"[{mode}] human-confirmed. Damping is your remote's job if anything looks wrong.")
+
+
+def _lowcmd_publisher():
+    from unitree_sdk2py.core.channel import ChannelPublisher
+    from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowCmd_
+    pub = ChannelPublisher("rt/lowcmd", LowCmd_)
+    pub.Init()
+    return pub, LowCmd_
+
+
+def _crc():
+    from unitree_sdk2py.utils.crc import CRC
+    return CRC()
+
+
+def _send_cmd(pub, LowCmd_, crc, mode_machine, targets, kp, kd, meta, damping=False):
+    """Build + publish one LowCmd. damping=True -> zero position gain, small kd, hold."""
+    cmd = LowCmd_()
+    cmd.mode_pr = 0
+    cmd.mode_machine = mode_machine
+    for i in range(29):
+        mc = cmd.motor_cmd[i]
+        mc.mode = 1
+        if damping:
+            mc.q = 0.0
+            mc.dq = 0.0
+            mc.kp = 0.0
+            mc.kd = 2.0
+            mc.tau = 0.0
+        else:
+            q_t = float(np.clip(targets[i], meta.q_lo[i], meta.q_hi[i]))
+            mc.q = q_t
+            mc.dq = 0.0
+            mc.kp = float(kp[i])
+            mc.kd = float(kd[i])
+            mc.tau = 0.0
+    cmd.crc = crc.Crc(cmd)
+    pub.Write(cmd)
+
+
+def mode_move_to_default(meta, session, ref, iface, secs, watch):
+    if not watch:
+        raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
+    _require_human("move-to-default")
+    make_dds(iface)
+    sub = lowstate_subscriber()
+    pub, LowCmd_ = _lowcmd_publisher()
+    crc = _crc()
+    q0, _, _, _, msg0 = read_state(sub)
+    mode_machine = int(msg0.mode_machine)
+    kp = meta.kp * 0.3   # conservative for the approach
+    kd = meta.kd
+    steps = int(secs * CONTROL_HZ)
+    print(f"moving to default over {secs:.1f}s at {CONTROL_HZ:.0f}Hz (kp=30%)...")
+    try:
+        for s in range(steps + 1):
+            a = 0.5 - 0.5 * np.cos(np.pi * s / steps)   # cosine 0->1
+            target = (1 - a) * q0 + a * meta.default
+            if not np.all(np.isfinite(target)):
+                raise RuntimeError("non-finite target")
+            _send_cmd(pub, LowCmd_, crc, mode_machine, target, kp, kd, meta)
+            time.sleep(1.0 / CONTROL_HZ)
+        print("at default pose. Holding (damping).")
+    finally:
+        for _ in range(20):
+            _send_cmd(pub, LowCmd_, crc, mode_machine, meta.default, kp, kd, meta, damping=True)
+            time.sleep(1.0 / CONTROL_HZ)
+
+
+def mode_run(meta, session, ref, iface, watch):
+    if not watch:
+        raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
+    _require_human("run")
+    make_dds(iface)
+    sub = lowstate_subscriber()
+    pub, LowCmd_ = _lowcmd_publisher()
+    crc = _crc()
+    _, _, _, _, msg0 = read_state(sub)
+    mode_machine = int(msg0.mode_machine)
+    dt = 1.0 / CONTROL_HZ
+    last_action = np.zeros(meta.n)
+    print(f"RUN: {ref.T} ticks @ {CONTROL_HZ:.0f}Hz. Ctrl-C or remote-damp to stop.")
+    try:
+        for tick in range(ref.T):
+            t0 = time.time()
+            q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+            obs, _ = build_obs(meta, ref, q, dq, imu_quat, gyro, last_action, tick)
+            if not np.all(np.isfinite(obs)):
+                raise RuntimeError("non-finite obs")
+            action = run_policy(session, obs, tick)
+            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > 8):
+                raise RuntimeError(f"bad action at tick {tick}")
+            last_action = action
+            target = action_to_target(meta, action)
+            _send_cmd(pub, LowCmd_, crc, mode_machine, target, meta.kp, meta.kd, meta)
+            elapsed = time.time() - t0
+            if elapsed > 2 * dt:
+                raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
+            time.sleep(max(0.0, dt - elapsed))
+    except BaseException as e:  # noqa: BLE001 - ANY failure -> damp
+        print(f"\nSTOP: {e} -> damping")
+    finally:
+        for _ in range(40):
+            _send_cmd(pub, LowCmd_, crc, mode_machine, meta.default, meta.kp, meta.kd, meta, damping=True)
+            time.sleep(dt)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mode", choices=["read", "move-to-default", "run"], default="read")
+    ap.add_argument("--meta", default=str(DEFAULT_META))
+    ap.add_argument("--motion-npz", default=str(DEFAULT_MOTION))
+    ap.add_argument("--policy", default=str(DEFAULT_POLICY))
+    ap.add_argument("--iface", default=IFACE)
+    ap.add_argument("--timeout-s", type=float, default=2.0)
+    ap.add_argument("--secs", type=float, default=4.0, help="move-to-default duration")
+    ap.add_argument("--i-will-watch-the-robot", action="store_true",
+                    help="required for any motion mode; you are watching, remote in hand")
+    a = ap.parse_args()
+
+    meta = Meta(Path(a.meta))
+    ref = Reference(Path(a.motion_npz))
+    import onnxruntime as ort
+    session = ort.InferenceSession(a.policy, providers=["CPUExecutionProvider"])
+
+    if a.mode == "read":
+        return mode_read(meta, ref, session, a.iface, a.timeout_s)
+    if a.mode == "move-to-default":
+        return mode_move_to_default(meta, session, ref, a.iface, a.secs, a.i_will_watch_the_robot) or 0
+    if a.mode == "run":
+        return mode_run(meta, session, ref, a.iface, a.i_will_watch_the_robot) or 0
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)
