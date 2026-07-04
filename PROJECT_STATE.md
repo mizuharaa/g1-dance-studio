@@ -1062,3 +1062,15 @@ human-supervised session (NOT autonomous — no ground motion has run):
   robot handed back to onboard control, remote stays reachable. The strand can't recur.
 - READY: resume ground-run-legodom staged runs (5s->10s->20s->full). Each run now self-restores the
   service on exit.
+
+## 2026-07-04 ~19:15 ICT — BREAKTHROUGH: robot STANDS + BALANCES + dances on the ground (tethered).
+- ground-run-legodom with BOOSTED LEG GAINS worked. User confirmed: "it did stand and balance."
+- WINNING CONFIG: APPROACH_KP_SCALE=3.0 (stand-up in move-to-default) + GROUND_LEG_KP_SCALE=2.0
+  (legs hold standing during policy; arms at trained gains) + GROUND_MAX_ACTION=10.
+- Telemetry (policy window): avg knee 36deg (target 38 = STANDING) vs the prior 50-70deg CROUCH;
+  hips ~-11/-13 (target -18), ankles ~-29 (target -21). Legs held a standing config while the arms
+  danced (shoulder/elbow motion 40deg std). No oscillation/fault; clean completion + auto-restore.
+- ROOT CAUSE (resolved): the trained gains stand the robot in SIM but are too soft on real HW under
+  load -> it sagged into a crouch and danced from there. Boosting ONLY the leg kp/kd (kept overdamped,
+  torque clamped) let the legs bear weight and stand. Diagnosis via joint telemetry + user's eyes.
+- NEXT: confirm it's GENUINELY weight-bearing (slacken tether at 3s) then extend 5s->10s->20s->full.
