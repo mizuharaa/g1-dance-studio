@@ -939,3 +939,18 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - CONCLUSION: today's real blocker is unchanged — the ground POLICY retrain failed. No robot dance
   today. Next = fix retrain in sim (re-anchoring + startup ee-termination grace), retrain, re-gate.
 - Robot damped/soft. 4 clean stop cycles total this session; always ended soft.
+
+## 2026-07-04 ~14:45 ICT — Ground retrain FIX WORKS (v2 bootstrapping). Sim only.
+- Root cause was an exploration CLIFF, not re-anchoring (which mjlab already does every step)
+  nor bad tracking (torso anchor err was 0.076m in the failed run). With the 2 obs terms dropped,
+  the untrained policy died at step ~5 on ee_body_pos (wrist/ankle HEIGHT err > 0.25m) and never
+  got a learning signal.
+- FIX: loosen ONLY that threshold 0.25->0.6 so it survives the transient and bootstraps. Launched
+  job train-thriller-ground-v2 (No-State-Estimation, motion thriller_deploy.npz, action_rate_l2
+  -0.2, 3000 iters, ee-thresh 0.6). CLI override only, no mjlab source edits.
+- RESULT so far: mean episode length 5 -> 24-26 and climbing by iter 180; ee_body_pos term rate
+  1.0 -> 0.0-0.5. It is LEARNING. Training out ~30 min.
+- NEXT: on completion, export 154-dim ONNX (export_policy_ground: swap task to No-State-Estimation)
+  + held-out gate on the SAME task. Eval at STRICT 0.25 first (honest bar) AND at 0.6 (training-
+  matched); report ACHIEVED mpkpe + ankle-height err separately. If ankle tracking is loose,
+  do v3 with SPLIT thresholds (tight ankle for safety, loose wrist). SIM_READY only if nominal>=0.95.
