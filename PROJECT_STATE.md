@@ -1086,3 +1086,19 @@ human-supervised session (NOT autonomous — no ground motion has run):
   remote and is in RUN/WALK mode (onboard, standing+balanced) BEFORE the dance is initiated. So our
   deploy hands off from an ALREADY-STANDING pose (not from limp/crouch) -> easier + more robust.
 - NEXT: extend duration (5s->full) now balance works; then test the real walk-mode->dance handoff.
+
+## 2026-07-04 ~20:15 ICT — 30s: stable on average but ONE sudden lateral "acrobatic" move (tether caught); motors overheating -> robot cooldown.
+- Progression today (post hand-fix, config APPROACH_KP_SCALE=3.0 + GROUND_LEG_KP_SCALE=2.0 sagittal-only,
+  GROUND_MAX_ACTION=10): 3s/5s/10s all CLEAN + balanced (roll swing <5deg, no drift). Walk-mode handoff
+  worked end-to-end. 30s: by-segment roll flat (-1.7..+1.8, NO drift) BUT one transient to roll -23.7deg
+  = a SUDDEN anomalous sideways "acrobatic" move; TETHER caught it (not self-recovered).
+- DIAGNOSIS (not drift/margin): a single bad policy ACTION or bad OBS at one instant -> likely findable
+  in data, not fundamental. Suspects: (a) action spike under the cap-10 but large lateral; (b) leg-odom
+  velocity spike (swing-phase, clipped to 2.5 but still) feeding a bad obs term; (c) a specific hard
+  Thriller move. NEXT (offline, no robot): replay policy over full motion, flag the tick(s) with large
+  lateral/roll-driving actions or obs outliers; cross-ref the timestamp of the -23.7 event.
+- MOTORS OVERHEATING: the boosted leg gains hold high continuous torque to bear weight -> hip/knee/ankle
+  heat over 30s. Show implication: trim gains (walk-mode standing start needs less stand-up authority) or
+  plan cooldowns. User shut robot down to cool.
+- STATUS: ground dance WORKS + balances to 30s tethered; blockers before full = (1) the one anomalous move,
+  (2) motor thermal at these gains. Both addressable.
