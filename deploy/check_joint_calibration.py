@@ -38,12 +38,13 @@ def load_default_pose(meta_path: Path) -> dict[str, float]:
     list — whatever the exporter wrote. Returns name->radians.
     """
     meta = json.loads(meta_path.read_text())
-    default = meta.get("default_joint_pos") or meta.get("default_qpos")
+    default = (meta.get("default_joint_pos") or meta.get("default_joint_pos_rad")
+               or meta.get("default_qpos"))
     if default is None:
-        raise SystemExit(f"no default_joint_pos in {meta_path}")
+        raise SystemExit(f"no default_joint_pos[_rad] in {meta_path}")
     if isinstance(default, dict):
         return {k: float(v) for k, v in default.items()}
-    order = meta.get("joint_order") or meta.get("joint_names")
+    order = meta.get("joint_order") or meta.get("joint_order_29dof") or meta.get("joint_names")
     if not order or len(order) != len(default):
         raise SystemExit("default_joint_pos is a list but joint_order is missing/mismatched")
     return {name: float(v) for name, v in zip(order, default)}
@@ -97,7 +98,8 @@ def main() -> int:
     # is authoritative and must match the SDK's motor index order (documented in
     # policy_meta). If names are absent, fall back to positional.
     meta = json.loads(Path(a.meta).read_text())
-    order = meta.get("joint_order") or meta.get("joint_names") or list(default.keys())
+    order = (meta.get("joint_order") or meta.get("joint_order_29dof")
+             or meta.get("joint_names") or list(default.keys()))
     if len(order) != len(q):
         raise SystemExit(
             f"joint count mismatch: policy_meta has {len(order)}, LowState has {len(q)}")
