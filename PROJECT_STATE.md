@@ -968,3 +968,24 @@ human-supervised session (NOT autonomous — no ground motion has run):
   wrote docs/ground_retrain_next.md (v3 decision tree branched on v2 eval: ship / split-ee /
   balance-curriculum / reconsider-estimator).
 - NOT declaring v2 a win; earlier optimism was premature. Waiting on RESULT.txt.
+
+## 2026-07-04 ~15:30 ICT — PIVOTAL: robot publishes a base-state ESTIMATE (rt/odommodestate).
+- v2 verdict: SIM_READY=NO. 0/256 survival at both 0.25 and 0.6 ee bounds; mpkpe 0.115m,
+  ankle 0.128m (tracks tight but FALLS — the balance wall, as diagnosed). Estimator-free
+  Thriller does not balance without velocity obs. Artifacts in data/policies/thriller_ground_v2/.
+- READ-ONLY robot probe (no motion): LowState has NO base vel/pos (only imu quat/gyro/accel +
+  joint q/dq). BUT topic **rt/odommodestate** (SportModeState_) IS LIVE at ~184Hz with:
+  position[3], velocity[3], body height. At rest: vel clean ~0, pos steady (~1mm/4s drift),
+  h~0.566m. This is a real onboard EKF — exactly the two obs terms the estimator-free path
+  dropped (base_lin_vel + torso position for motion_anchor_pos_b).
+- IMPLICATION / PIVOT: instead of fighting estimator-free training, feed the PROVEN full-obs
+  GANTRY policy (100% in sim) REAL base_lin_vel + anchor position on the GROUND from
+  rt/odommodestate. Sidesteps the balance wall entirely.
+- OPEN VALIDATIONS (not all doable read-only): (1) does odom stay published + accurate when we
+  RELEASE the motion service for low-level control? (it publishes now, and we released it during
+  stand-hold, so likely persistent — confirm during a supervised run). (2) velocity is reliable;
+  XY position DRIFTS over 49s -> handle by RE-ANCHORING at deploy (reset position frame at start,
+  matching training); height/Z directly usable. (3) frame mapping odom(world)->body via imu quat.
+  (4) whose estimator is it (onboard vs colleague's stack) + persistence.
+- NEXT (recommended): wire deploy_runtime to consume rt/odommodestate -> build HONEST 160-dim obs
+  -> sim-check -> tethered-first ground bring-up of the PROVEN gantry policy.
