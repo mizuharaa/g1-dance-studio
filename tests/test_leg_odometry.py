@@ -52,3 +52,26 @@ def test_matches_reference_base_velocity_within_tolerance():
         within += int(np.all(np.abs(v_est - v_true) <= 0.5))
     n = len(range(0, T, 5))
     assert within / n > 0.9, f"only {within}/{n} frames within ±0.5 m/s"
+
+
+def test_velocity_smoother_rejects_spikes():
+    """A single garbage joint-velocity frame must not produce a spiking base velocity: the
+    rate limiter + EMA holds the estimate near the smooth trajectory (this is the fix for
+    the sudden lateral 'acrobatic' move on hardware)."""
+    odo, meta = _odo()
+    odo.reset_filter()
+    # seed with rest (zero) for several ticks
+    for _ in range(5):
+        odo.estimate(meta.default, np.zeros(29), np.eye(3), np.zeros(3))
+    v_before, _, _ = odo.estimate(meta.default, np.zeros(29), np.eye(3), np.zeros(3))
+    # inject one huge-velocity frame (swing-phase spike)
+    v_spike, _, _ = odo.estimate(meta.default, np.full(29, 40.0), np.eye(3), np.zeros(3))
+    # the smoothed output must move only a little — the spike is rejected, not passed through
+    assert np.abs(v_spike - v_before).max() <= lo.VEL_MAX_STEP + 1e-6
+
+
+def test_reset_filter_clears_state():
+    odo, meta = _odo()
+    odo.estimate(meta.default, np.full(29, 5.0), np.eye(3), np.zeros(3))
+    odo.reset_filter()
+    assert odo._v_smooth is None

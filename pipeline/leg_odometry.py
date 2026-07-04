@@ -25,7 +25,13 @@ ROOT = Path(__file__).resolve().parent.parent
 G1_XML = ROOT / "third_party/mujoco_menagerie/unitree_g1/g1.xml"
 PELVIS_BODY = "pelvis"
 FOOT_BODIES = ("left_ankle_roll_link", "right_ankle_roll_link")
-MAX_BASE_SPEED = 2.5   # m/s clip; kills flight-phase spikes (true max ~1.3)
+MAX_BASE_SPEED = 2.5   # m/s hard clip; last-resort bound (true max ~1.3)
+# Temporal smoothing: the TRUE base velocity is smooth (max ~1.2 m/s), so any fast jump in
+# the raw kinematic estimate is a swing-phase spike, not real motion. A single such spike fed
+# to the policy caused a sudden lateral "acrobatic" move on hardware (2026-07-04, 30s run).
+# EMA + per-tick rate limit rejects those spikes while tracking the real (slow) velocity.
+VEL_EMA_ALPHA = 0.35        # EMA weight on the new raw sample (lower = smoother)
+VEL_MAX_STEP = 0.30         # m/s max change per 50 Hz tick (~15 m/s^2 — above real, kills spikes)
 
 
 def _skew_cross(w, r):
@@ -62,6 +68,12 @@ class LegOdometry:
             self.qvel_adr[i] = self.model.jnt_dofadr[jid]
         # free-base addresses (first joint is the floating base)
         self._has_free = self.model.jnt_type[0] == mujoco.mjtJoint.mjJNT_FREE
+        self._v_smooth = None  # EMA state for spike-rejected base velocity
+
+    def reset_filter(self):
+        """Clear the velocity smoother — call at the start of each run so a stale value
+        from a prior segment can't leak in."""
+        self._v_smooth = None
 
     def _fk(self, q):
         """Place the base at the origin (identity) and the 29 joints at q, forward-kinematics.
@@ -107,6 +119,16 @@ class LegOdometry:
         # one-tick garbage spike is worth killing. True base speed maxes ~1.3 m/s -> ±2.5 is
         # ample headroom while capping the ~2% swing-phase outliers.
         v_body = np.clip(v_body, -MAX_BASE_SPEED, MAX_BASE_SPEED)
+        # Spike rejection + EMA: the true velocity is smooth, so rate-limit the change per
+        # tick (kills single-frame swing spikes) then low-pass. First sample seeds the state.
+        if self._v_smooth is None:
+            self._v_smooth = v_body.copy()
+        else:
+            step = np.clip(v_body - self._v_smooth, -VEL_MAX_STEP, VEL_MAX_STEP)
+            v_rate_limited = self._v_smooth + step
+            self._v_smooth = (VEL_EMA_ALPHA * v_rate_limited
+                              + (1.0 - VEL_EMA_ALPHA) * self._v_smooth)
+        v_body = self._v_smooth.copy()
         # base height above flat ground = -(world-z of the stance foot rel. pelvis)
         base_height = -float(np.dot(weights, fz))
         info = {"weights": weights, "foot_world_z_rel": fz,

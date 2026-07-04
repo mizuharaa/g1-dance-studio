@@ -895,6 +895,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
     _require_human("ground-run-legodom")
     from pipeline.leg_odometry import LegOdometry
     legodom = LegOdometry(list(meta.joint_order))
+    legodom.reset_filter()  # clear the velocity smoother so no stale value leaks in
     make_dds(iface)
     sub = lowstate_subscriber()
     q0, _, _, _, msg0 = read_state(sub)

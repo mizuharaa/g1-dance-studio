@@ -1102,3 +1102,16 @@ human-supervised session (NOT autonomous — no ground motion has run):
   plan cooldowns. User shut robot down to cool.
 - STATUS: ground dance WORKS + balances to 30s tethered; blockers before full = (1) the one anomalous move,
   (2) motor thermal at these gains. Both addressable.
+
+## 2026-07-04 ~20:45 ICT — Root-caused the "acrobatic" move (leg-odom velocity SPIKE) + fixed it (offline).
+- Offline replay of the policy over the full motion: the biggest action JUMP (3.32 @ t=17.8s, inside the
+  30s window) COINCIDED with a leg-odom base_lin_vel SPIKE (2.98 m/s vs true max 1.21). Mechanism: swing-
+  phase foot not cleanly planted -> kinematic velocity spike -> bad base_lin_vel obs -> policy overreacts
+  = sudden lateral move. Confirmed: 58 frames (2.2%) had >0.5 m/s vel error; est max 2.98 vs true 1.21.
+- FIX (pipeline/leg_odometry.py): temporal smoothing — per-tick rate limit (VEL_MAX_STEP 0.30 m/s) + EMA
+  (alpha 0.35), with reset_filter() called at run start (wired into ground-run-legodom). Results: vel err
+  >1.0 m/s 12->0, >2.0 4->0; est max 2.98->1.14 (true 1.21); within +-0.5 band 97.8%->99.0%; policy action
+  jump max 3.32->2.48 and the 17.8s spike eliminated. (Remaining ~3 jumps>2.0 are genuine fast Thriller
+  moves, not obs artifacts.) Tests: +2 smoother tests, suite green.
+- STATUS: acrobatic-move cause fixed in code (unverified on robot — robot cooling). When motors cool:
+  re-run 30s to confirm the anomaly is gone, then push to full. STILL OPEN: motor thermal at boosted gains.
