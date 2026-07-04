@@ -131,6 +131,89 @@ class LegOdometry:
         v_body = self._v_smooth.copy()
         # base height above flat ground = -(world-z of the stance foot rel. pelvis)
         base_height = -float(np.dot(weights, fz))
+        # per-foot kinematic base height (each foot's own read) — the fused estimator picks
+        # the height of whichever foot it judges planted, not the blended value.
+        per_foot_h = [-float(z) for z in fz]
         info = {"weights": weights, "foot_world_z_rel": fz,
-                "per_foot_v": per_foot_v}
+                "per_foot_v": per_foot_v,          # base vel (body frame) implied by each foot
+                "per_foot_h": per_foot_h}          # base height implied by each foot
         return v_body, base_height, info
+
+
+# Fusion constants. IMU carries the estimate through flight; kinematics anchors it during
+# stance. Contact is detected from each foot's IMPLIED world velocity: a planted foot is
+# (near) stationary in the world, so |v_world + R·(foot-vel-from-joints)| ~ 0.
+GRAVITY = 9.81
+V_CONTACT = 0.30           # m/s scale for "planted" (foot world speed below this => planted)
+K_V_CORRECT = 0.25         # per-tick pull of velocity toward the planted-foot kinematic
+K_H_CORRECT = 0.15         # per-tick pull of height toward the planted-foot kinematic
+ACCEL_CLAMP = 40.0         # m/s^2 sanity clamp on IMU-derived world accel
+
+
+class FusedBaseEstimator:
+    """Complementary filter for base velocity + height that survives STEPPING.
+
+    Pure leg (kinematic) odometry degrades when a foot lifts — the planted-foot assumption
+    breaks, so velocity AND height go bad for the ~0.4 s of a step, which made the policy
+    throw a whole-body brace on hardware (2026-07-04). This fuses:
+      * PREDICT with the IMU: integrate gravity-removed world acceleration -> carries the
+        estimate through flight, when kinematics is blind.
+      * CORRECT with kinematics, weighted by CONTACT CONFIDENCE: when a foot is solidly
+        planted (its implied world velocity ~ 0), pull the estimate toward that foot's
+        kinematic read; when both feet are moving (mid-step), trust the IMU integration.
+    Drift from integration is bounded because every foot-plant re-anchors it. Wraps a
+    LegOdometry instance; call reset() at the start of each run.
+    """
+
+    def __init__(self, leg_odom: "LegOdometry"):
+        self.legodom = leg_odom
+        self._v_world = None       # fused base velocity, WORLD frame
+        self._h = None             # fused base height
+        self._prev_planted = 1.0
+
+    def reset(self):
+        self._v_world = None
+        self._h = None
+        self.legodom.reset_filter()
+
+    def estimate(self, q, dq, R_base, gyro_body, accel_body, dt):
+        """Return (base_lin_vel_body[3], base_height[m], info). accel_body = IMU accelerometer
+        (specific force, body frame, incl. gravity reaction). dt = tick period (s)."""
+        # Raw per-foot kinematic reads (bypass the EMA — the filter does its own smoothing).
+        _, _, li = self.legodom.estimate(q, dq, R_base, gyro_body)
+        per_foot_v = li["per_foot_v"]           # base vel (body) implied by each foot
+        per_foot_h = li["per_foot_h"]           # base height implied by each foot
+        R = np.asarray(R_base, float)
+
+        # World acceleration from the IMU: a_world = R·f_body - g  (g points down).
+        a_world = R @ np.asarray(accel_body, float) - np.array([0.0, 0.0, GRAVITY])
+        a_world = np.clip(a_world, -ACCEL_CLAMP, ACCEL_CLAMP)
+
+        # Seed on first call from the (blended) kinematic read.
+        if self._v_world is None:
+            v0, h0, _ = self.legodom.estimate(q, dq, R_base, gyro_body)
+            self._v_world = R @ v0
+            self._h = h0
+            return R.T @ self._v_world, self._h, {"contact": 1.0, "a_world": a_world}
+
+        # PREDICT (IMU integration).
+        self._v_world = self._v_world + a_world * dt
+        self._h = self._h + self._v_world[2] * dt
+
+        # CONTACT DETECTION: each foot's implied WORLD velocity given the current fused base.
+        # foot_world_vel_i = v_world - R·(per_foot_v_i)  [since per_foot_v_i = -(J·dq+w×r)].
+        best_i, best_conf = 0, 0.0
+        for i, vf in enumerate(per_foot_v):
+            foot_world_vel = self._v_world - R @ np.asarray(vf, float)
+            conf_i = float(np.exp(-np.linalg.norm(foot_world_vel) / V_CONTACT))
+            if conf_i > best_conf:
+                best_conf, best_i = conf_i, i
+
+        # CORRECT toward the most-planted foot, scaled by its confidence.
+        v_kin_world = R @ np.asarray(per_foot_v[best_i], float)
+        self._v_world = self._v_world + K_V_CORRECT * best_conf * (v_kin_world - self._v_world)
+        self._h = self._h + K_H_CORRECT * best_conf * (per_foot_h[best_i] - self._h)
+        self._prev_planted = best_conf
+
+        return R.T @ self._v_world, self._h, {"contact": best_conf, "a_world": a_world,
+                                              "planted_foot": best_i}

@@ -75,3 +75,17 @@ def test_reset_filter_clears_state():
     odo.estimate(meta.default, np.full(29, 5.0), np.eye(3), np.zeros(3))
     odo.reset_filter()
     assert odo._v_smooth is None
+
+
+def test_fused_estimator_seeds_and_runs():
+    """FusedBaseEstimator produces finite base vel + height and a contact confidence in [0,1]."""
+    from pipeline.leg_odometry import FusedBaseEstimator
+    odo, meta = _odo()
+    fused = FusedBaseEstimator(odo); fused.reset()
+    accel = np.array([0.0, 0.0, 9.81])  # at rest: specific force = +g up in body (identity R)
+    v, h, info = fused.estimate(meta.default, np.zeros(29), np.eye(3), np.zeros(3), accel, 0.02)
+    assert np.all(np.isfinite(v)) and np.isfinite(h)
+    v2, h2, info2 = fused.estimate(meta.default, np.zeros(29), np.eye(3), np.zeros(3), accel, 0.02)
+    assert 0.0 <= info2["contact"] <= 1.0
+    # at rest the fused velocity must stay near zero (no runaway integration)
+    assert np.abs(v2).max() < 0.5
