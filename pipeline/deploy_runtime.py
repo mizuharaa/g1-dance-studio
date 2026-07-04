@@ -205,14 +205,18 @@ def odom_subscriber():
 
 
 def read_odom(sub, timeout_s=0.5):
-    """Return (pos[3], vel_field[3]) from rt/odommodestate, or None if not received.
+    """Return (pos[3], vel_field[3], stamp_s) from rt/odommodestate, or None if not received.
 
-    Non-fatal by design: the caller decides. A ground run that needs odometry must
-    treat None as NO-GO (don't fall back to fabricated terms mid-run)."""
+    stamp_s is the message timestamp (sec) — used to detect a FROZEN estimate (topic still
+    publishing but the estimator stalled), which would fly the policy blind. Non-fatal by
+    design: the caller decides. A ground run that needs odometry must treat None as NO-GO
+    (never fall back to fabricated terms mid-run)."""
     msg = sub.Read(int(timeout_s * 1000))
     if msg is None:
         return None
-    return np.array(list(msg.position), float), np.array(list(msg.velocity), float)
+    st = getattr(msg, "stamp", None)
+    stamp_s = float(getattr(st, "sec", 0)) + float(getattr(st, "nanosec", 0)) * 1e-9 if st else 0.0
+    return np.array(list(msg.position), float), np.array(list(msg.velocity), float), stamp_s
 
 
 # ---- observation builder (real robot state -> 160-D mjlab obs) -----------------
@@ -367,7 +371,7 @@ def mode_read(meta, ref, session, iface, timeout_s):
             print("  NOT PUBLISHED — ground-run-odom would REFUSE (NO-GO). Estimator-free "
                   "ground-run or Stage A stand-hold only until this is live.")
         else:
-            p, v = samples[-1]
+            p, v, _ = samples[-1]
             moved = np.linalg.norm(samples[-1][0] - samples[0][0])
             print(f"  LIVE ({len(samples)}/5 reads): pos={np.round(p,3).tolist()} "
                   f"vel={np.round(v,3).tolist()} height={p[2]:+.3f}m")
@@ -777,6 +781,7 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
             raise RuntimeError("lost odom at policy start -> damp")
         odom_pos0 = o[0].copy()
         prev_pos, prev_t = o[0].copy(), time.time()
+        prev_stamp, stale = o[2], 0
         print("at default — starting odometry-fed policy. Keep tension on the tether; "
               "damp at the first sign of a fault, lurch, or lean.")
         for tick in range(n_ticks):
@@ -785,7 +790,17 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
             o = read_odom(odom, timeout_s=0.5)
             if o is None:
                 raise RuntimeError(f"lost {ODOM_TOPIC} at tick {tick} -> damp")
-            pos, vel_field = o
+            pos, vel_field, stamp = o
+            # FROZEN-estimate guard: topic still arriving but the estimator stalled (stamp
+            # not advancing) -> the obs would go stale and fly blind. Damp after ~5 ticks.
+            if stamp <= prev_stamp:
+                stale += 1
+                if stale >= 5:
+                    raise RuntimeError(f"{ODOM_TOPIC} stamp frozen {stale} ticks "
+                                       f"(estimator stalled) -> damp")
+            else:
+                stale = 0
+            prev_stamp = stamp
             robot_disp = pos - odom_pos0
             if ODOM_VEL_SOURCE == "field":
                 v_world = vel_field   # ASSUMES field is world-frame; validate before use
