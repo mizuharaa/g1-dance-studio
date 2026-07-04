@@ -1263,3 +1263,68 @@ human-supervised session (NOT autonomous — no ground motion has run):
   `ffmpeg -f v4l2 -video_size 1280x720 -i /dev/video4 -frames:v 1 …`. First frame: G1 on gantry
   line inside fenced area, powered, standby pose, full body in frame. Scene dim — more light
   recommended for observing fast motion.
+
+## 2026-07-05 (autonomous window, user away) — AUDIT VERDICT: CRITICAL-MISTAKE-FOUND. Deploy bugs fixed, recipe v2 training.
+- **ULTRACODE AUDIT COMPLETE** (54 agents, 84 findings, 18 adversarially verified;
+  full memo: docs/first_principles_audit.md — READ IT; HANDOVER.md rewritten to match).
+  Verdict: the "0 -> 15 Nm one-gap, prime-suspect-latency" conclusion was built on a
+  measurement artifact (sim_ankle.py read the LEFT WRIST, not the ankle — actuator-ordered
+  array indexed with joint-tree indices; independently confirmed by physics: standing at the
+  trained pose REQUIRES ~5.25 Nm/ankle, CoM is +3.21 cm of the ankle axis). Corrected picture:
+  policy is ankle-hungry even in clean sim (~6-8 Nm mean, saturates the 50 Nm clamp); real
+  ~15 Nm is mostly PD-static sag (kp*err = 28.5*0.506 = 14.4 Nm) + inherent choreography floor;
+  honest hardware excess ~2x; trained ankle stiffness 57 Nm/rad < gravity's 202 Nm/rad, so pure
+  PD topples — the POLICY is the balance controller. Latency matters only dynamically
+  (measured cliff: 10 ms fine, 20 ms halves survival, 40 ms kills). "Gravity-FF ruled out" was
+  FALSE (test sent ~zero ankle FF — hanging-model inverse dynamics). Thermal at ~8-10 Nm RMS is
+  show-viable (gate on RMS <= 12 Nm, not on reaching 0).
+- **DEPLOY BUGS FOUND + FIXED (free wins, committed, 242 tests green):**
+  (a) YAW RE-ANCHOR: reference npz world yaw (t=0 = 90.3 deg) was never aligned to the IMU
+  world frame -> anchor_ori permanently OOD unless the robot booted facing the npz heading.
+  Offline ONNX experiment (tools/obs_frame_sensitivity.py): at 90.3 deg offset the action
+  corruption (mean |da| 1.16) ~= the ENTIRE action signal (RMS 1.29); even 15 deg = 30%.
+  Every past ground run was corrupted to some degree. Fix: Reference.align_yaw at policy start
+  (all modes, YAW_ALIGN=1 default) — verified exactly heading-invariant.
+  (b) TORSO ANCHOR: training anchors on torso_link; deploy used the pelvis IMU quat. Fixed via
+  waist FK (yaw z, roll x, pitch y — validated against MuJoCo FK); measured effect 0.22 mean /
+  4.5 max |da| during the dance's 30 deg waist moves. TORSO_ANCHOR=1 default.
+  (c) TELEMETRY: every motion run now records q/dq/tau_est/temps/IMU/action/target ->
+  data/telemetry/*.npz (flushed AFTER damping; the 15 Nm number had NO committed code path).
+  (d) read_state: Read() takes SECONDS not ms (failure paths hung 1000x too long) + bounded
+  drain-to-latest. (e) action caps to measured need: MAX_ACTION 8->12, GROUND_MAX_ACTION 6->10.
+- **CHOREOGRAPHY EDIT DEFERRED (justified deviation from audit item 6):** quasi-static FK scan
+  of the full dance shows high-lean/step segments are NOT localized to 14-16 s — 16 segments
+  >30 Nm total ankle demand, worst at 43-47 s (58 Nm). A blind proxy-driven edit risks the whole
+  choreography. Instead: per-section stats added to the gate; the TRAINED policy's per-section
+  failures will drive a targeted, music-sync-preserving edit if needed (attempt 2).
+- **RECIPE v2 (cloud/sim2real_task.py, re-ranked per audit):** torque penalty headline
+  (torques_l2 -2e-5 + ankle_torque_l2 -4e-4 qfrc-based); system-ID mass (hands +0.40-0.70 kg,
+  torso scale 1.00-1.12 — never lighter than model, CoM x +-5 cm, ankle zero-offset +-0.08 rad);
+  actuator DR modest (gains +-15%, effort 0.8-1.0, friction 0-0.4, armature 0.9-1.4);
+  obs DYNAMICS matching leg-odom (custom base_lin_vel term: lag 30-80 ms + slew 0.30 + episodic
+  stance-break bias +-0.15; obs delay 0-20 ms); latency DR demoted to 0-20 ms (40 ms eval-only);
+  episodes 10->20 s (stance exposure); action_rate_l2 -0.2. Smoke-tested on box (obs 160, events
+  live, custom term instantiates). Trains on thriller_deploy.npz (ramped deployable — removes a
+  train/deploy mismatch, adds standing exposure; a1/a2 trained on thriller_show).
+- **GATE v2 (cloud/sim_gap_check.py):** survival >=99% nominal / >=95% worst-injected; ankle
+  mean <=6/8 Nm, p95 <=15/20, RMS <=12 Nm (thermal projection: 22.5*(RMS/20)^2 <= ~8 C/min);
+  mpkpe <=0.31 (parity with deployed-a2 baseline 0.307 on THIS harness); per-section ankle
+  stats + falls (0-10 / 13-17.5 / 25-36 / 40-49.5 s + worst-5s RMS window). Baseline a2 numbers
+  in reports/sim_gap_check_a2_1500_full.json (nominal 127/128, ankle 7.7 mean; delay40 0/128).
+- **TRAINING LAUNCHED: train-thriller-s2r** (box, tmux via run_job.sh; 4096 envs, 5000-iter cap,
+  ~1.1-1.3 s/it, ETA ~1.8 h, W&B run auto). **s2r-autopilot** job waits for it -> exports ONNX
+  (last + mid ckpt if needed) -> runs the v2 gate -> writes exports/thriller_s2r/RESULT.txt with
+  verdict + next steps. Nothing auto-stages to deploy dirs.
+- **STRATEGY (audit §5, user decision pending):** recommend HYBRID — lock arm-dance-over-onboard
+  (proven teleop arm_sdk path) as the bookable show baseline (P~0.85 within 1-2 sessions), run
+  the corrected full-body retrain as the premium act (P~0.5-0.65 to show-bar with the pre-GPU
+  program done). The pivot silently vanished from the plan of record; reinstated for discussion.
+- **NEXT ROBOT SESSION (queued, needs human):** audit experiments #4-6 — (4) DDS obs-staleness
+  measurement (read-only), (5) Stage-0 onboard-stand capture (tau_est/temps 2-3 min in normal
+  standby — calibrates tau semantics + the assumed "onboard ~0 Nm"), (6) one instrumented
+  tethered rerun (telemetry now automatic) + slack/taut A/B + ankle-bias sweep. Also weigh the
+  robot as-deployed if a scale is available (~35 kg assumed).
+- Process rule added to CLAUDE.md: no DECISIVE label without independent cross-check or
+  replication; measurement scripts + raw outputs must be committed.
+- Robot untouched all session (rule held: no human present = no motion, not even reads).
+  Budget: ~185k/1.5M VND; retrain ~45k more.

@@ -71,15 +71,28 @@ CONDITIONS = [
   ("delay40ms_push", 8, True, True),
 ]
 
+# Gates per the first-principles audit (docs/first_principles_audit.md §3):
+# the true ankle floor is ~5-7 Nm/ankle (pose + choreography), so <=5 worst-case is
+# unpassable without tracking sacrifice; thermal is gated on RMS (heat ~ tau^2):
+# predicted rate 22.5*(RMS/20)^2 <= ~8 C/min  =>  RMS <= ~12 Nm.
 GATE = {
-  "survival_min": 0.99,  # worst condition
-  "ankle_mean_abs_max_nm": 5.0,  # worst condition, ankle pitch
-  "ankle_p95_abs_max_nm": 15.0,  # worst condition, ankle pitch
-  # Deployed a2 baseline measures 0.307 on THIS harness (full motion from
-  # start, train-cfg RSI perturbations) vs 0.221 on the old 10 s protocol —
-  # bound is baseline parity + small DR allowance, final call is visual.
-  "mpkpe_nominal_max_m": 0.33,
+  "survival_nominal_min": 0.99,
+  "survival_worst_min": 0.95,
+  "ankle_mean_nominal_max_nm": 6.0,
+  "ankle_mean_worst_max_nm": 8.0,
+  "ankle_p95_nominal_max_nm": 15.0,
+  "ankle_p95_worst_max_nm": 20.0,
+  "ankle_rms_worst_max_nm": 12.0,  # thermal projection
+  # Deployed a2 baseline measures 0.307 on THIS harness (full motion from start,
+  # train-cfg RSI perturbations) vs 0.221 on the old 10 s protocol — bound is
+  # baseline parity; final call is visual (render the rollout).
+  "mpkpe_nominal_max_m": 0.31,
 }
+
+# Per-section reporting (seconds in thriller_deploy time): the known 14-16 s brace
+# window, the mid-dance lean cluster, and the worst lean cluster (43-47 s) from the
+# quasi-static analysis; plus a sliding worst-5s ankle RMS.
+SECTIONS = [(0.0, 10.0), (13.0, 17.5), (25.0, 36.0), (40.0, 49.5)]
 
 
 @dataclass(frozen=True)
@@ -176,6 +189,7 @@ def _run_condition(
   n = cfg.num_envs
   done_envs = torch.zeros(n, dtype=torch.bool, device=device)
   success = torch.zeros(n, dtype=torch.bool, device=device)
+  done_step = torch.full((n,), -1, dtype=torch.long, device=device)
   mpkpe_acc, active_acc = [], []
   tau_frames = []  # per-step (n, len(LEG_JOINTS)) |tau|, masked to active envs
   crosscheck = None
@@ -230,34 +244,56 @@ def _run_condition(
     newly = dones.bool() & ~done_envs
     if newly.any():
       success = success | (newly & truncated & ~terminated)
+      done_step = torch.where(newly & terminated, torch.full_like(done_step, step), done_step)
       done_envs = done_envs | newly
     step += 1
 
   active_steps = torch.stack(active_acc, 0).sum(0).clamp(min=1)
   mpkpe = (torch.stack(mpkpe_acc, 0).sum(0) / active_steps).mean().item()
 
+  def _stats(vals):
+    if vals.numel() == 0:
+      return {"mean_abs": None, "p95_abs": None, "max_abs": None, "rms_abs": None}
+    return {
+      "mean_abs": vals.mean().item(),
+      "p95_abs": vals.quantile(0.95).item(),
+      "max_abs": vals.max().item(),
+      "rms_abs": vals.square().mean().sqrt().item(),
+    }
+
   tau_all = torch.stack(tau_frames, 0)  # (T, n, J)
   torques = {}
   for jname in LEG_JOINTS:
     col = tau_all[:, :, name_to_col[jname]]
-    vals = col[~torch.isnan(col)]
-    if vals.numel() == 0:
-      torques[jname] = {"mean_abs": None, "p95_abs": None, "max_abs": None}
-      continue
-    torques[jname] = {
-      "mean_abs": vals.mean().item(),
-      "p95_abs": vals.quantile(0.95).item(),
-      "max_abs": vals.max().item(),
-    }
+    torques[jname] = _stats(col[~torch.isnan(col)])
 
   ankle_cols = [name_to_col[j] for j in ANKLE_PITCH]
-  ankle_vals = tau_all[:, :, ankle_cols]
-  ankle_vals = ankle_vals[~torch.isnan(ankle_vals)]
-  ankle_pitch_stats = {
-    "mean_abs": ankle_vals.mean().item() if ankle_vals.numel() else None,
-    "p95_abs": ankle_vals.quantile(0.95).item() if ankle_vals.numel() else None,
-    "max_abs": ankle_vals.max().item() if ankle_vals.numel() else None,
-  }
+  ankle_all = tau_all[:, :, ankle_cols]  # (T, n, 2)
+  ankle_pitch_stats = _stats(ankle_all[~torch.isnan(ankle_all)])
+
+  # Per-section ankle stats + where terminations (falls) happened.
+  ds = done_step.cpu().numpy()
+  sections = {}
+  for lo_s, hi_s in SECTIONS:
+    lo, hi = int(lo_s * 50), min(int(hi_s * 50), ankle_all.shape[0])
+    if lo >= ankle_all.shape[0]:
+      continue
+    seg = ankle_all[lo:hi]
+    falls = int(((ds >= lo) & (ds < hi)).sum())
+    sections[f"{lo_s:.0f}-{hi_s:.0f}s"] = {
+      **_stats(seg[~torch.isnan(seg)]), "falls": falls,
+    }
+  # sliding worst-5s ankle RMS (250 steps)
+  per_step_ms = ankle_all.square().nanmean(dim=(1, 2))  # (T,)
+  win = 250
+  worst5 = None
+  if per_step_ms.shape[0] >= win:
+    kernel = torch.ones(win, device=per_step_ms.device) / win
+    valid = torch.nan_to_num(per_step_ms, nan=0.0)
+    roll = torch.nn.functional.conv1d(valid.view(1, 1, -1), kernel.view(1, 1, -1)).view(-1)
+    k = int(roll.argmax().item())
+    worst5 = {"start_s": k / 50.0, "rms": float(roll[k].sqrt().item())}
+  sections["worst_5s_window"] = worst5
 
   out = {
     "condition": name,
@@ -271,6 +307,7 @@ def _run_condition(
     "steps_run": step,
     "ankle_pitch": ankle_pitch_stats,
     "torques_nm": torques,
+    "sections": sections,
     "crosscheck_step200": crosscheck,
     "seed": env_cfg.seed,
   }
@@ -316,40 +353,54 @@ def main() -> None:
       f"[{name}] survival={cond['success_rate']:.3f} "
       f"({cond['n_success']}/{cond['num_episodes']}) "
       f"mpkpe={cond['mpkpe_m']:.3f}m "
-      f"ankle_pitch |tau| mean={ap['mean_abs']:.2f} p95={ap['p95_abs']:.2f} "
-      f"max={ap['max_abs']:.2f} Nm",
+      f"ankle_pitch |tau| mean={ap['mean_abs']:.2f} rms={ap['rms_abs']:.2f} "
+      f"p95={ap['p95_abs']:.2f} max={ap['max_abs']:.2f} Nm",
       flush=True,
     )
+    for sname, s in (cond.get("sections") or {}).items():
+      if s is None:
+        continue
+      if sname == "worst_5s_window":
+        print(f"    worst-5s ankle RMS: {s['rms']:.2f} Nm @ {s['start_s']:.1f}s", flush=True)
+      else:
+        print(f"    [{sname}] mean={s['mean_abs']:.2f} rms={s['rms_abs']:.2f} "
+              f"p95={s['p95_abs']:.2f} falls={s['falls']}", flush=True)
 
-  # Gate: judged on the worst injected condition present.
+  # Gate: nominal bars + worst-injected-condition bars (audit §3 numbers).
   gate = None
   worst_names = [n for n in ("delay40ms_push", "delay20ms_push", "delay40ms") if n in results]
   if worst_names and "nominal" in results:
     worst = min(worst_names, key=lambda k: results[k]["success_rate"])
-    w = results[worst]
+    w, nom = results[worst], results["nominal"]
+
+    def _le(v, bound):
+      return v is not None and v <= bound
+
     checks = {
-      f"survival>={GATE['survival_min']} [{worst}]": w["success_rate"] >= GATE["survival_min"],
-      f"ankle_mean<={GATE['ankle_mean_abs_max_nm']}Nm [{worst}]": (
-        w["ankle_pitch"]["mean_abs"] is not None
-        and w["ankle_pitch"]["mean_abs"] <= GATE["ankle_mean_abs_max_nm"]
-      ),
-      f"ankle_p95<={GATE['ankle_p95_abs_max_nm']}Nm [{worst}]": (
-        w["ankle_pitch"]["p95_abs"] is not None
-        and w["ankle_pitch"]["p95_abs"] <= GATE["ankle_p95_abs_max_nm"]
-      ),
-      f"mpkpe<={GATE['mpkpe_nominal_max_m']}m [nominal]": (
-        results["nominal"]["mpkpe_m"] <= GATE["mpkpe_nominal_max_m"]
-      ),
+      f"survival>={GATE['survival_nominal_min']} [nominal]":
+        nom["success_rate"] >= GATE["survival_nominal_min"],
+      f"survival>={GATE['survival_worst_min']} [{worst}]":
+        w["success_rate"] >= GATE["survival_worst_min"],
+      f"ankle_mean<={GATE['ankle_mean_nominal_max_nm']}Nm [nominal]":
+        _le(nom["ankle_pitch"]["mean_abs"], GATE["ankle_mean_nominal_max_nm"]),
+      f"ankle_mean<={GATE['ankle_mean_worst_max_nm']}Nm [{worst}]":
+        _le(w["ankle_pitch"]["mean_abs"], GATE["ankle_mean_worst_max_nm"]),
+      f"ankle_p95<={GATE['ankle_p95_nominal_max_nm']}Nm [nominal]":
+        _le(nom["ankle_pitch"]["p95_abs"], GATE["ankle_p95_nominal_max_nm"]),
+      f"ankle_p95<={GATE['ankle_p95_worst_max_nm']}Nm [{worst}]":
+        _le(w["ankle_pitch"]["p95_abs"], GATE["ankle_p95_worst_max_nm"]),
+      f"ankle_RMS<={GATE['ankle_rms_worst_max_nm']}Nm(thermal) [{worst}]":
+        _le(w["ankle_pitch"]["rms_abs"], GATE["ankle_rms_worst_max_nm"]),
+      f"mpkpe<={GATE['mpkpe_nominal_max_m']}m [nominal]":
+        nom["mpkpe_m"] <= GATE["mpkpe_nominal_max_m"],
     }
     gate = {"checks": checks, "pass": all(checks.values()), "worst_condition": worst}
     print("\n=== SIM2REAL GATE ===")
     for k, v in checks.items():
       print(f"  {'PASS' if v else 'FAIL'}  {k}")
     print(f"SIM2REAL_GATE={'PASS' if gate['pass'] else 'FAIL'}")
-    print(
-      "(pre-retrain policy: FAIL under delay conditions is EXPECTED and "
-      "validates the latency hypothesis; the retrained policy must PASS)"
-    )
+    print("(baseline pre-retrain policy is expected to FAIL the delay/torque bars; "
+          "the retrained policy must PASS)")
 
   Path(cfg.output_file).parent.mkdir(parents=True, exist_ok=True)
   with open(cfg.output_file, "w") as f:

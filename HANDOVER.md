@@ -6,45 +6,53 @@ fast path to resume; PROJECT_STATE is the source of truth.
 ---
 
 ## ONE-LINE STATUS
-Full-body Thriller runs on the real G1 tethered and balances up to ~10–30 s, but the same
-policy that is **0 Nm ankle in sim uses ~15 Nm on hardware** — a sim2real gap that causes the
-thermal wall, the sag/gain-boost, and the stepping brace. **Next: a targeted sim2real RETRAIN.
-All deploy-side patching is done (it can't close the gap).**
+Full-body Thriller runs on the real G1 tethered and balances up to ~10–30 s. The old
+"sim ankle 0 Nm vs real 15 Nm = one latency-shaped sim2real gap" story was AUDITED AND
+PARTIALLY OVERTURNED (2026-07-05, docs/first_principles_audit.md — read it): the sim number
+was a measurement artifact; the corrected picture is an ankle-hungry policy (~6–8 Nm mean in
+clean sim) + static PD sag + REAL DEPLOY OBS BUGS (now fixed). A corrected retrain
+(train-thriller-s2r) is running with an auto-gate.
 
-## THE DECISIVE FINDING (why we retrain — don't re-litigate)
-- **CORRECTION (2026-07-05, resumed session): the sim number below was a measurement artifact.**
-  sim_ankle.py read actuator_force by JOINT index but that array is ACTUATOR-ordered. Correct
-  joint-space measurement (qfrc_actuator): sim ankle is **~6 Nm mean / 15 Nm p95** nominally —
-  the retrain still stands, but the headline item is the TORQUE PENALTY (policy is ankle-hungry
-  even in sim), with latency DR closing the ~2.5x hardware excess. See PROJECT_STATE 2026-07-05.
-- ~~Sim policy dances with **ankle torque mean 0.0 Nm** (keeps CoM over feet).~~ Real robot: **~15 Nm**.
-- That 0→15 Nm gap is the SHARED root of all three walls:
-  - **Thermal**: ankle overworks only on real HW → 22.5 °C/min at 1.5× gains → fault < 2 min.
-  - **Sag / needing 2× gain boost**: real tracking can't match sim.
-  - **Stepping brace @14–16 s**: proven CHOREOGRAPHY-hard even with a *perfect* estimate
-    (disambiguation test), i.e. the policy relies on tracking the real robot can't deliver.
-- Prime suspect: **control/comms latency + actuator response** the sim doesn't model.
-- Deploy-side patches tried and RULED OUT as the fix: leg-odom estimator, velocity smoothing,
-  IMU fusion, leg-gain boost, gravity feedforward. All treat symptoms; none closes 15 Nm.
+## THE CORRECTED FINDINGS (verdict: CRITICAL-MISTAKE-FOUND, caught before GPU spend)
+- **Sim "0 Nm ankle" was false**: sim_ankle.py indexed actuator-ordered `actuator_force`
+  with joint-tree indices — it measured the LEFT WRIST. Correct (qfrc_actuator): sim ankle
+  ~6–8 Nm mean / 15–20 p95, transients saturating the 50 Nm clamp. Honest sim2real excess ≈ 2×.
+- **The real ~15 Nm has a STATIC signature** (kp·sag = 28.5 × 0.506 rad ≈ 14.4 Nm): latency
+  cannot produce steady sag; the trained ankle PD stiffness (57 Nm/rad) is below the gravity
+  destabilizing stiffness (~202 Nm/rad) — the POLICY is the balance controller, pure PD topples.
+- **Deploy obs bugs (FIXED, free wins)**: (a) reference world yaw (t=0: 90.3°) was never
+  aligned to the IMU frame — measured action corruption ≈ the whole action signal at 90°;
+  fixed with yaw re-anchor at policy start. (b) pelvis IMU used where training anchors on
+  torso_link — fixed via waist FK (validated vs MuJoCo). (c) gravity-FF was never actually
+  falsified (the test sent ~zero ankle FF). (d) per-run telemetry now records tau_est/temps.
+- **Latency still matters dynamically** (measured: 20 ms delay halves survival, 40 ms kills)
+  but as robustness hygiene (train 0–20 ms), not the headline.
+- The 14–16 s brace is one of MANY high-lean/step segments (quasi-static scan: 16 segments
+  >30 Nm, worst 43–47 s) — per-section eval in sim_gap_check pinpoints what remains infeasible.
 
-## THE PLAN (uncompromised — keeps the full-body ground dance)
-Targeted **sim2real retrain** of the tracking policy with real conditions modeled:
-1. **Latency randomization** (action/obs delay ~10–40 ms) — prime suspect.
-2. **Actuator-response DR** (torque scale, friction, bandwidth).
-3. **Torque/energy reward penalty** → learns low ankle torque → cool by design.
-4. **Obs noise matching leg-odometry** (so our estimator IS the deploy obs; leg-odom is
-   97.8 % within the policy's ±0.5 m/s trained band — already good enough).
-5. **Mass / gain / push DR** → robust balance through stepping.
-Reuses everything already built (leg-odom, deploy runtime, safety spine, thermal monitor).
+## THE PLAN (recipe v2 — running as train-thriller-s2r)
+1. **Torque penalty headline**: joint_torques_l2 -2e-5 + ankle_torque_l2 -4e-4 (qfrc-based).
+2. **System-ID-informed mass/CoM**: +hands payload, torso ≥ model mass, CoM x ±5 cm,
+   ankle zero-offset ±0.08 rad.
+3. **Actuator DR (modest)**: gains ±15 %, effort 0.8–1.0, friction 0–0.4, armature 0.9–1.4.
+4. **Obs dynamics matching leg-odom**: lag 30–80 ms + slew + stance-break bias episodes
+   (custom obs term), obs delay 0–20 ms.
+5. **Latency DR 0–20 ms** (40 ms is EVAL-ONLY), 20 s episodes, action_rate_l2 -0.2.
+Gate: cloud/sim_gap_check.py — FULL-motion, 7 conditions; survival ≥99 % nominal / ≥95 % worst,
+ankle mean ≤6/8 Nm, p95 ≤15/20, RMS ≤12 Nm (thermal), mpkpe ≤0.31, per-section stats.
+(NOTE: the old heldout_eval "100 %" only certified the FIRST 10 s — episode_length_s was
+never overridden. sim_gap_check supersedes it.)
 
-## IMMEDIATE NEXT ACTION (all sim/code, NO robot)
-1. Author the retrain config: extend the mjlab tracking task
-   (`Mjlab-Tracking-Flat-Unitree-G1`) on the GPU box with the 5 items above.
-2. **Verify in sim BEFORE spending GPU hours**: confirm the retrained policy keeps sim ankle
-   torque low AND survives injected latency + pushes (the exact things that broke it on HW).
-   Reuse the offline check pattern in `cloud/sim_ankle.py` (on the box) + the disambiguation
-   method in scratchpad.
-3. Train (GPU box), export ONNX, run held-out gate, then ONE clean tethered HW test.
+## IMMEDIATE NEXT ACTION
+1. Read `exports/thriller_s2r/RESULT.txt` on the box (job s2r-autopilot waits for
+   train-thriller-s2r, exports, runs the gate, writes the verdict).
+2. GATE_PASS → pull policy.onnx, stage data/policies/thriller_s2r/ (reuse policy_meta.json —
+   same gains/scales/obs), render rollout video for visual sign-off, then ONE tethered HW test
+   (human + damping remote; robot-facing gates unchanged).
+3. GATE_FAIL → per-section stats say which segments fail → targeted choreography edit
+   (music-sync-preserving) or reward re-weighting for attempt 2.
+4. STRATEGY (user decision pending, audit §5): recommend HYBRID — arm-dance-over-onboard
+   as the bookable show baseline (P≈0.85), full-body retrain as the premium act.
 
 ## KEY FACTS / INFRA
 - **GPU box** (alive): `root@103.245.250.152:46936`, key `~/g1-dance/.secrets/greennode_ssh_key`,

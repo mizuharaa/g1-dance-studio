@@ -12,3 +12,7 @@ Rules:
 - Robot safety: never send low-level commands to the real robot unless the motion passed
   MuJoCo verification AND the user confirmed the robot is secured (gantry/clear space,
   e-stop in hand). The deploy stage must always require an explicit human confirmation.
+- Measurement discipline (2026-07-05 audit lesson — a mis-indexed sim reading drove a day
+  of wrong conclusions): never label a finding DECISIVE without an independent cross-check
+  or a replication; commit every measurement script AND its raw output (logs/ or
+  data/telemetry/) so load-bearing numbers have durable provenance.

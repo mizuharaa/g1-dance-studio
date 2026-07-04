@@ -146,3 +146,15 @@ sessions. Trainings survive laptop reboots (they run in tmux on the box).
 - **ROBOT-DAY READY**: data/policies/thriller/ = a2 100% (ground), thriller_a1_fallback/ =
   a1 (gantry/crisp), thriller_deploy.{csv,npz} (2.5s activation ramp), policy_meta.json
   (full PD gains). Deploy-kit to build --full bundle. Robot untouched; deploy human-gated.
+
+## 2026-07-05 — sim2real retrain attempt 1 (recipe v2, post-audit)
+- **train-thriller-s2r** RUNNING (started 14:25 UTC): task Mjlab-Tracking-Flat-Unitree-G1-Sim2Real
+  (cloud/sim2real_task.py via cloud/train_sim2real.py), motion thriller_deploy.npz, 4096 envs,
+  5000-iter cap, ~1.1-1.3 s/it, ETA ~1.8 h. Recipe: torque penalties (headline), system-ID mass,
+  actuator DR, leg-odom obs dynamics, 0-20 ms latency DR, 20 s episodes. W&B auto.
+- **s2r-autopilot** RUNNING: waits for the train job -> export ONNX (last + mid) ->
+  cloud/sim_gap_check.py v2 gate (full motion, 7 conditions incl. 40 ms delay eval-only) ->
+  writes exports/thriller_s2r/RESULT.txt (VERDICT=GATE_PASS/FAIL + numbers + next steps).
+- Resume: `bash cloud/run_job.sh status train-thriller-s2r` / `status s2r-autopilot`;
+  verdict at exports/thriller_s2r/RESULT.txt. Baseline (deployed a2 on the same gate):
+  reports/sim_gap_check_a2_1500_full.json.

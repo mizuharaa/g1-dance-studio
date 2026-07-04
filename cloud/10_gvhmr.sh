@@ -43,8 +43,18 @@ grep -vE "^(chumpy|cython_bbox)" "$REPO/requirements.txt" > /tmp/gvhmr-reqs.txt
     || die "GVHMR requirements install failed"
 "$PY" -m pip install -q --no-build-isolation chumpy 2>&1 | tail -2 \
     || die "chumpy install failed (even with --no-build-isolation)"
+# The box has no libGL (no apt to add it) — regular opencv-python fails at
+# import; swap in the headless build at the same version (2026-07-03).
+CV_V="$("$PY" -m pip show opencv-python 2>/dev/null | awk '/^Version/{print $2}')"
+if [ -n "$CV_V" ]; then
+    "$PY" -m pip uninstall -q -y opencv-python
+    "$PY" -m pip install -q "opencv-python-headless==$CV_V"
+fi
 "$PY" -m pip install -q -e "$REPO" --no-deps 2>&1 | tail -2 \
     || die "GVHMR pip install failed"
+# Upstream wart: body_model.py carries a stray IDE auto-import
+# 'from turtle import forward' -> drags in tkinter, absent here (2026-07-03).
+sed -i '/^from turtle import forward$/d' "$REPO/hmr4d/utils/body_model/body_model.py"
 
 # -- body models (synced from laptop, license-gated) --------------------------
 BM="$NB_DATA/body_models"
