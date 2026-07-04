@@ -1050,3 +1050,15 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - STATUS: leg-odom ground path proved a BALANCED segment before the strand (3s ok per user). Once the
   robot is rebooted + remote pairs, resume the staged runs (5s->10s->20s->full); the runtime now cleans
   up the motion service each run so this can't recur.
+
+## 2026-07-04 ~18:40 ICT — Recovered after reboot; control CONFIRMED; auto-restore validated on HW.
+- Reboot fixed the onboard/Bluetooth strand (remote+app+damping all working). Robot back under 'ai'.
+- BUG found+fixed: _release_motion_service crashed on a transient None from CheckMode right after Init
+  (crashed BEFORE taking control -> "move-to-default did nothing" #2). Now retries on None (15x), robust.
+- Instrumented move-to-default (post-fix): "service released -> lowcmd accepted -> at default pose".
+  Mid-ramp read proved commands LAND (legs drove 70->50deg toward default, arms tracked). Remaining leg
+  gap = known load-bearing sag. Control fully restored.
+- AUTO-RESTORE VALIDATED ON HARDWARE: after the run, CheckMode='ai' (the on-exit SelectMode fired) —
+  robot handed back to onboard control, remote stays reachable. The strand can't recur.
+- READY: resume ground-run-legodom staged runs (5s->10s->20s->full). Each run now self-restores the
+  service on exit.

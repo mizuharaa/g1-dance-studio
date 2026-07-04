@@ -445,16 +445,20 @@ def _release_motion_service():
     msc = MotionSwitcherClient()
     msc.SetTimeout(5.0)
     msc.Init()
-    status, result = msc.CheckMode()
-    tries = 0
-    while result.get("name"):
-        msc.ReleaseMode()
+    # CheckMode can transiently return None right after Init (raced the switcher) — do NOT
+    # assume a dict, or we crash BEFORE taking control and leave the run half-initialized.
+    for _ in range(15):
         status, result = msc.CheckMode()
-        time.sleep(1)
-        tries += 1
-        if tries > 10:
-            raise SystemExit("could not release motion service after 10 tries — abort")
-    print("   motion service released — rt/lowcmd accepted for full-body.")
+        if result is None:                 # transient — retry, don't crash
+            time.sleep(0.5)
+            continue
+        if not result.get("name"):         # no active mode -> released; rt/lowcmd accepted
+            print("   motion service released — rt/lowcmd accepted for full-body.")
+            return
+        msc.ReleaseMode()
+        time.sleep(1.0)
+    raise SystemExit("could not release motion service after 15 tries — abort "
+                     "(robot still under onboard control, safe)")
 
 
 def _lowcmd_setup():
