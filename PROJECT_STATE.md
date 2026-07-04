@@ -598,6 +598,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   feet-off). TODO: this laptop-side runtime is unbuilt; robot-day preflight/scripts assumed
   the Docker path. Baseline today regardless = health check + check_joint_calibration.py
   (SDK, no Docker).
+- 2026-07-05 (AM): **Two deploy paths for robot day (user suggested hotspot for robot
+  internet).** Cleaner than hotspot-to-robot: SHARE the laptop's internet to PC2 over the
+  EXISTING Ethernet cable (192.168.123.x) via IP-forwarding+NAT on the laptop — robot needs
+  no wifi. Internet source = phone hotspot OR company wifi (either).
+  - **PREFERRED (Path B): original reference controller** — internet→PC2, PC2 pulls
+    qiayuanl/unitree:jazzy, run motion_tracking_controller (battle-tested BeyondMimic
+    deploy; deploy-kit already built for this). Needs: Docker ON PC2 (verify: ssh
+    unitree@192.168.123.164; docker --version) + multi-GB image pull (slow over hotspot).
+  - **FALLBACK (Path A): laptop-side ONNX runtime** over Ethernet (like teleop), no
+    internet/Docker needed, but unbuilt/new code.
+  When user is online at office: (1) set up laptop→PC2 internet sharing (sysctl
+  net.ipv4.ip_forward=1 + iptables MASQUERADE on the wifi iface + default route on PC2 via
+  192.168.123.2) LIVE with Claude; (2) verify Docker on PC2 → Path B, else Path A. Baseline
+  regardless: health check + check_joint_calibration.py (SDK, no Docker/internet). Robot's
+  first real policy run stays GANTRY-FIRST either path.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
