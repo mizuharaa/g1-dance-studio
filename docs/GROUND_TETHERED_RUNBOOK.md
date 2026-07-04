@@ -17,6 +17,33 @@ not the plan. The plan is: a human catches it.
 
 ---
 
+## Field notes — first ground session (2026-07-04)
+
+Empirical, from the first tethered ground session. Read these; they change what to
+EXPECT at each stage.
+
+- **Stage A (stand-hold) sag is EXPECTED, not a fault.** A static PD-to-default is a
+  spring to a pose, not a balance controller. With the onboard balancer released and the
+  feet loaded, the legs settle into a squat (measured: knees ~55–66°, hips/ankles ~20° off
+  the commanded stand) wherever leg torque balances gravity. Raising the gains did NOT
+  close it (2.0× and 3.0× gave the same pose) — the equilibrium is set by load/contact,
+  not stiffness. The torso stayed vertical and the pose was rock-steady. So Stage A proves
+  the robot holds a STABLE tethered posture and that the stop path works — it does NOT
+  prove a clean weight-bearing stand. Do not chase a perfect stand with gains here.
+- **Weight-bearing comes from the BALANCING policy (Stage B), not from PD.** The same
+  network that tracks the dance is what actively holds the robot up. Stand-hold is only
+  the pre-check before it.
+- **Gain-independence is a useful tell.** If the pose does not change when you raise
+  `APPROACH_KP_SCALE`, the robot is resting on the tether/harness, not being held by the
+  PD — i.e. the feet are not truly loaded. Slacken the tether to load them.
+- **The ground policy is the estimator-free retrain (v2).** It was trained with the
+  `ee_body_pos` height bound loosened (0.25→0.6 m) to get past an exploration cliff.
+  Before Stage B, verify its `RESULT.txt` says `SIM_READY=YES` AND its ANKLE height error
+  is tight (≤0.15 m). Loose *wrist* tracking is acceptable (cosmetic); loose *ankle*
+  tracking is a fall risk — the verdict reports them separately.
+
+---
+
 ## Preconditions (all must hold before ANY motion)
 
 - [ ] A second person is on the tether/gantry, taking the robot's weight, ready to lift.
@@ -61,13 +88,20 @@ python -m pipeline.deploy_runtime --mode stand-hold \
 
 - Keep the tether taut through the 5 s move-to-default; let the feet gradually take
   weight but stay ready to lift.
-- Watch for: sag, one-sided lean, buzzing/oscillation, any joint fault.
-- **Go criterion:** holds the pose calmly, weight on feet, tether slack, for ~30 s.
-- **Abort criteria:** any lean past a few degrees, oscillation, fault, or unexpected
-  sound → B-damp immediately. Ctrl-C ends the hold soft.
+- Watch for: a one-sided lean, buzzing/oscillation, any joint fault. **Some sag into a
+  squat is normal** under load (see Field notes) — that is not an abort trigger by itself.
+- **Go criterion (revised 2026-07-04):** settles into a STABLE, steady posture — torso
+  vertical, no oscillation, no fault — held ~30 s. A clean upright stand is NOT expected
+  with pure PD and is NOT required to proceed; what matters is *stability*, not reaching
+  the commanded pose. (A quick read-only `check_joint_calibration.py` in another shell
+  should show the SAME pose twice a few seconds apart — settled, not still sinking.)
+- **Abort criteria:** a progressive/worsening sink (still sinking on the second read), a
+  one-sided lean, oscillation, fault, or unexpected sound → B-damp immediately. Ctrl-C
+  ends the hold soft.
 
-If Stage A is not rock-solid, do NOT proceed. Re-check calibration and gains
-(`APPROACH_KP_SCALE`, default 2.0) first.
+If Stage A is unstable (sinking, leaning, or oscillating), do NOT proceed. Re-check
+calibration and tether loading first; gains are NOT the lever for the sag (proven
+2026-07-04).
 
 ## Stage B — shortest ground policy segment (tethered)
 

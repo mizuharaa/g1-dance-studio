@@ -954,3 +954,17 @@ human-supervised session (NOT autonomous — no ground motion has run):
   + held-out gate on the SAME task. Eval at STRICT 0.25 first (honest bar) AND at 0.6 (training-
   matched); report ACHIEVED mpkpe + ankle-height err separately. If ankle tracking is loose,
   do v3 with SPLIT thresholds (tight ankle for safety, loose wrist). SIM_READY only if nominal>=0.95.
+
+## 2026-07-04 ~15:05 ICT — v2 mid-training: wall MOVED to balance/anchor. Verdict pending eval.
+- v2 past the ee cliff, but by iter ~2200 the binding wall is the ANCHOR terminations
+  (anchor_ori torso tilt >0.8rad, error_anchor_rot ~1.0; anchor_pos torso height >0.25m).
+  time_out pinned at 0; ep length regressed 24->8. Read: it can't hold the torso upright/at
+  height without base_lin_vel obs — the fundamental estimator-free balance cost. BUT mid-train
+  metrics are adaptive-sampler-pessimistic; the frame-0 held-out eval is the real test.
+- Built this session (sim/code only): heldout_eval_ground.py (ankle/wrist height breakdown,
+  configurable ee-threshold), export_policy_ground.py, autopilot_v2.sh (on box, auto export+gate
+  @0.25 & @0.6 -> RESULT), laptop watcher (pulls to data/policies/thriller_ground_v2/ + notifies).
+- Updated docs/GROUND_TETHERED_RUNBOOK.md (Stage-A sag is EXPECTED; revised go-criterion) and
+  wrote docs/ground_retrain_next.md (v3 decision tree branched on v2 eval: ship / split-ee /
+  balance-curriculum / reconsider-estimator).
+- NOT declaring v2 a win; earlier optimism was premature. Waiting on RESULT.txt.
