@@ -66,6 +66,35 @@ OBS_LAYOUT = [
     ("joint_vel", 29), ("actions", 29),
 ]
 
+# ---- GROUND (obs-restricted) deployment --------------------------------------
+# The gantry policy's obs needs base_lin_vel + motion_anchor_pos_b, both of which
+# require a torso-position/velocity state estimator we do NOT have on the robot
+# (BeyondMimic arXiv 2508.08241 §obs). On the gantry we fed zeros/approximations —
+# fine when the robot hangs, but on the GROUND those wrong terms would drive a fall.
+# The ground retrain drops exactly those two terms -> a 154-dim estimator-free obs.
+GROUND_META = ROOT / "data/policies/thriller_ground/policy_meta.json"
+GROUND_POLICY = ROOT / "data/policies/thriller_ground/policy.onnx"
+GROUND_MOTION = ROOT / "data/policies/thriller_ground/thriller_deploy.npz"
+# Falls are unforgiving on the ground; start well below the gantry cap and tune up
+# only after a clean tethered segment. Env-overridable.
+GROUND_MAX_ACTION = float(os.environ.get("GROUND_MAX_ACTION", "6.0"))
+# Per-term widths, so build_obs_ground can validate ANY layout the ground meta
+# declares (it reads the order from the meta rather than hard-coding it).
+TERM_WIDTHS = {
+    "command": 58, "motion_anchor_pos_b": 3, "motion_anchor_ori_b": 6,
+    "base_lin_vel": 3, "base_ang_vel": 3, "joint_pos": 29, "joint_vel": 29,
+    "actions": 29,
+}
+# Terms that CANNOT be produced on the robot without a state estimator. If a
+# "ground" policy still lists either, it is NOT estimator-free -> refuse to run it.
+ESTIMATOR_DEPENDENT_TERMS = {"base_lin_vel", "motion_anchor_pos_b"}
+# The expected estimator-free layout (154). Used as the fallback order if the meta
+# does not carry an explicit obs-term list.
+GROUND_OBS_LAYOUT = [
+    ("command", 58), ("motion_anchor_ori_b", 6), ("base_ang_vel", 3),
+    ("joint_pos", 29), ("joint_vel", 29), ("actions", 29),
+]
+
 
 # ---- small math helpers (match pipeline/sim_exam.py conventions) --------------
 def quat_wxyz_to_mat(q):
@@ -96,6 +125,11 @@ class Meta:
         self.joint_order = list(m["joint_order_29dof"])
         self.n = len(self.joint_order)
         assert self.n == 29, f"expected 29 joints, got {self.n}"
+        # Optional: the exact obs term order this policy was trained with. The ground
+        # (obs-restricted) exporter writes it; when present, build_obs_ground trusts it
+        # over any hard-coded layout so the runtime auto-adapts to the trained obs.
+        self.obs_terms = (m.get("actor_obs_terms_in_order") or m.get("obs_terms_in_order")
+                          or m.get("obs_terms"))
         # joint position limits from the model would be ideal; use a safe default band
         # around the reference range if not present.
         self.q_lo = self.default - np.deg2rad(140)
@@ -171,6 +205,60 @@ def build_obs(meta: Meta, ref: Reference, q, dq, imu_quat, gyro, last_action, ti
         parts.append(v)
     obs = np.concatenate(parts)
     assert obs.shape[0] == 160 and widths_ok, f"obs dim {obs.shape[0]} != 160"
+    return obs, terms
+
+
+def _ground_obs_order(meta: Meta):
+    """Resolve the ground obs term order and REFUSE anything estimator-dependent.
+
+    Prefer the order the ground meta declares (auto-adapts to the trained policy);
+    fall back to the documented 154-dim layout. Either way, if the order contains a
+    term we cannot honestly produce on the robot (base_lin_vel / motion_anchor_pos_b),
+    this is not an estimator-free policy — hard-refuse rather than feed it a lie that
+    drives a fall on the ground.
+    """
+    if meta.obs_terms:
+        order = [(name, TERM_WIDTHS[name]) for name in meta.obs_terms if name in TERM_WIDTHS]
+        unknown = [n for n in meta.obs_terms if n not in TERM_WIDTHS]
+        if unknown:
+            raise SystemExit(f"REFUSED: ground meta lists unknown obs term(s) {unknown}")
+    else:
+        order = list(GROUND_OBS_LAYOUT)
+    bad = [n for n, _ in order if n in ESTIMATOR_DEPENDENT_TERMS]
+    if bad:
+        raise SystemExit(
+            "REFUSED: 'ground' policy obs still needs estimator-only term(s) "
+            f"{bad} — we have no torso state estimator, so on the GROUND these would "
+            "be fabricated and drive a fall. The retrain must drop them (154-dim obs).")
+    return order
+
+
+def build_obs_ground(meta: Meta, ref: Reference, q, dq, imu_quat, gyro,
+                     last_action, tick, order):
+    """Estimator-free obs (default 154) for GROUND deployment.
+
+    Identical to build_obs for the shared terms, but NEVER includes base_lin_vel or
+    motion_anchor_pos_b — no fabricated estimator quantities. `order` comes from
+    _ground_obs_order (already validated estimator-free)."""
+    ref_jp, ref_jv, _ref_apos, ref_aquat = ref.at(tick)
+    terms = {
+        "command": np.concatenate([ref_jp, ref_jv]),                       # 58
+        "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, imu_quat),  # 6 (IMU-only)
+        "base_ang_vel": gyro,                                              # 3 (IMU gyro)
+        "joint_pos": q - meta.default,                                     # 29
+        "joint_vel": dq,                                                   # 29
+        "actions": last_action,                                            # 29
+    }
+    parts, widths_ok = [], True
+    for name, w in order:
+        v = np.asarray(terms[name], float).reshape(-1)
+        if v.shape[0] != w:
+            widths_ok = False
+            print(f"  !! term {name}: width {v.shape[0]} != expected {w}")
+        parts.append(v)
+    obs = np.concatenate(parts)
+    expected = sum(w for _, w in order)
+    assert obs.shape[0] == expected and widths_ok, f"ground obs dim {obs.shape[0]} != {expected}"
     return obs, terms
 
 
@@ -450,9 +538,107 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None):
     _finalize_and_exit(0)   # guarantee soft + exit promptly (DDS teardown can hang)
 
 
+def mode_stand_hold(meta, iface, watch, secs):
+    """GROUND stage A (no policy): firm move-to-default, then HOLD the ready pose
+    standing (tethered) indefinitely until Ctrl-C / remote-damp. Pure PD — proves the
+    robot can hold the stance and lets the human judge stability before any policy runs.
+    Always ends soft (Ctrl-C/SIGTERM/crash -> damp)."""
+    if not watch:
+        raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
+    _require_human("stand-hold")
+    make_dds(iface)
+    sub = lowstate_subscriber()
+    q0, _, _, _, msg0 = read_state(sub)
+    mode_machine = int(msg0.mode_machine)
+    _release_motion_service()
+    pub, low_cmd, crc = _lowcmd_setup()
+    global _DAMP_CTX
+    _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
+    _install_damp_on_signals()
+    kp, kd = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE  # firm, overdamped
+    print(f"STAND-HOLD: firm move-to-default over {secs:.1f}s, then hold indefinitely "
+          f"(approach gains {APPROACH_KP_SCALE:.1f}x). Ctrl-C / remote-damp to stop.")
+    try:
+        _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, secs, kp, kd, meta)
+        print("at default — HOLDING. Watch stance; damp when done.")
+        while True:  # SIGINT/SIGTERM handler damps + exits; this loop just streams the hold
+            _send_cmd(pub, low_cmd, crc, mode_machine, meta.default, kp, kd, meta)
+            time.sleep(1.0 / CONTROL_HZ)
+    except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
+        print(f"\nSTOP: {e} -> damping")
+    finally:
+        _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
+    _finalize_and_exit(0)
+
+
+def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order):
+    """GROUND stage B: firm move-to-default, then run the ESTIMATOR-FREE ground policy
+    for a short capped segment. Same safety spine as mode_run but with build_obs_ground
+    (no fabricated estimator terms) and the conservative GROUND_MAX_ACTION cap.
+    Requires --max-secs (no unbounded ground runs while bringing this up)."""
+    if not watch:
+        raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
+    if not max_secs or max_secs <= 0:
+        raise SystemExit("REFUSED: ground-run requires --max-secs > 0 (cautious capped segment)")
+    _require_human("ground-run")
+    make_dds(iface)
+    sub = lowstate_subscriber()
+    q0, _, _, _, msg0 = read_state(sub)
+    mode_machine = int(msg0.mode_machine)
+    _release_motion_service()
+    pub, low_cmd, crc = _lowcmd_setup()
+    global _DAMP_CTX
+    _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
+    _install_damp_on_signals()
+    dt = 1.0 / CONTROL_HZ
+    kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
+    n_ticks = min(ref.T, int(max_secs * CONTROL_HZ))
+    obs_dim = sum(w for _, w in obs_order)
+    print(f"GROUND-RUN: stage-1 firm move-to-default (4s)+hold, then estimator-free policy "
+          f"({obs_dim}-dim obs) {n_ticks}/{ref.T} ticks @ {CONTROL_HZ:.0f}Hz "
+          f"[--max-secs {max_secs:.1f}], action cap {GROUND_MAX_ACTION:.1f}. "
+          f"Tethered. Ctrl-C / remote-damp to stop.")
+    last_action = np.zeros(meta.n)
+    last_target = meta.default.copy()
+    try:
+        _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
+        _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
+        print("at default — starting ground policy. Keep tension on the tether; damp at "
+              "the first sign of a fault, lurch, or lean.")
+        for tick in range(n_ticks):
+            t0 = time.time()
+            q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+            obs, _ = build_obs_ground(meta, ref, q, dq, imu_quat, gyro, last_action, tick, obs_order)
+            if not np.all(np.isfinite(obs)):
+                raise RuntimeError(f"non-finite obs at tick {tick}")
+            action = run_policy(session, obs, tick)
+            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > GROUND_MAX_ACTION):
+                raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
+            last_action = action
+            last_target = action_to_target(meta, action)
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
+            elapsed = time.time() - t0
+            if elapsed > 2 * dt:
+                raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
+            time.sleep(max(0.0, dt - elapsed))
+        print("ground segment done — smooth ramp to damping.")
+        steps = int(0.6 * CONTROL_HZ)
+        for s in range(steps + 1):
+            f = 1.0 - s / steps
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp * f, meta.kd, meta)
+            time.sleep(dt)
+    except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
+        print(f"\nSTOP: {e} -> damping")
+    finally:
+        _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
+    _finalize_and_exit(0)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["read", "move-to-default", "run"], default="read")
+    ap.add_argument("--mode",
+                    choices=["read", "move-to-default", "run", "stand-hold", "ground-run"],
+                    default="read")
     ap.add_argument("--meta", default=str(DEFAULT_META))
     ap.add_argument("--motion-npz", default=str(DEFAULT_MOTION))
     ap.add_argument("--policy", default=str(DEFAULT_POLICY))
@@ -460,15 +646,43 @@ def main():
     ap.add_argument("--timeout-s", type=float, default=2.0)
     ap.add_argument("--secs", type=float, default=4.0, help="move-to-default duration")
     ap.add_argument("--max-secs", type=float, default=None,
-                    help="run: cap the policy segment to this many seconds (cautious first "
-                         "test), then smooth-ramp to damping. Default = full motion.")
+                    help="run/ground-run: cap the policy segment to this many seconds "
+                         "(cautious test), then smooth-ramp to damping. Required for ground-run.")
+    ap.add_argument("--ground-meta", default=str(GROUND_META))
+    ap.add_argument("--ground-policy", default=str(GROUND_POLICY))
+    ap.add_argument("--ground-motion", default=str(GROUND_MOTION))
     ap.add_argument("--i-will-watch-the-robot", action="store_true",
                     help="required for any motion mode; you are watching, remote in hand")
     a = ap.parse_args()
 
+    import onnxruntime as ort
+
+    # stand-hold is pure PD — no policy needed. Uses the standard meta (default pose).
+    if a.mode == "stand-hold":
+        return mode_stand_hold(Meta(Path(a.meta)), a.iface, a.i_will_watch_the_robot, a.secs) or 0
+
+    # ground-run uses the ESTIMATOR-FREE ground policy. Fail-safe if it isn't there yet.
+    if a.mode == "ground-run":
+        gm, gp = Path(a.ground_meta), Path(a.ground_policy)
+        gmot = Path(a.ground_motion)
+        missing = [str(p) for p in (gm, gp) if not p.exists()]
+        if missing:
+            raise SystemExit(
+                "REFUSED: ground policy artifacts not found: " + ", ".join(missing) +
+                "\nThe obs-restricted retrain has not landed. Do NOT substitute the "
+                "gantry policy — its obs needs a state estimator and would fall on the "
+                "ground. Wait for data/policies/thriller_ground/.")
+        if not gmot.exists():   # motion may be shared with the gantry export
+            gmot = Path(a.motion_npz)
+        gmeta = Meta(gm)
+        obs_order = _ground_obs_order(gmeta)   # raises if not estimator-free
+        gref = Reference(gmot)
+        gsession = ort.InferenceSession(str(gp), providers=["CPUExecutionProvider"])
+        return mode_ground_run(gmeta, gsession, gref, a.iface, a.i_will_watch_the_robot,
+                               a.max_secs, obs_order) or 0
+
     meta = Meta(Path(a.meta))
     ref = Reference(Path(a.motion_npz))
-    import onnxruntime as ort
     session = ort.InferenceSession(a.policy, providers=["CPUExecutionProvider"])
 
     if a.mode == "read":

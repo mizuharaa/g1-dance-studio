@@ -15,3 +15,4 @@ node_modules/
 *.mp4
 *.npz
 .secrets/
+.claude/worktrees/

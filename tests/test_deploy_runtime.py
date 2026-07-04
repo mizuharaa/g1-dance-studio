@@ -76,3 +76,82 @@ def test_target_clamped_to_limits():
     tgt = dr.action_to_target(meta, np.full(29, 100.0))
     clamped = np.clip(tgt, meta.q_lo, meta.q_hi)
     assert np.all(clamped <= meta.q_hi + 1e-9) and np.all(clamped >= meta.q_lo - 1e-9)
+
+
+# ---- GROUND (obs-restricted) deployment ---------------------------------------
+
+def test_ground_layout_is_154_and_estimator_free():
+    # The documented fallback layout drops exactly the two estimator-only terms.
+    assert sum(w for _, w in dr.GROUND_OBS_LAYOUT) == 154
+    names = {n for n, _ in dr.GROUND_OBS_LAYOUT}
+    assert not (names & dr.ESTIMATOR_DEPENDENT_TERMS)
+    # and it is the 160-dim layout minus base_lin_vel + motion_anchor_pos_b
+    full = sum(w for _, w in dr.OBS_LAYOUT)
+    assert full - dr.TERM_WIDTHS["base_lin_vel"] - dr.TERM_WIDTHS["motion_anchor_pos_b"] == 154
+
+
+def _meta_with_terms(obs_terms):
+    if not dr.DEFAULT_META.exists():
+        pytest.skip("meta not present")
+    meta = dr.Meta(dr.DEFAULT_META)
+    meta.obs_terms = obs_terms
+    return meta
+
+
+def test_ground_obs_order_defaults_to_documented_layout():
+    order = dr._ground_obs_order(_meta_with_terms(None))
+    assert order == dr.GROUND_OBS_LAYOUT
+
+
+def test_ground_obs_order_trusts_declared_layout():
+    declared = ["command", "motion_anchor_ori_b", "base_ang_vel",
+                "joint_pos", "joint_vel", "actions"]
+    order = dr._ground_obs_order(_meta_with_terms(declared))
+    assert [n for n, _ in order] == declared
+    assert sum(w for _, w in order) == 154
+
+
+def test_ground_obs_order_refuses_estimator_dependent_terms():
+    # A "ground" policy that still needs base_lin_vel is NOT estimator-free -> refuse.
+    bad = ["command", "base_lin_vel", "motion_anchor_ori_b", "base_ang_vel",
+           "joint_pos", "joint_vel", "actions"]
+    with pytest.raises(SystemExit):
+        dr._ground_obs_order(_meta_with_terms(bad))
+    # likewise motion_anchor_pos_b
+    bad2 = ["command", "motion_anchor_pos_b", "motion_anchor_ori_b", "base_ang_vel",
+            "joint_pos", "joint_vel", "actions"]
+    with pytest.raises(SystemExit):
+        dr._ground_obs_order(_meta_with_terms(bad2))
+
+
+def test_ground_obs_order_refuses_unknown_term():
+    with pytest.raises(SystemExit):
+        dr._ground_obs_order(_meta_with_terms(["command", "mystery_term"]))
+
+
+def test_build_obs_ground_is_154_finite_and_estimator_free():
+    if not dr.DEFAULT_META.exists() or not dr.DEFAULT_MOTION.exists():
+        pytest.skip("policy artifacts not present")
+    meta = dr.Meta(dr.DEFAULT_META)
+    ref = dr.Reference(dr.DEFAULT_MOTION)
+    # Force the estimator-free order (the gantry meta itself declares the full 160-dim
+    # layout, which _ground_obs_order correctly refuses — see the refusal test).
+    order = dr.GROUND_OBS_LAYOUT
+    q = meta.default + np.deg2rad(np.random.uniform(-15, 15, 29))
+    dq = np.random.uniform(-0.5, 0.5, 29)
+    gyro = np.random.uniform(-0.2, 0.2, 3)
+    obs, terms = dr.build_obs_ground(meta, ref, q, dq, np.array([1.0, 0, 0, 0]),
+                                     gyro, np.zeros(29), tick=0, order=order)
+    assert obs.shape == (154,)
+    assert np.all(np.isfinite(obs))
+    # NO fabricated estimator terms are present
+    assert "base_lin_vel" not in terms and "motion_anchor_pos_b" not in terms
+    # shared terms are computed identically to the gantry builder
+    assert np.allclose(terms["joint_pos"], q - meta.default)
+    assert np.allclose(terms["joint_vel"], dq)
+    assert np.allclose(terms["base_ang_vel"], gyro)
+
+
+def test_ground_max_action_is_conservative():
+    # Ground default cap must be tighter than the gantry cap (falls are unforgiving).
+    assert dr.GROUND_MAX_ACTION <= dr.MAX_ACTION

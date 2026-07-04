@@ -837,6 +837,27 @@ unitreerobotics one 401s. Env quirks: `g1dance` env initially lacked pip (fixed 
 ensurepip; earlier installs leaked to ~/.local user-site — harmless, env now
 self-contained); conda needs `-c conda-forge --override-channels` (Anaconda ToS).
 
+## Ground runtime prepared (2026-07-04, sim/code only — no robot touched)
+
+Staged tethered-ground path added to `pipeline/deploy_runtime.py`, ready for a
+human-supervised session (NOT autonomous — no ground motion has run):
+- `stand-hold` mode: firm PD move-to-default then hold the ready stance standing,
+  indefinitely until Ctrl-C / B-damp. No policy — proves the robot can stand tethered.
+- `ground-run --max-secs N` mode: runs the estimator-free ground policy for a capped
+  segment. `--max-secs` mandatory; conservative `GROUND_MAX_ACTION` (default 6.0).
+- Both gated by `--i-will-watch-the-robot` + `CONFIRMED_BY_HUMAN=alois`, both ALWAYS
+  end soft (SIGINT/SIGTERM/crash → damp + os._exit).
+- `build_obs_ground` builds the 154-dim estimator-free obs (drops base_lin_vel +
+  motion_anchor_pos_b). `_ground_obs_order` reads the ground meta's declared obs order
+  and **hard-refuses** any policy that still needs an estimator term, or if the
+  `data/policies/thriller_ground/` artifacts are absent (retrain not yet landed).
+- 13 new offline tests (154-dim, estimator-free, refusal paths); full suite 220 passed.
+- Procedure: `docs/GROUND_TETHERED_RUNBOOK.md` (Stage 0 read → A stand-hold → B capped
+  ground segments 3→5→10→20s→full, abort criteria, safety-layer explanation).
+- BLOCKED on: obs-restricted retrain (agent af55f59b0755ac816) producing
+  `data/policies/thriller_ground/` + `docs/ground_policy.md`. Until then ground-run
+  refuses by design; stand-hold works now (pure PD).
+
 ## Next actions
 
 1. ~~third_party clones + interface reading~~ DONE 2026-07-02 (SHAs + BeyondMimic
