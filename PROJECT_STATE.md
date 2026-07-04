@@ -639,6 +639,20 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   focus on arms/torso tracking + no fault/violence.** User is the physical e-stop (remote
   damping); considering a webcam for Claude to observe (Claude drives+sees, user stays
   hand-on-damping — Claude will NOT run autonomous motion without the human e-stop).
+- 2026-07-05 (AT ROBOT — 🎉 FIRST DANCE ON HARDWARE): **The G1 performed the opening of
+  Thriller on the gantry.** `run --max-secs 3`: released balance service, Stage-1 to ready
+  pose, then the POLICY executed — webcam confirms the arms moved through distinct Thriller
+  poses (frame 13 arms down/back → later arms raised out). Legs bent/passive (no ground —
+  expected). Policy runs on real hardware end-to-end. Webcam working (video0; pipewire
+  grabs it periodically — reclaim via `systemctl --user restart pipewire.service
+  pipewire.socket`). Cost/budget fine.
+  **BUG (fixing, agent adeb4398f5662f914): the run process HUNG on exit** (CycloneDDS
+  shutdown) → outer timeout SIGTERM-killed it → robot left HOLDING an energized pose
+  instead of soft-settling. Fix: clean prompt exit (os._exit after damping) + SIGTERM/INT
+  handler that DAMPS before exit (robot must ALWAYS end soft on any exit) + confirm
+  max-secs strictly caps. User damped via remote for now. **Paused autonomy on this
+  anomaly — resume clean gantry runs after the exit fix; GROUND still hard-blocked (needs
+  torso state estimator; not built).**
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
