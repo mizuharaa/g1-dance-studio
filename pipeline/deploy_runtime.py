@@ -62,6 +62,13 @@ MAX_ACTION = float(os.environ.get("MAX_ACTION", "8.0"))  # |action|>this -> damp
 # to onboard control and the REMOTE/app can pair again. Leaving it released strands the
 # robot (remote can't reconnect — learned the hard way 2026-07-04). "" disables.
 RESTORE_MOTION_MODE = os.environ.get("RESTORE_MOTION_MODE", "ai")
+# Policy-phase LEG gain boost. The trained gains stand/balance the robot in SIM, but are
+# too soft to bear its weight on the real hardware — it sags into a crouch and dances from
+# there instead of standing (observed 2026-07-04). Scale ONLY the leg joints (hips/knees/
+# ankles, idx 0-11) so the legs can hold standing under load; arms keep their trained gains
+# so the dance tracks. Tune UP on the tether while watching for oscillation. Env-overridable.
+GROUND_LEG_KP_SCALE = float(os.environ.get("GROUND_LEG_KP_SCALE", "1.0"))
+LEG_JOINT_IDX = list(range(12))  # left leg 0-5, right leg 6-11 (hip pitch/roll/yaw,knee,ankle p/r)
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
@@ -902,6 +909,13 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
           f"action cap {GROUND_MAX_ACTION:.1f}. Tethered. Ctrl-C / remote-damp to stop.")
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
+    # Policy-phase gains: boost the LEGS so they can bear weight and hold standing while the
+    # arms dance at their trained gains. GROUND_LEG_KP_SCALE=1.0 -> unchanged (old behaviour).
+    kp_pol, kd_pol = meta.kp.astype(float).copy(), meta.kd.astype(float).copy()
+    kp_pol[LEG_JOINT_IDX] *= GROUND_LEG_KP_SCALE
+    kd_pol[LEG_JOINT_IDX] *= GROUND_LEG_KP_SCALE
+    if GROUND_LEG_KP_SCALE != 1.0:
+        print(f"   LEG gains x{GROUND_LEG_KP_SCALE:.1f} during policy (weight-bearing); arms unchanged.")
     try:
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
         _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
@@ -928,7 +942,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
                 raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
             last_action = action
             last_target = action_to_target(meta, action)
-            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, kp_pol, kd_pol, meta)
             elapsed = time.time() - t0
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
