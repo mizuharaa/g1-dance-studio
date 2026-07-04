@@ -835,11 +835,91 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
     _finalize_and_exit(0)
 
 
+def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
+    """GROUND stage B (KINEMATIC ODOMETRY): run the PROVEN gantry policy on the ground with
+    base_lin_vel + torso-height feedback estimated from the LEGS (joint q/dq + IMU), which
+    is fully under our control — unlike rt/odommodestate, which FREEZES when the motion
+    service is released (confirmed on hardware 2026-07-04). Validated offline: leg-odom
+    base_lin_vel is within the policy's ±0.5 m/s trained band on 97.8% of frames.
+
+    obs: real base_lin_vel (leg odom); motion_anchor_pos_b = real height error (leg-odom
+    Z change) with XY under the tracking assumption (drift-free, correct for an IN-PLACE
+    dance). Same safety spine + GROUND_MAX_ACTION cap; --max-secs required; always soft.
+    """
+    if not watch:
+        raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
+    if not max_secs or max_secs <= 0:
+        raise SystemExit("REFUSED: ground-run-legodom requires --max-secs > 0")
+    _require_human("ground-run-legodom")
+    from pipeline.leg_odometry import LegOdometry
+    legodom = LegOdometry(list(meta.joint_order))
+    make_dds(iface)
+    sub = lowstate_subscriber()
+    q0, _, _, _, msg0 = read_state(sub)
+    mode_machine = int(msg0.mode_machine)
+    _release_motion_service()
+    pub, low_cmd, crc = _lowcmd_setup()
+    global _DAMP_CTX
+    _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
+    _install_damp_on_signals()
+    dt = 1.0 / CONTROL_HZ
+    kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
+    n_ticks = min(ref.T, int(max_secs * CONTROL_HZ))
+    print(f"GROUND-RUN-LEGODOM: stage-1 firm move-to-default (4s)+hold, then PROVEN gantry "
+          f"policy (160-dim obs, base_lin_vel+height from LEG kinematics — service-independent) "
+          f"{n_ticks}/{ref.T} ticks @ {CONTROL_HZ:.0f}Hz [--max-secs {max_secs:.1f}], "
+          f"action cap {GROUND_MAX_ACTION:.1f}. Tethered. Ctrl-C / remote-damp to stop.")
+    last_action = np.zeros(meta.n)
+    last_target = meta.default.copy()
+    try:
+        _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
+        _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
+        q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+        h0 = legodom.estimate(q, dq, quat_wxyz_to_mat(imu_quat), gyro)[1]  # start height datum
+        print("at default — starting leg-odometry policy. Keep tension on the tether; "
+              "damp at the first sign of a fault, lurch, or lean.")
+        for tick in range(n_ticks):
+            t0 = time.time()
+            q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+            R_base = quat_wxyz_to_mat(imu_quat)
+            v_body, h_est, _ = legodom.estimate(q, dq, R_base, gyro)
+            v_world = R_base @ v_body
+            ref_disp = ref.at(tick)[2] - ref.apos[0]
+            # XY: tracking assumption (in-place dance) -> anchor XY ~0, drift-free.
+            # Z: real height change from leg odom (bias cancels in the displacement).
+            robot_disp = np.array([ref_disp[0], ref_disp[1], h_est - h0])
+            obs, _ = build_obs_odom(meta, ref, q, dq, imu_quat, gyro, last_action, tick,
+                                    robot_disp, v_world)
+            if not np.all(np.isfinite(obs)):
+                raise RuntimeError(f"non-finite obs at tick {tick}")
+            action = run_policy(session, obs, tick)
+            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > GROUND_MAX_ACTION):
+                raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
+            last_action = action
+            last_target = action_to_target(meta, action)
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
+            elapsed = time.time() - t0
+            if elapsed > 2 * dt:
+                raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
+            time.sleep(max(0.0, dt - elapsed))
+        print("ground segment done — smooth ramp to damping.")
+        steps = int(0.6 * CONTROL_HZ)
+        for s in range(steps + 1):
+            f = 1.0 - s / steps
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp * f, meta.kd, meta)
+            time.sleep(dt)
+    except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
+        print(f"\nSTOP: {e} -> damping")
+    finally:
+        _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
+    _finalize_and_exit(0)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode",
                     choices=["read", "move-to-default", "run", "stand-hold", "ground-run",
-                             "ground-run-odom"],
+                             "ground-run-odom", "ground-run-legodom"],
                     default="read")
     ap.add_argument("--meta", default=str(DEFAULT_META))
     ap.add_argument("--motion-npz", default=str(DEFAULT_MOTION))
@@ -897,6 +977,10 @@ def main():
         # PROVEN gantry policy (meta/ref/session above) + honest odometry-fed obs.
         return mode_ground_run_odom(meta, session, ref, a.iface, a.i_will_watch_the_robot,
                                     a.max_secs) or 0
+    if a.mode == "ground-run-legodom":
+        # PROVEN gantry policy + base_lin_vel/height from LEG kinematics (service-independent).
+        return mode_ground_run_legodom(meta, session, ref, a.iface, a.i_will_watch_the_robot,
+                                       a.max_secs) or 0
 
 
 if __name__ == "__main__":

@@ -1020,3 +1020,19 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - NET: the odometry-fed path is frame-correct and noise-robust by construction. Remaining unknowns are
   purely hardware (does odom persist under our low-level control; does odom vel field frame = body) and
   resolve on the first tethered bring-up. Offline validation is as complete as it can be.
+
+## 2026-07-04 ~17:15 ICT — Onboard odom FREEZES on release; built KINEMATIC (leg) odometry instead.
+- First ground-run-odom on the tether: frozen-estimate GUARD FIRED — rt/odommodestate stamp froze
+  the moment the motion service was released for low-level control; robot damped safe. So the onboard
+  estimate and full-body control are mutually exclusive. Safety design validated on hardware.
+- FIX: pipeline/leg_odometry.py (LegOdometry) — base_lin_vel + torso height from LEG kinematics
+  (MuJoCo FK/Jacobian on the menagerie g1.xml, planted-foot assumption, contact-weighted blend,
+  ±2.5 m/s clip). Service-INDEPENDENT (only LowState q/dq + IMU).
+- VALIDATED offline vs reference ground truth (tools/validate_leg_odom.py): base_lin_vel within the
+  policy's ±0.5 m/s trained band on 97.8% of frames (mean err 0.13). End-to-end policy smoke
+  (tools/sim_ground_legodom.py): finite, bounded actions over the full 51.8s. Tests: tests/
+  test_leg_odometry.py (4) + full suite green (23).
+- deploy_runtime: new mode `ground-run-legodom` (PROVEN gantry policy + leg-odom obs: real base_lin_vel,
+  anchor XY=tracking-assumption/drift-free, anchor Z=real leg-odom height feedback). Full safety spine,
+  GROUND_MAX_ACTION=10, --max-secs. Runbook: Stage B-LEGODOM is now PREFERRED; B-ODOM superseded.
+- READY: tethered try of ground-run-legodom (human-supervised). Stage 0 read still valid to pre-check.

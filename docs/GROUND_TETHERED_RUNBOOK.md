@@ -132,13 +132,36 @@ is a separate go/no-go decision with the human present, not part of this documen
 
 ---
 
-## Stage B-ODOM — PROVEN gantry policy, fed the onboard estimate (PREFERRED)
+## Stage B-LEGODOM — PROVEN gantry policy, base state from LEG kinematics (PREFERRED)
 
-Added 2026-07-04 after finding the robot publishes a base-state estimate on
-`rt/odommodestate` (~184 Hz: position + velocity + height). This lets the **gantry
-policy — already 100% in sim** — run on the ground with an HONEST 160-D obs (real
-`base_lin_vel` + re-anchored `motion_anchor_pos_b`) instead of the estimator-free
-retrain (which failed to balance). This is the preferred Stage B.
+Added 2026-07-04. This is the **preferred** Stage B. The gantry policy (100% in sim) runs
+on the ground with `base_lin_vel` + torso-height feedback estimated from the LEGS (joint
+q/dq + IMU) — fully under our control, no dependency on the onboard service.
+
+```
+# 3 seconds first — tethered, remote in hand
+GROUND_MAX_ACTION=10 python -m pipeline.deploy_runtime --mode ground-run-legodom \
+  --iface enp0s31f6 --max-secs 3 --i-will-watch-the-robot
+```
+Same `3 → 5 → 10 → 20 → full` progression. Uses `GROUND_MAX_ACTION=10` (same reason as
+Stage B-ODOM: the gantry policy's real action range is ~8.5).
+
+Why NOT the onboard estimate (`rt/odommodestate`): it FREEZES the moment the motion
+service is released for low-level control (confirmed on hardware 2026-07-04 — `ground-run-odom`
+correctly damped on the frozen-stamp guard). Leg odometry sidesteps that entirely.
+
+Validated OFFLINE (`tools/validate_leg_odom.py`, `tools/sim_ground_legodom.py`): leg-odom
+`base_lin_vel` is within the policy's ±0.5 m/s trained band on **97.8%** of frames (mean
+err 0.13 m/s); the full-motion policy smoke is finite + bounded. Assumes an **in-place**
+dance (XY under the tracking assumption; real height feedback via leg-odom Z). Flight/fast-
+swing frames (~2%) are clipped to ±2.5 m/s so a bad frame can't feed the policy garbage.
+
+## Stage B-ODOM — onboard estimate (SUPERSEDED by LEGODOM — freezes on release)
+
+Kept for reference. Uses `rt/odommodestate` (position/velocity/height, ~184 Hz). The gantry
+policy runs with an HONEST 160-D obs from the onboard estimate — BUT the estimate freezes
+when the motion service is released, so this mode damps on the frozen-stamp guard in
+practice. Use `ground-run-legodom` instead.
 
 ```
 # 3 seconds first — tethered, remote in hand
