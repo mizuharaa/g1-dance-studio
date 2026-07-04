@@ -46,6 +46,9 @@ import numpy as np
 # meta). The signal handler + clean-exit use it to GUARANTEE the robot ends DAMPED (soft)
 # on ANY exit path — normal end, Ctrl-C, or an external SIGTERM/kill.
 _DAMP_CTX = None
+# Active Telemetry recorder (set by motion modes). Saved best-effort in _finalize_and_exit
+# AFTER damping — safety never waits on telemetry.
+_TELEM = None
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_META = ROOT / "data/policies/thriller/policy_meta.json"
@@ -57,7 +60,9 @@ CONTROL_HZ = 50.0
 # Firm approach gains for reaching the ready pose (verified on hardware 2026-07-05):
 # scale BOTH kp and kd so the joint stays overdamped. Env-overridable.
 APPROACH_KP_SCALE = float(os.environ.get("APPROACH_KP_SCALE", "2.0"))
-MAX_ACTION = float(os.environ.get("MAX_ACTION", "8.0"))  # |action|>this -> damp; gantry legs spike, env-tunable
+# |action|>this -> damp. 12.0 is hardware-validated: at 8.0 free-swinging gantry legs grazed
+# the cap and the safety damped a healthy run; 12 completed the full dance twice (2026-07-05).
+MAX_ACTION = float(os.environ.get("MAX_ACTION", "12.0"))
 # On exit, re-activate the onboard motion service we released, so the robot is handed back
 # to onboard control and the REMOTE/app can pair again. Leaving it released strands the
 # robot (remote can't reconnect — learned the hard way 2026-07-04). "" disables.
@@ -73,13 +78,31 @@ GROUND_LEG_KP_SCALE = float(os.environ.get("GROUND_LEG_KP_SCALE", "1.0"))
 # balance — stiffening them fought the policy and the robot fell sideways into the tether
 # (observed 2026-07-04, 5s run). Leave roll/yaw at trained gains so lateral balance is free.
 LEG_JOINT_IDX = [0, 3, 4, 6, 9, 10]  # L/R hip_pitch, knee, ankle_pitch
-# Feedforward gravity compensation: hold the commanded pose at the TRAINED gains (no boost)
-# by sending the gravity-hold torque the sim's position actuator provides implicitly. Pure PD
-# on hardware omits it -> the legs sag -> we gain-boosted -> the boosted PD fighting the residual
-# sag error burned ~20 Nm at the ankle (thermal wall). With FF, the ankle carries its true
-# ~0.2 Nm. Root fix; keeps the full-body dance, no retrain, no boost. On by default for ground.
-GRAVITY_FF = os.environ.get("GRAVITY_FF", "0") == "1"  # default OFF: not the fix (real ankle load is balance-correction from a sim2real gap, not gravity)
+# Feedforward gravity compensation (EXPERIMENTAL, default OFF). NOTE (audit 2026-07-05):
+# the earlier rationale ("sim's position actuator implicitly provides gravity-hold torque")
+# was wrong physics — sim and firmware run the SAME PD law; sim stands because the POLICY
+# balances, not because the actuator hides gravity. Also the 2026-07-04 FF hardware test
+# computed HANGING (fixed-base) torques, i.e. ~zero ankle FF, so it falsified nothing.
+# A standing-support (feet-loaded) gravity FF remains an untested deploy-side lever.
+GRAVITY_FF = os.environ.get("GRAVITY_FF", "0") == "1"
 GRAVITY_FF_SCALE = float(os.environ.get("GRAVITY_FF_SCALE", "1.0"))  # ramp-in / trim knob
+# Yaw-align the reference world frame to the robot's actual heading at policy start.
+# Training expresses robot and reference in ONE world frame; on hardware the IMU yaw is
+# arbitrary (boot heading) and the show workflow WALKS the robot into place first. The
+# thriller_deploy reference's t=0 torso yaw is 90.3 deg in its npz world frame, so without
+# this alignment motion_anchor_ori_b carries a permanent yaw error far outside anything
+# training saw (RSI yaw range ±0.2 rad) — the policy fights it all dance (audit 2026-07-05).
+# '0' restores the old unaligned behaviour.
+YAW_ALIGN = os.environ.get("YAW_ALIGN", "1") != "0"
+# Use the TORSO orientation (pelvis IMU quat composed with waist-joint FK) for the anchor
+# obs terms — training's anchor body is torso_link, the IMU sits at the pelvis. '1' enables
+# after the offline sensitivity test quantifies it; '0' = pelvis approximation (old behaviour).
+TORSO_ANCHOR = os.environ.get("TORSO_ANCHOR", "1") != "0"
+# Per-tick run telemetry (q/dq/tau_est/temps/IMU/action/target -> data/telemetry/*.npz).
+# The '15 Nm ankle' finding came from an ad-hoc uncommitted capture (audit: unauditable);
+# every motion run now records automatically so hardware numbers have provenance.
+TELEMETRY = os.environ.get("TELEMETRY", "1") != "0"
+TELEMETRY_DIR = Path(os.environ.get("TELEMETRY_DIR", str(ROOT / "data" / "telemetry")))
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
@@ -97,9 +120,10 @@ OBS_LAYOUT = [
 GROUND_META = ROOT / "data/policies/thriller_ground/policy_meta.json"
 GROUND_POLICY = ROOT / "data/policies/thriller_ground/policy.onnx"
 GROUND_MOTION = ROOT / "data/policies/thriller_ground/thriller_deploy.npz"
-# Falls are unforgiving on the ground; start well below the gantry cap and tune up
-# only after a clean tethered segment. Env-overridable.
-GROUND_MAX_ACTION = float(os.environ.get("GROUND_MAX_ACTION", "6.0"))
+# Falls are unforgiving on the ground. The gantry policy's real action range is ~8.5, so
+# the old default 6.0 false-tripped ~4% of ticks (runbook Stage B-ODOM); 10.0 is the
+# measured-need default (audit item 7c). Re-measure for any retrained policy. Env-overridable.
+GROUND_MAX_ACTION = float(os.environ.get("GROUND_MAX_ACTION", "10.0"))
 # Per-term widths, so build_obs_ground can validate ANY layout the ground meta
 # declares (it reads the order from the meta rather than hard-coding it).
 TERM_WIDTHS = {
@@ -136,6 +160,61 @@ def mat_first_two_cols_b(q_ref_wxyz, q_rob_wxyz):
     return m[:, :2].reshape(-1)  # columns 0,1 -> 6 values
 
 
+def quat_mul_wxyz(a, b):
+    aw, ax, ay, az = a
+    bw, bx, by, bz = b
+    return np.array([
+        aw * bw - ax * bx - ay * by - az * bz,
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+    ])
+
+
+def quat_axis_angle(axis, angle):
+    s = np.sin(angle / 2.0)
+    return np.array([np.cos(angle / 2.0), axis[0] * s, axis[1] * s, axis[2] * s])
+
+
+def yaw_of_quat_wxyz(q):
+    R = quat_wxyz_to_mat(q)
+    return float(np.arctan2(R[1, 0], R[0, 0]))
+
+
+# Waist chain pelvis->torso in the G1 MJCF: yaw about z, then roll about x, then pitch
+# about y (menagerie g1.xml joint axes; validated against MuJoCo FK in tests).
+_WAIST_CHAIN = (
+    ("waist_yaw_joint", (0.0, 0.0, 1.0)),
+    ("waist_roll_joint", (1.0, 0.0, 0.0)),
+    ("waist_pitch_joint", (0.0, 1.0, 0.0)),
+)
+
+
+def _anchor_quat(meta, q, imu_quat):
+    """Orientation used for the anchor obs terms. Training anchors on torso_link; the
+    IMU sits at the pelvis, so compose the waist joints on top of the IMU quat.
+    TORSO_ANCHOR=0 falls back to the raw pelvis quat (pre-2026-07-05 behaviour)."""
+    if not TORSO_ANCHOR:
+        return np.asarray(imu_quat, float)
+    qt = np.asarray(imu_quat, float)
+    for name, axis in _WAIST_CHAIN:
+        i = meta.waist_idx.get(name)
+        if i is not None:
+            qt = quat_mul_wxyz(qt, quat_axis_angle(axis, float(q[i])))
+    return qt
+
+
+def _align_reference(meta, ref, q, imu_quat):
+    """Yaw-align the reference world to the robot's heading NOW (call ONCE, at policy
+    start, robot at the ready pose). Returns the applied offset in radians."""
+    if not YAW_ALIGN:
+        print("YAW_ALIGN=0 — reference kept in its own world yaw frame (npz frame).")
+        return 0.0
+    dyaw = ref.align_yaw(_anchor_quat(meta, q, imu_quat))
+    print(f"reference yaw-aligned to robot heading (offset {np.degrees(dyaw):+.1f} deg).")
+    return dyaw
+
+
 class Meta:
     def __init__(self, path: Path):
         m = json.loads(path.read_text())
@@ -147,6 +226,11 @@ class Meta:
         self.joint_order = list(m["joint_order_29dof"])
         self.n = len(self.joint_order)
         assert self.n == 29, f"expected 29 joints, got {self.n}"
+        # Waist joint indices for the pelvis->torso anchor FK (None if absent).
+        self.waist_idx = {
+            name: (self.joint_order.index(name) if name in self.joint_order else None)
+            for name, _axis in _WAIST_CHAIN
+        }
         # Optional: the exact obs term order this policy was trained with. The ground
         # (obs-restricted) exporter writes it; when present, build_obs_ground trusts it
         # over any hard-coded layout so the runtime auto-adapts to the trained obs.
@@ -175,6 +259,79 @@ class Reference:
         i = min(tick, self.T - 1)
         return self.jp[i], self.jv[i], self.apos[i], self.aquat[i]
 
+    def align_yaw(self, anchor_quat_wxyz):
+        """Rotate the reference world about +z so its frame-0 heading matches the
+        robot's actual heading. Training compares robot and reference in ONE world
+        frame; the IMU world yaw is arbitrary (boot heading), so without this the
+        anchor obs carry a permanent yaw error (ref t=0 yaw is 90.3 deg in the npz
+        frame). Rotates positions about the frame-0 origin (displacement math is
+        unchanged in magnitude; heights untouched). Call once per run."""
+        dyaw = yaw_of_quat_wxyz(anchor_quat_wxyz) - yaw_of_quat_wxyz(self.aquat[0])
+        c, s = np.cos(dyaw), np.sin(dyaw)
+        Rz = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+        self.apos = (self.apos - self.apos[0]) @ Rz.T + self.apos[0]
+        qz = quat_axis_angle((0.0, 0.0, 1.0), dyaw)
+        self.aquat = np.array([quat_mul_wxyz(qz, qq) for qq in self.aquat])
+        self.yaw_offset = dyaw
+        return dyaw
+
+
+class Telemetry:
+    """Auditable per-tick run capture -> data/telemetry/<stamp>_<mode>.npz.
+
+    Records q, dq, tau_est, temperatures, IMU quat/gyro, action, target each tick.
+    The '15 Nm ankle' hardware number came from an ad-hoc uncommitted script (audit
+    2026-07-05: unauditable, window contaminated by the approach ramp) — with this,
+    every run's numbers are reproducible, stage-tagged, and survive the session.
+    Design rules: add() never raises into the control loop and does NO disk I/O
+    (pure appends); save() runs at exit AFTER the robot is damped."""
+
+    def __init__(self, mode, meta, extra=None):
+        self.mode, self.meta = mode, meta
+        self.extra = extra or {}
+        keys = ("tick", "t", "stage", "q", "dq", "tau_est", "temp",
+                "imu_quat", "gyro", "action", "target")
+        self.rows = {k: [] for k in keys}
+        self.path = TELEMETRY_DIR / f"{time.strftime('%Y%m%d-%H%M%S')}_{mode}.npz"
+
+    def add(self, tick, q, dq, msg, imu_quat, gyro, action, target, stage=1):
+        try:
+            ms = msg.motor_state
+            tau = [float(ms[i].tau_est) for i in range(29)]
+            temp = [float(np.atleast_1d(np.asarray(ms[i].temperature, dtype=float))[0])
+                    for i in range(29)]
+            r = self.rows
+            r["tick"].append(int(tick)); r["t"].append(time.time()); r["stage"].append(int(stage))
+            r["q"].append(np.asarray(q, float)); r["dq"].append(np.asarray(dq, float))
+            r["tau_est"].append(tau); r["temp"].append(temp)
+            r["imu_quat"].append(np.asarray(imu_quat, float))
+            r["gyro"].append(np.asarray(gyro, float))
+            r["action"].append(np.asarray(action, float))
+            r["target"].append(np.asarray(target, float))
+        except Exception:
+            pass  # telemetry must never disturb the control loop
+
+    def save(self, quiet=False):
+        if not TELEMETRY or not self.rows["tick"]:
+            return
+        try:
+            TELEMETRY_DIR.mkdir(parents=True, exist_ok=True)
+            arrays = {k: np.asarray(v) for k, v in self.rows.items()}
+            arrays["joint_order"] = np.array(self.meta.joint_order)
+            arrays["kp"], arrays["kd"] = self.meta.kp, self.meta.kd
+            arrays["run_meta_json"] = np.array(json.dumps({
+                "mode": self.mode, "approach_kp_scale": APPROACH_KP_SCALE,
+                "ground_leg_kp_scale": GROUND_LEG_KP_SCALE, "gravity_ff": GRAVITY_FF,
+                "yaw_align": YAW_ALIGN, "torso_anchor": TORSO_ANCHOR,
+                "max_action": MAX_ACTION, "ground_max_action": GROUND_MAX_ACTION,
+                **self.extra}))
+            np.savez_compressed(self.path, **arrays)
+            if not quiet:
+                print(f"telemetry saved: {self.path} ({len(self.rows['tick'])} ticks)")
+        except Exception as e:  # noqa: BLE001 - best-effort by design
+            if not quiet:
+                print(f"telemetry save failed (non-fatal): {e}")
+
 
 # ---- LowState reading (unitree_sdk2py, like ~/robot teleop) --------------------
 def make_dds(iface):
@@ -191,9 +348,20 @@ def lowstate_subscriber():
 
 
 def read_state(sub, timeout_s=2.0):
-    msg = sub.Read(int(timeout_s * 1000))
+    # ChannelSubscriber.Read takes SECONDS (cyclonedds duration) — the old code passed
+    # int(timeout_s*1000), so failure paths waited ~1000x too long before the NO-GO.
+    msg = sub.Read(timeout_s)
     if msg is None:
         raise SystemExit(f"no LowState within {timeout_s}s — robot off / wrong iface / LAN down. NO-GO.")
+    # Drain any queued history to the LATEST sample (bounded). With default DDS QoS the
+    # reader keeps only the newest sample and this is a no-op, but any deeper history
+    # would feed the policy stale state — the thermal monitor went blind on exactly
+    # that bug class. 0.5 ms poll, break on first empty read.
+    for _ in range(8):
+        newer = sub.Read(0.0005)
+        if newer is None:
+            break
+        msg = newer
     q = np.array([msg.motor_state[i].q for i in range(29)], float)
     dq = np.array([msg.motor_state[i].dq for i in range(29)], float)
     imu = msg.imu_state
@@ -245,12 +413,16 @@ def read_odom(sub, timeout_s=0.5):
 def build_obs(meta: Meta, ref: Reference, q, dq, imu_quat, gyro, last_action, tick):
     ref_jp, ref_jv, ref_apos, ref_aquat = ref.at(tick)
     ref_apos0 = ref.apos[0]
-    R_rob = quat_wxyz_to_mat(imu_quat)   # robot torso orientation from IMU (pelvis~torso approx)
+    # Anchor terms use the TORSO orientation (training's anchor body); pelvis IMU quat
+    # composed with waist FK. base_ang_vel stays the raw pelvis gyro (training reads the
+    # pelvis IMU site). Reference must be yaw-aligned first (_align_reference).
+    anchor_q = _anchor_quat(meta, q, imu_quat)
+    R_anchor = quat_wxyz_to_mat(anchor_q)
     terms = {
         "command": np.concatenate([ref_jp, ref_jv]),                    # 58
         # gantry approx: robot torso pos ~= reference start -> displacement of ref in robot frame
-        "motion_anchor_pos_b": R_rob.T @ (ref_apos - ref_apos0),        # 3
-        "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, imu_quat),  # 6
+        "motion_anchor_pos_b": R_anchor.T @ (ref_apos - ref_apos0),     # 3
+        "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, anchor_q),  # 6
         "base_lin_vel": np.zeros(3),                                     # 3 (gantry ~= 0)
         "base_ang_vel": gyro,                                            # 3 (IMU gyro)
         "joint_pos": q - meta.default,                                  # 29
@@ -285,11 +457,13 @@ def build_obs_odom(meta: Meta, ref: Reference, q, dq, imu_quat, gyro, last_actio
     """
     ref_jp, ref_jv, ref_apos, ref_aquat = ref.at(tick)
     ref_disp = ref_apos - ref.apos[0]
-    R_rob = quat_wxyz_to_mat(imu_quat)
+    R_rob = quat_wxyz_to_mat(imu_quat)   # pelvis frame — training's base_lin_vel site
+    anchor_q = _anchor_quat(meta, q, imu_quat)   # torso frame — training's anchor body
+    R_anchor = quat_wxyz_to_mat(anchor_q)
     terms = {
         "command": np.concatenate([ref_jp, ref_jv]),                    # 58
-        "motion_anchor_pos_b": R_rob.T @ (ref_disp - robot_disp),       # 3 (HONEST)
-        "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, imu_quat),  # 6
+        "motion_anchor_pos_b": R_anchor.T @ (ref_disp - robot_disp),    # 3 (HONEST)
+        "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, anchor_q),  # 6
         "base_lin_vel": R_rob.T @ v_world,                              # 3 (HONEST)
         "base_ang_vel": gyro,                                            # 3
         "joint_pos": q - meta.default,                                  # 29
@@ -341,9 +515,10 @@ def build_obs_ground(meta: Meta, ref: Reference, q, dq, imu_quat, gyro,
     motion_anchor_pos_b — no fabricated estimator quantities. `order` comes from
     _ground_obs_order (already validated estimator-free)."""
     ref_jp, ref_jv, _ref_apos, ref_aquat = ref.at(tick)
+    anchor_q = _anchor_quat(meta, q, imu_quat)
     terms = {
         "command": np.concatenate([ref_jp, ref_jv]),                       # 58
-        "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, imu_quat),  # 6 (IMU-only)
+        "motion_anchor_ori_b": mat_first_two_cols_b(ref_aquat, anchor_q),  # 6 (IMU+waist FK)
         "base_ang_vel": gyro,                                              # 3 (IMU gyro)
         "joint_pos": q - meta.default,                                     # 29
         "joint_vel": dq,                                                   # 29
@@ -380,6 +555,10 @@ def mode_read(meta, ref, session, iface, timeout_s):
     sub = lowstate_subscriber()
     print(f"reading LowState on {iface} ...")
     q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s)
+    # Align exactly as a motion run would, and REPORT the offset — a large value here
+    # means the robot is facing away from the npz frame and the old (unaligned) obs
+    # would have been far out of distribution.
+    _align_reference(meta, ref, q, imu_quat)
     last_action = np.zeros(meta.n)
     obs, terms = build_obs(meta, ref, q, dq, imu_quat, gyro, last_action, tick=0)
 
@@ -558,9 +737,14 @@ def _restore_motion_service():
 def _finalize_and_exit(code=0):
     """Guarantee soft robot, hand control back to onboard (so the remote can pair), then exit
     PROMPTLY (DDS teardown can hang -> os._exit). Damp happens FIRST, so safety never waits
-    on the restore."""
+    on the restore. Telemetry (if any) is flushed AFTER the robot is soft."""
     _damp_burst(30)
     _restore_motion_service()
+    try:
+        if _TELEM is not None:
+            _TELEM.save()
+    except Exception:
+        pass
     try:
         sys.stdout.flush()
     except Exception:
@@ -651,19 +835,24 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None):
     print(f"RUN: stage-1 firm move-to-default (4s) + hold, then policy {n_ticks}/{ref.T} ticks "
           f"@ {CONTROL_HZ:.0f}Hz{' [--max-secs %.1f]' % max_secs if max_secs else ''}. "
           f"Ctrl-C / remote-damp to stop.")
+    global _TELEM
+    telem = _TELEM = Telemetry("run", meta)
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
     try:
         # STAGE 1 — reach the ready pose at firm gains, seamlessly (no damping gap).
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
         _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
+        # Robot is at the ready pose — align the reference world yaw to its heading NOW.
+        q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+        _align_reference(meta, ref, q, imu_quat)
         print("at default — starting policy. (Legs may look odd on the gantry: the policy "
               "trained with ground contact. Watch for fault/violence; arms should track.)")
         # STAGE 2 — policy loop at TRAINED gains. Robot is already AT default and the
         # ramped motion (thriller_deploy) starts from default -> no lurch on entry.
         for tick in range(n_ticks):
             t0 = time.time()
-            q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+            q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             obs, _ = build_obs(meta, ref, q, dq, imu_quat, gyro, last_action, tick)
             if not np.all(np.isfinite(obs)):
                 raise RuntimeError(f"non-finite obs at tick {tick}")
@@ -673,6 +862,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None):
             last_action = action
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
+            telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
             elapsed = time.time() - t0
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
@@ -711,11 +901,19 @@ def mode_stand_hold(meta, iface, watch, secs):
     kp, kd = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE  # firm, overdamped
     print(f"STAND-HOLD: firm move-to-default over {secs:.1f}s, then hold indefinitely "
           f"(approach gains {APPROACH_KP_SCALE:.1f}x). Ctrl-C / remote-damp to stop.")
+    global _TELEM
+    telem = _TELEM = Telemetry("stand-hold", meta)
     try:
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, secs, kp, kd, meta)
         print("at default — HOLDING. Watch stance; damp when done.")
+        tick = 0
         while True:  # SIGINT/SIGTERM handler damps + exits; this loop just streams the hold
             _send_cmd(pub, low_cmd, crc, mode_machine, meta.default, kp, kd, meta)
+            # Record the hold (tau_est/temps/pose): this is the exact test class that
+            # produced the unauditable '20 Nm continuous' number — now it's captured.
+            q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
+            telem.add(tick, q, dq, msg, imu_quat, gyro, np.zeros(meta.n), meta.default)
+            tick += 1
             time.sleep(1.0 / CONTROL_HZ)
     except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
         print(f"\nSTOP: {e} -> damping")
@@ -751,16 +949,21 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order):
           f"({obs_dim}-dim obs) {n_ticks}/{ref.T} ticks @ {CONTROL_HZ:.0f}Hz "
           f"[--max-secs {max_secs:.1f}], action cap {GROUND_MAX_ACTION:.1f}. "
           f"Tethered. Ctrl-C / remote-damp to stop.")
+    global _TELEM
+    telem = _TELEM = Telemetry("ground-run", meta)
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
     try:
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
         _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
+        # Robot is at the ready pose — align the reference world yaw to its heading NOW.
+        q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+        _align_reference(meta, ref, q, imu_quat)
         print("at default — starting ground policy. Keep tension on the tether; damp at "
               "the first sign of a fault, lurch, or lean.")
         for tick in range(n_ticks):
             t0 = time.time()
-            q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+            q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             obs, _ = build_obs_ground(meta, ref, q, dq, imu_quat, gyro, last_action, tick, obs_order)
             if not np.all(np.isfinite(obs)):
                 raise RuntimeError(f"non-finite obs at tick {tick}")
@@ -770,6 +973,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order):
             last_action = action
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
+            telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
             elapsed = time.time() - t0
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
@@ -824,6 +1028,8 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
           f"policy (160-dim HONEST obs from {ODOM_TOPIC}, vel_src={ODOM_VEL_SOURCE}) "
           f"{n_ticks}/{ref.T} ticks @ {CONTROL_HZ:.0f}Hz [--max-secs {max_secs:.1f}], "
           f"action cap {GROUND_MAX_ACTION:.1f}. Tethered. Ctrl-C / remote-damp to stop.")
+    global _TELEM
+    telem = _TELEM = Telemetry("ground-run-odom", meta)
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
     odom_pos0 = None
@@ -831,6 +1037,9 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
     try:
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
         _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
+        # Robot is at the ready pose — align the reference world yaw to its heading NOW.
+        q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+        _align_reference(meta, ref, q, imu_quat)
         # Capture the re-anchor origin at policy start (robot is now at the reference pose).
         o = read_odom(odom, timeout_s=0.5)
         if o is None:
@@ -842,7 +1051,7 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
               "damp at the first sign of a fault, lurch, or lean.")
         for tick in range(n_ticks):
             t0 = time.time()
-            q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+            q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             o = read_odom(odom, timeout_s=0.5)
             if o is None:
                 raise RuntimeError(f"lost {ODOM_TOPIC} at tick {tick} -> damp")
@@ -874,6 +1083,7 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
             last_action = action
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
+            telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
             elapsed = time.time() - t0
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
@@ -936,18 +1146,22 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
     if GROUND_LEG_KP_SCALE != 1.0:
         print(f"   LEG gains x{GROUND_LEG_KP_SCALE:.1f} during policy (weight-bearing); arms unchanged.")
     if GRAVITY_FF:
-        print(f"   GRAVITY FEEDFORWARD on (x{GRAVITY_FF_SCALE:.2f}) — holds pose at trained gains, "
-              f"ankle stays cool. No gain boost needed.")
+        print(f"   GRAVITY FEEDFORWARD on (x{GRAVITY_FF_SCALE:.2f}) — EXPERIMENTAL "
+              f"(see audit note at the GRAVITY_FF flag).")
+    global _TELEM
+    telem = _TELEM = Telemetry("ground-run-legodom", meta)
     try:
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
         _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
         q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+        # Robot is at the ready pose — align the reference world yaw to its heading NOW.
+        _align_reference(meta, ref, q, imu_quat)
         h0 = legodom.estimate(q, dq, quat_wxyz_to_mat(imu_quat), gyro)[1]  # start height datum
         print("at default — starting leg-odometry policy. Keep tension on the tether; "
               "damp at the first sign of a fault, lurch, or lean.")
         for tick in range(n_ticks):
             t0 = time.time()
-            q, dq, imu_quat, gyro, _ = read_state(sub, timeout_s=0.5)
+            q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             R_base = quat_wxyz_to_mat(imu_quat)
             v_body, h_est, _ = legodom.estimate(q, dq, R_base, gyro)
             v_world = R_base @ v_body
@@ -969,6 +1183,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
             tau_ff = (GRAVITY_FF_SCALE * legodom.gravity_comp(last_target, R_base)
                       if GRAVITY_FF else None)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, kp_pol, kd_pol, meta, tau_ff=tau_ff)
+            telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
             elapsed = time.time() - t0
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
