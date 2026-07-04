@@ -75,7 +75,10 @@ GATE = {
   "survival_min": 0.99,  # worst condition
   "ankle_mean_abs_max_nm": 5.0,  # worst condition, ankle pitch
   "ankle_p95_abs_max_nm": 15.0,  # worst condition, ankle pitch
-  "mpkpe_nominal_max_m": 0.25,
+  # Deployed a2 baseline measures 0.307 on THIS harness (full motion from
+  # start, train-cfg RSI perturbations) vs 0.221 on the old 10 s protocol —
+  # bound is baseline parity + small DR allowance, final call is visual.
+  "mpkpe_nominal_max_m": 0.33,
 }
 
 
