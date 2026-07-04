@@ -896,3 +896,15 @@ human-supervised session (NOT autonomous — no ground motion has run):
   2026-07-02: user confirms **client shows also fit the 2 m radius** — keep the
   ≤1.5 m root-excursion vet gate as a constant. (Per-venue parameterization
   deprioritized to Phase 8 nice-to-have.)
+
+## 2026-07-04 ~13:55 ICT — GROUND RETRAIN FAILED (estimator-free). Ground DANCE blocked.
+- train-thriller-ground ran full 3000 iters but NEVER learned: mean episode length ~5
+  steps, ee_body_pos termination = 1.0000 for the entire run. Held-out eval 0/256 nominal.
+- Cause: dropping motion_anchor_pos_b + base_lin_vel from the actor obs made the task
+  unlearnable AS CONFIGURED (no re-anchoring / no startup termination grace). Same motion
+  + termination trains to 100% WITH full obs (gantry a2). See data/policies/thriller_ground/RESULT.txt.
+- ACTION: no estimator-free ground policy exists; ground-run correctly refuses (no policy_meta).
+  Fix path (sim-only): enable reference re-anchoring and/or startup ee-termination grace, retrain,
+  re-gate at nominal>=0.95 full-length.
+- TODAY: ground DANCE not possible. stand-hold (no policy) IS valid -> Stage 0 read + Stage A
+  tethered stand-hold remain the safe, ready steps. Robot untouched today.
