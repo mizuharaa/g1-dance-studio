@@ -653,6 +653,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   max-secs strictly caps. User damped via remote for now. **Paused autonomy on this
   anomaly — resume clean gantry runs after the exit fix; GROUND still hard-blocked (needs
   torso state estimator; not built).**
+- 2026-07-05 (AT ROBOT — GANTRY STAGE COMPLETE): **Full Thriller performed on the gantry
+  TWICE, cleanly (all 2589 ticks), ending soft each time.** Upper-body choreography tracks
+  beautifully (webcam: arm reaches overhead, gestures, torso turns, distinct controlled
+  poses). Legs are the known gantry limit (policy trained w/ ground contact; free-swinging
+  legs occasionally spike large 'balance' actions — one grazed the 8.0 action cap and the
+  safety correctly damped; raised MAX_ACTION→12 env-tunable for gantry, full dance then
+  completed). Exit-fix + damp-on-any-exit + clean-exit all verified on hardware. Deploy
+  runtime (pipeline/deploy_runtime.py) is the working laptop-side path (tv env, unitree_hg
+  over Ethernet, no Docker). Robot always ends soft.
+  **GANTRY has shown all it usefully can — the dance works on real hardware.** NEXT FRONTIER
+  = GROUND, HARD-BLOCKED until: (1) a torso-position state estimator (DLIO or obs-restricted
+  policy) feeds the 12 gantry-approximated obs dims (base_lin_vel + anchor terms) — without
+  it the ground feeds the policy wrong data → fall; (2) staged tethered→free ground per the
+  runbook. That estimator is a separate build (not done). Webcam works (reclaim pipewire
+  as needed). Budget fine.
 - 2026-07-02: **PRODUCT BAR RAISED (user):** final app must be good enough to train
   **2–3 minute dances** and **deploy for client shows** (paid, audience-facing).
   Implications: (a) motion pipeline + training must handle 2–3 min sequences, not just
