@@ -36,7 +36,12 @@ stay overdamped) → 0.6 s hold → STAGE 2 policy loop at trained gains. The ro
 AT default and `thriller_deploy` starts from default, so entry is seamless. `--max-secs N`
 caps the policy segment (cautious first test) then smooth-ramps kp→0 to damping. NaN/inf,
 |action|>8, cycle overrun, or any exception → immediate damping. Mirrors the h1_2 example's
-posture→behavior pattern.
+ posture→behavior pattern.
+
+**ALWAYS-SOFT exit (safety):** a SIGTERM/SIGINT handler and the normal end both send a
+damping burst (kp=0, kd=2) so the robot ends LIMP on ANY exit — normal finish, Ctrl-C, or
+external `kill`/`timeout`. After damping, the process `os._exit(0)`s promptly (the DDS
+publisher teardown otherwise hangs). The robot is never left holding an energized pose.
 
 **GANTRY note (feet off ground):** the policy trained WITH ground contact, so on the
 gantry the LEGS will move oddly / won't "stand" — EXPECTED. The gantry `run` checks the

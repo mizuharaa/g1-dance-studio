@@ -35,11 +35,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import sys
 import time
 from pathlib import Path
 
 import numpy as np
+
+# Set by a motion mode once the LowCmd publisher is up: (pub, low_cmd, crc, mode_machine,
+# meta). The signal handler + clean-exit use it to GUARANTEE the robot ends DAMPED (soft)
+# on ANY exit path — normal end, Ctrl-C, or an external SIGTERM/kill.
+_DAMP_CTX = None
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_META = ROOT / "data/policies/thriller/policy_meta.json"
@@ -296,6 +302,44 @@ def _send_cmd(pub, low_cmd, crc, mode_machine, targets, kp, kd, meta, damping=Fa
     pub.Write(low_cmd)
 
 
+def _damp_burst(reps=30):
+    """Send a burst of damping cmds (kp=0, kd=2) from _DAMP_CTX so the robot goes SOFT.
+    Best-effort, no exceptions escape — used on every exit path incl. signal handlers."""
+    ctx = _DAMP_CTX
+    if not ctx:
+        return
+    pub, low_cmd, crc, mode_machine, meta = ctx
+    for _ in range(reps):
+        try:
+            _send_cmd(pub, low_cmd, crc, mode_machine, meta.default, meta.kp, meta.kd, meta, damping=True)
+        except Exception:
+            break
+        time.sleep(0.01)   # ~let DDS transmit; 30*10ms ~= 0.3s of damping
+
+
+def _finalize_and_exit(code=0):
+    """Guarantee soft robot, then exit PROMPTLY (DDS teardown can hang -> os._exit)."""
+    _damp_burst(30)
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
+    os._exit(code)
+
+
+def _install_damp_on_signals():
+    """SIGTERM (external kill, e.g. `timeout`) and SIGINT (Ctrl-C): damp then exit.
+    Default SIGTERM would terminate WITHOUT damping -> robot left energized. Not allowed."""
+    def handler(signum, _frame):
+        try:
+            print(f"\n[signal {signum}] -> emergency damping, then exit", flush=True)
+        except Exception:
+            pass
+        _finalize_and_exit(0)
+    signal.signal(signal.SIGTERM, handler)
+    signal.signal(signal.SIGINT, handler)
+
+
 def _ramp_to_pose(pub, low_cmd, crc, mode_machine, q_start, q_end, secs, kp, kd, meta):
     """Cosine-interpolate joint targets q_start -> q_end over `secs`, streaming LowCmd at
     CONTROL_HZ with the given (firm) gains. Non-finite target -> raise (caller damps)."""
@@ -331,6 +375,9 @@ def mode_move_to_default(meta, session, ref, iface, secs, watch):
     mode_machine = int(msg0.mode_machine)
     _release_motion_service()
     pub, low_cmd, crc = _lowcmd_setup()
+    global _DAMP_CTX
+    _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
+    _install_damp_on_signals()
     kp, kd = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE  # firm, both scaled -> overdamped
     print(f"moving to default over {secs:.1f}s at {CONTROL_HZ:.0f}Hz "
           f"(approach gains {APPROACH_KP_SCALE:.1f}x)...")
@@ -339,6 +386,7 @@ def mode_move_to_default(meta, session, ref, iface, secs, watch):
         print("at default pose. Holding (damping).")
     finally:
         _damp(pub, low_cmd, crc, mode_machine, meta)
+    _finalize_and_exit(0)   # guarantee soft + exit promptly (DDS teardown can hang)
 
 
 def mode_run(meta, session, ref, iface, watch, max_secs=None):
@@ -353,6 +401,9 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None):
     mode_machine = int(msg0.mode_machine)
     _release_motion_service()
     pub, low_cmd, crc = _lowcmd_setup()
+    global _DAMP_CTX
+    _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
+    _install_damp_on_signals()
     dt = 1.0 / CONTROL_HZ
     kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
     n_ticks = ref.T if not max_secs else min(ref.T, int(max_secs * CONTROL_HZ))
@@ -396,6 +447,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None):
         print(f"\nSTOP: {e} -> damping")
     finally:
         _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
+    _finalize_and_exit(0)   # guarantee soft + exit promptly (DDS teardown can hang)
 
 
 def main():
