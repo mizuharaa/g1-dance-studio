@@ -73,6 +73,13 @@ GROUND_LEG_KP_SCALE = float(os.environ.get("GROUND_LEG_KP_SCALE", "1.0"))
 # balance — stiffening them fought the policy and the robot fell sideways into the tether
 # (observed 2026-07-04, 5s run). Leave roll/yaw at trained gains so lateral balance is free.
 LEG_JOINT_IDX = [0, 3, 4, 6, 9, 10]  # L/R hip_pitch, knee, ankle_pitch
+# Feedforward gravity compensation: hold the commanded pose at the TRAINED gains (no boost)
+# by sending the gravity-hold torque the sim's position actuator provides implicitly. Pure PD
+# on hardware omits it -> the legs sag -> we gain-boosted -> the boosted PD fighting the residual
+# sag error burned ~20 Nm at the ankle (thermal wall). With FF, the ankle carries its true
+# ~0.2 Nm. Root fix; keeps the full-body dance, no retrain, no boost. On by default for ground.
+GRAVITY_FF = os.environ.get("GRAVITY_FF", "1") == "1"
+GRAVITY_FF_SCALE = float(os.environ.get("GRAVITY_FF_SCALE", "1.0"))  # ramp-in / trim knob
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
@@ -485,23 +492,30 @@ def _lowcmd_setup():
     return pub, low_cmd, CRC()
 
 
-def _send_cmd(pub, low_cmd, crc, mode_machine, targets, kp, kd, meta, damping=False):
-    """Mutate the REUSED low_cmd and publish. damping=True -> hold, kp=0, small kd."""
+def _send_cmd(pub, low_cmd, crc, mode_machine, targets, kp, kd, meta, damping=False, tau_ff=None):
+    """Mutate the REUSED low_cmd and publish. damping=True -> hold, kp=0, small kd.
+
+    tau_ff (optional 29-vec): FEEDFORWARD torque added at each motor (the real robot's cmd is
+    tau = kp*(q_des-q) + kd*(dq_des-dq) + tau_ff). We use it for GRAVITY COMPENSATION so the
+    legs hold the commanded pose at the TRAINED gains instead of a gain boost — the sim's
+    position actuator provides this implicitly; pure PD on hardware does not, which caused the
+    sag + the ankle thermal wall. Clamped to +/- effort_limit. Never applied when damping."""
     low_cmd.mode_pr = PR_MODE
     low_cmd.mode_machine = mode_machine
     for i in range(29):
         mc = low_cmd.motor_cmd[i]
         mc.mode = 1          # enable
         mc.dq = 0.0
-        mc.tau = 0.0
         if damping:
             mc.q = 0.0
             mc.kp = 0.0
             mc.kd = 2.0
+            mc.tau = 0.0
         else:
             mc.q = float(np.clip(targets[i], meta.q_lo[i], meta.q_hi[i]))
             mc.kp = float(kp[i])
             mc.kd = float(kd[i])
+            mc.tau = 0.0 if tau_ff is None else float(np.clip(tau_ff[i], -meta.effort[i], meta.effort[i]))
     low_cmd.crc = crc.Crc(low_cmd)
     pub.Write(low_cmd)
 
@@ -921,6 +935,9 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
     kd_pol[LEG_JOINT_IDX] *= GROUND_LEG_KP_SCALE
     if GROUND_LEG_KP_SCALE != 1.0:
         print(f"   LEG gains x{GROUND_LEG_KP_SCALE:.1f} during policy (weight-bearing); arms unchanged.")
+    if GRAVITY_FF:
+        print(f"   GRAVITY FEEDFORWARD on (x{GRAVITY_FF_SCALE:.2f}) — holds pose at trained gains, "
+              f"ankle stays cool. No gain boost needed.")
     try:
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
         _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
@@ -947,7 +964,11 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
                 raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
             last_action = action
             last_target = action_to_target(meta, action)
-            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, kp_pol, kd_pol, meta)
+            # Gravity-comp feedforward at the COMMANDED pose, in the current torso frame (IMU),
+            # so the legs hold the pose at trained gains without the ankle-cooking gain boost.
+            tau_ff = (GRAVITY_FF_SCALE * legodom.gravity_comp(last_target, R_base)
+                      if GRAVITY_FF else None)
+            _send_cmd(pub, low_cmd, crc, mode_machine, last_target, kp_pol, kd_pol, meta, tau_ff=tau_ff)
             elapsed = time.time() - t0
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")

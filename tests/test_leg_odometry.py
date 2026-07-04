@@ -89,3 +89,22 @@ def test_fused_estimator_seeds_and_runs():
     assert 0.0 <= info2["contact"] <= 1.0
     # at rest the fused velocity must stay near zero (no runaway integration)
     assert np.abs(v2).max() < 0.5
+
+
+def test_gravity_comp_ankle_is_low_and_within_limits():
+    """The whole thermal fix: gravity-comp feedforward at the default standing pose must be
+    tiny at the ankle (~0, not the 20 Nm the boosted PD burned) and within every effort limit."""
+    odo, meta = _odo()
+    tau = odo.gravity_comp(meta.default, np.eye(3))
+    assert tau.shape[0] == 29
+    assert abs(tau[4]) < 2.0 and abs(tau[10]) < 2.0   # L/R ankle pitch ~0
+    assert np.all(np.abs(tau) <= meta.effort + 1e-6)  # every joint within its effort limit
+
+
+def test_gravity_comp_responds_to_torso_tilt():
+    """FF must account for torso orientation (base frame from the IMU), not assume upright."""
+    from pipeline.deploy_runtime import quat_wxyz_to_mat
+    odo, meta = _odo()
+    up = odo.gravity_comp(meta.default, np.eye(3))
+    tilt = odo.gravity_comp(meta.default, quat_wxyz_to_mat(np.array([np.cos(0.15), 0, np.sin(0.15), 0])))
+    assert not np.allclose(up, tilt)  # different torso lean -> different gravity load

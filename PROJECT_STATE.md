@@ -1183,3 +1183,19 @@ human-supervised session (NOT autonomous — no ground motion has run):
   real tuning). Otherwise B is thermally non-viable for a 2-3 min (let alone 10-15 min) show.
 - Reinforces PIVOT (audit #1): onboard balances (efficient, no ankle cook) + policy drives ARMS.
 - Robot damped safe. Motors will need cooldown again before any further test.
+
+## 2026-07-04 ~23:40 ICT — ROOT CAUSE FOUND + UNCOMPROMISED FIX: gravity-comp feedforward.
+- Diagnostic chain: (1) deploy gains EXACTLY match training (ankle kp29=28.5, knee99, hip40) — NOT a gain
+  bug. (2) sim default pose needs ~0.2Nm ankle torque (CoM centered; hands add only 1.1kg, negligible).
+  (3) yet real robot holds ~20Nm at the ankle. => the gap is that the SIM trains with a POSITION ACTUATOR
+  that implicitly provides gravity-hold torque; our deploy sent PURE PD (tau=0) -> legs sag -> we
+  gain-boosted -> boosted PD fighting the residual sag error burned 20Nm at the ankle = the thermal wall.
+- FIX (root, no retrain, keeps full-body dance): send FEEDFORWARD gravity-compensation torque (LowCmd tau
+  field, was 0) computed via MuJoCo inverse dynamics at the COMMANDED pose in the current torso frame (IMU).
+  Then legs hold pose at TRAINED gains, no boost. Offline: gravity-comp ankle FF = 0.2Nm max over the whole
+  dance (vs 20Nm burned now), all leg joints << effort limits. 100x ankle-torque reduction => no thermal wall.
+- Implemented: LegOdometry.gravity_comp(q_target,R_base); _send_cmd tau_ff (clamped to effort); wired into
+  ground-run-legodom; GRAVITY_FF on by default, GROUND_LEG_KP_SCALE default back to 1.0 (no boost). +tests.
+- LIKELY ALSO helps balance/stepping: no sag + no over-stiffened joints => robot tracks the policy's intended
+  targets like in sim, where it works. To verify on HW (tethered) once motors cool.
+- Motors were 62C; need cooldown before the hardware test of the FF fix.

@@ -87,6 +87,30 @@ class LegOdometry:
         self._mj.mj_kinematics(self.model, d)
         self._mj.mj_comPos(self.model, d)  # needed for jacobians
 
+    def gravity_comp(self, q_target, R_base=None):
+        """Feedforward gravity-compensation torque (29-vec, caller joint order) to HOLD the
+        pose q_target. Computed via MuJoCo inverse dynamics with the base pinned at the given
+        orientation (from the IMU, so torso tilt is accounted for), feet supporting the load.
+        This is the torque the sim's position actuator provides implicitly; sending it as the
+        real robot's tau feedforward lets the legs hold the pose at the TRAINED gains (no boost),
+        so the ankle only carries its true ~0.2 Nm load instead of 20 Nm of PD-fighting-sag heat.
+        """
+        d = self.data
+        d.qpos[:] = 0.0
+        if self._has_free:
+            if R_base is not None:
+                # base quat (wxyz) from the rotation matrix, so gravity is in the torso frame
+                q_wxyz = np.empty(4)
+                self._mj.mju_mat2Quat(q_wxyz, np.asarray(R_base, float).reshape(-1))
+                d.qpos[3:7] = q_wxyz
+            else:
+                d.qpos[3] = 1.0
+        d.qpos[self.qpos_adr] = np.asarray(q_target, float)
+        d.qvel[:] = 0.0
+        d.qacc[:] = 0.0
+        self._mj.mj_inverse(self.model, d)
+        return np.array([d.qfrc_inverse[a] for a in self.qvel_adr], float)
+
     def estimate(self, q, dq, R_base, gyro_body):
         """Return (base_lin_vel_body[3], base_height[m], info).
 
