@@ -94,7 +94,10 @@ def main():
         time.sleep(60)
     log("training done — evaluating checkpoints")
 
-    runs = sorted(glob.glob(f"{NB}/cloud/logs/rsl_rl/g1_tracking/*train-thriller-s2r*"),
+    # train.py resolves its log root from the invocation context: a1/a2 landed under
+    # cloud/logs/, the s2r wrapper lands under logs/ — search both.
+    runs = sorted(glob.glob(f"{NB}/logs/rsl_rl/g1_tracking/*train-thriller-s2r*")
+                  + glob.glob(f"{NB}/cloud/logs/rsl_rl/g1_tracking/*train-thriller-s2r*"),
                   key=os.path.getmtime)
     if not runs:
         write_result(["VERDICT=NO_RUN_DIR"])
