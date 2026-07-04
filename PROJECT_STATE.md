@@ -1115,3 +1115,20 @@ human-supervised session (NOT autonomous — no ground motion has run):
   moves, not obs artifacts.) Tests: +2 smoother tests, suite green.
 - STATUS: acrobatic-move cause fixed in code (unverified on robot — robot cooling). When motors cool:
   re-run 30s to confirm the anomaly is gone, then push to full. STILL OPEN: motor thermal at boosted gains.
+
+## 2026-07-04 ~21:30 ICT — Root cause CONFIRMED: leg-odom degrades during STEPPING -> whole-body brace.
+- User saw at ~14-16s: "strange acrobatic position (legs AND arms) arched and stiff, then attempt to
+  dance, unstable, better toward end." => NOT a topple (balance); a whole-body BRACE = policy reacting
+  to a BAD OBS, then recovering. Points to estimator, not balance.
+- OFFLINE PROOF: leg-odom error by section — 0-10s (danced CLEAN): vel_err 0.04/height 0.08m.
+  13-17s (the arched brace): vel_err 0.15/height 0.18m = WORST in the dance, in BOTH channels. Aligns
+  with feet lifting (stepping, foot Z 0.12-0.21m). Planted-foot assumption breaks during a step ->
+  velocity AND height estimate degrade -> policy braces -> recovers when feet re-plant.
+- Smoothing fix (prev) only killed single-frame SPIKES; this is SUSTAINED (~0.4s) degradation -> smoothing
+  can't fix it. Re-run 30s still spiked to roll -28.9deg @ ~14-16s (consistent timing = choreography step).
+- Note: offline uses REFERENCE (perfect-tracking) joints; real hardware joint tracking is noisier, so the
+  real stepping error is likely WORSE than the 0.15/0.18 measured.
+- FIX PLAN (offline, no robot): FUSED estimator — integrate IMU accel to carry base vel/height THROUGH the
+  step (when kinematics is blind), correct with kinematics when a foot is solidly planted (complementary
+  filter / the piece the onboard EKF did before it froze on service release). Keeps the proven policy.
+  Alt: retrain with heavier estimator-noise/disturbance randomization (slower, GPU). Motors OK.
