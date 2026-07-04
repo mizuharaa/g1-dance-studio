@@ -162,10 +162,12 @@ Path-specific notes (all verified OFFLINE 2026-07-04, `tools/sim_ground_odom.py`
      (observed at rest), but confirm `position`/`velocity` keep updating sanely once the
      policy has control. If it freezes → damp; the obs goes stale.
   2. **Velocity source.** Default `ODOM_VEL_SOURCE=diff` derives world velocity from
-     position differencing (frame-unambiguous, mildly noisy). Only switch to
-     `ODOM_VEL_SOURCE=field` (the EKF velocity, smoother) after a gentle **sway test**
-     confirms the field's frame matches (push the torso +x; the reported body-frame
-     `base_lin_vel` must point the right way regardless of heading).
+     position differencing (frame-unambiguous, ~0.05 m/s noise). This is **adequate, not
+     just safe**: the policy trained `base_lin_vel` with ±0.5 m/s injected noise (10× the
+     diff noise), so it is robust to it by design. `ODOM_VEL_SOURCE=field` (the EKF
+     velocity, smoother) is an optional upgrade — only switch after a gentle **sway test**
+     confirms the field's frame (push the torso +x; the reported body-frame `base_lin_vel`
+     must point the right way regardless of heading).
 - **Re-anchoring.** The torso position origin is captured at policy start (robot at the
   reference pose), so absolute-frame offset and slow XY drift cancel — the obs matches how
   the reference anchor behaves in training.

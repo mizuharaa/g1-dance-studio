@@ -1005,3 +1005,18 @@ human-supervised session (NOT autonomous — no ground motion has run):
   motion-service release; velocity-frame sway test) + re-anchoring notes.
 - OPEN (needs tethered bring-up, no robot while away): confirm odom persists under our control +
   velocity-field frame. Estimator-free v3 deprioritized (odom path is primary, no GPU needed).
+
+## 2026-07-04 ~16:35 ICT — Odometry obs path VALIDATED against the simulator (frame math exact).
+- Sim cross-check (gantry policy rollout, 25 ticks): build_obs_odom's two terms vs mjlab's
+  authoritative obs. motion_anchor_pos_b MAX ERR = 0.000000. base_lin_vel MAX ERR = 0.000000
+  when rotated by the ROOT(pelvis) quat (initial 0.068 was torso-vs-root body choice, not a bug).
+  => R.T@(ref-rob) and R.T@v_world are EXACTLY mjlab's frame conventions.
+- Robustness margins (training noise on the two terms): base_lin_vel ±0.5 m/s, motion_anchor_pos_b
+  ±0.25 m. HUGE. => (a) diff-velocity noise (~0.05) is 10x under tolerance — ODOM_VEL_SOURCE=diff is
+  adequate, field optional; (b) the pelvis-vs-torso approximation (odom=pelvis, mjlab anchor=torso;
+  one IMU quat for both terms) is well within ±0.25 — same approximation the WORKING gantry deploy used.
+- base_lin_vel obs = imu_lin_vel sensor = root_link_lin_vel_b (pelvis, body frame). On robot: odom
+  pelvis velocity + IMU pelvis quat -> exact. Confirms odom (pelvis) is the right source.
+- NET: the odometry-fed path is frame-correct and noise-robust by construction. Remaining unknowns are
+  purely hardware (does odom persist under our low-level control; does odom vel field frame = body) and
+  resolve on the first tethered bring-up. Offline validation is as complete as it can be.
