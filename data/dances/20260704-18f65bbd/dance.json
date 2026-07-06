@@ -2,7 +2,7 @@
   "id": "20260704-18f65bbd",
   "name": "Thriller",
   "created_at": 1783099634.195152,
-  "updated_at": 1783314325.7978675,
+  "updated_at": 1783319418.8201919,
   "status": "show-ready",
   "duration_s": 49.3,
   "motion_csv": "data/policies/thriller/thriller_deploy.csv",
@@ -76,7 +76,19 @@
   "notes": "s2r-b (sim2real recipe v2, train-thriller-s2r-b model_4999). Promoted 2026-07-06: 3x signed held-out exams 100%/100% (seeds 90001/90011/90021) + 3x full 51.8s ground dances on hardware (tethered, ankle 4.5-6.5Nm mean, temps flat). a2 fallback at data/policies/thriller_a2_fallback/.",
   "policy_sha256": "b3511dd31fe96e406b6693170f849c1b05dc6526d0cc5f6a27d91780d6a0eb35",
   "incident": null,
-  "audio": null,
+  "audio": {
+    "track": "data/dances/20260704-18f65bbd/audio/music.wav",
+    "source": "attached_file",
+    "align": {
+      "audio_delay_s": 1.5,
+      "trim_start_s": 0.0,
+      "trim_duration_s": 49.3,
+      "music_end_s": 50.8,
+      "performance_s": 54.3
+    },
+    "muxed_preview": null,
+    "attached_at": 1783319418.8201904
+  },
   "repeatability": {
     "consecutive_clean": 3,
     "total_runs": 3,

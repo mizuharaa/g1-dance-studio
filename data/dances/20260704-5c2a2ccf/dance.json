@@ -1,0 +1,24 @@
+{
+  "id": "20260704-5c2a2ccf",
+  "name": "Dance2-Long",
+  "created_at": 1783109973.1820762,
+  "updated_at": 1783109973.182093,
+  "status": "draft",
+  "duration_s": 67.2,
+  "motion_csv": "data/motions/dance2_show.csv",
+  "policy_path": null,
+  "preview": null,
+  "vet": null,
+  "sim_exam": null,
+  "source_job": "train-dance2-long",
+  "notes": "Long-horizon validation (67s, adaptive-kernel 6). Converged reward 34.6. In-engine: 100% full-motion completion clean AND under 64-env noise, joint err 0.099 rad (tighter than Thriller). Validates the long-dance recipe. Draft \u2014 independent sim2sim + real robot pending.",
+  "policy_sha256": null,
+  "incident": null,
+  "audio": null,
+  "repeatability": {
+    "consecutive_clean": 0,
+    "total_runs": 0,
+    "last_run_at": null,
+    "history": []
+  }
+}
