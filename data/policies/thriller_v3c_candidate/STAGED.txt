@@ -1,0 +1,21 @@
+CANDIDATE (NOT the show policy — data/policies/thriller/ = s2r-b stays sha-pinned)
+
+Staged: 2026-07-06 ~23:45 ICT
+Policy: v3c = V3A env (v2 sim2real recipe + precision reward deltas: action_rate_l2
+  -0.1, motion_body_pos/ori 1.5) trained 10000 iters, task
+  Mjlab-Tracking-Flat-Unitree-G1-S2R-V3C. Training killed at ~iter 9170 by ops
+  error; checkpoint = model_9000.pt (KILLED_NOTE.txt in box run dir
+  2026-07-06_05-51-06_train-thriller-v3c).
+Why: ONLY gate-v3 PASS of the v3/v4 program (drift 0.71m vs 1.15-6.27 others) AND
+  best arm RMS 8.75 deg (s2r-b baseline 13.81; complaint = arm crispness) AND
+  coolest ankles (mean 4.43 / RMS 6.19 Nm nominal).
+Motion: thriller_deploy.csv/.npz — IDENTICAL to the show policy's (v3c trained on
+  it; no motion re-staging, no sha churn on the dance record's motion).
+policy_meta.json: copied verbatim from s2r-b staging — V3C changes rewards only,
+  actuator plant identical (verified cloud/sim2real_task_v3.py: no gain scaling).
+Evidence here: RESULT.txt (autopilot verdict WIN), gap_check.json (gate v3 PASS,
+  128 envs), arm_tracking.json (8.75 deg arms_all RMS).
+Pending before any promotion talk: 3x held-out exams (box job v3c-heldout, seeds
+  90001/90011/90021) -> signed verdicts; fluidity leg-band numbers (box job
+  v3c-fluidity); RENDER SIGN-OFF BY USER (data/previews/rollout_v3c.mp4); ONE
+  tethered hardware test w/ telemetry (user present, remote in hand).

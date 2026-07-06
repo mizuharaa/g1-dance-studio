@@ -1616,3 +1616,32 @@ human-supervised session (NOT autonomous — no ground motion has run):
   pick winner per DECISION PROCEDURE, stage as CANDIDATE (never overwrite
   data/policies/thriller/), 3x signed held-out exams, render sign-off; then user-facing:
   tethered HW test of winner + ARM_GROUND_KP_SCALE A/B + robot-speaker/LED checklist.
+
+## 2026-07-06 (23:45 ICT) — V3 PROGRAM DECIDED: v3c WINS (only gate PASS + best arms, 8.75 deg vs 13.81 baseline). Candidate staged; held-out exams running.
+- All verdicts in after the gap backfill. DECISION MATRIX (arm RMS deg / gate v3 / leg-band
+  2-10Hz (bar<=0.20) / leg-amp (pref>0.5)):
+  - v3a: 9.72 / FAIL drift 1.15m / 0.130 / 0.43
+  - v3b: 9.42 / FAIL drift 1.20m / 0.133 / 0.43 (+ ARM_GROUND_KP_SCALE=2.5 deploy contract)
+  - **v3c@model_9000: 8.75 / PASS (drift 0.71m, surv 1.000, rr_mpkpe 0.080, ankle 4.43/6.19Nm
+    — coolest) / fluidity pending / VERDICT=WIN**
+  - v3d: 10.20-vs-sharp-15.18 / FAIL drift 1.50m + ankle p95 / 0.147 / 0.41
+  - v4:  11.72-vs-sharp-15.18 / FAIL CATASTROPHIC (nominal survival 0.000, drift 6.27m) /
+    0.124 / **0.17 = legs frozen** — the calm-legs recipe over-suppressed leg motion and
+    doesn't survive the deploy-matched harness. v4 lane CLOSED (the amp-ratio bar did its job).
+  - s2r-b baseline: 13.81 / promoted / 0.147 / 0.34.
+- Leg-fluidity read: EVERY v3 variant beats s2r-b on both leg metrics — the arm-crispness
+  fixes also improved legs; v3c's numbers land when v3c-fluidity appends (box).
+- Drift >1.0m was the REAL common gate failure (visible only after the backfill) — v3c is
+  the only variant that dances in place. Choreography-area safety implication noted.
+- **CANDIDATE STAGED: data/policies/thriller_v3c_candidate/** (policy.onnx from model_9000,
+  gap/arm/RESULT evidence, policy_meta.json verbatim from s2r-b — V3C is reward-deltas-only,
+  actuator plant identical (verified in cloud/sim2real_task_v3.py), same thriller_deploy
+  motion = no sha churn). data/policies/thriller/ (s2r-b) UNTOUCHED, stays the show policy.
+- IN FLIGHT: box job v3c-heldout (3x 256-env held-out exams, seeds 90001/90011/90021, on the
+  deployable motion) -> laptop signing via pipeline/mjlab_verify.py when done; v3c-fluidity;
+  train-acro-1 (~4-8h); dance1-e2e verify (sim-gap ~15% when last checked). Poller armed.
+- Render pulled for USER SIGN-OFF: data/previews/rollout_v3c.mp4.
+- docs/DYNAMIC_SKILLS.md hardware-risk memo regenerated + committed (recommendation: backflip
+  stays a SIM SHOWPIECE; 7-item evidence gate before any hardware conversation).
+- NEXT: exams land -> sign 3 verdicts -> if all >=99%: v3c is sim-verified, goes to the user
+  with render + hardware-test ask (tethered, ARM_GROUND_KP_SCALE not needed for v3c).
