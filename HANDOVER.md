@@ -6,24 +6,32 @@ fast path to resume; PROJECT_STATE is the source of truth.
 ---
 
 ## ONE-LINE STATUS
-Thriller is SHOW-READY on s2r-b (hardware-proven 3x + music rehearsal done). A 6-workload
-GPU program is IN FLIGHT to fix the two user complaints (arm crispness + leg fluidity) and
-add a sim backflip; 3 of 6 verdicts are in and ALL beat the arm baseline by ~30%.
+Thriller is SHOW-READY on s2r-b (hardware-proven 3x + music rehearsal done). All 5 dance
+verdicts are in (v3a/b/d/v4 + v3c@9000) and ALL beat the arm baseline ~30%; a gap-gate CLI
+bug voided the v3a/v3d/v4 gate columns — backfill + fluidity sweep ran 2026-07-06 evening;
+backflip train-acro-1 is ACTUALLY training now (launcher TERM bug had silently killed it).
 
 ## IN FLIGHT ON THE BOX (survives everything; check first)
 Jobs via `bash cloud/run_job.sh list` + `tmux ls` (export PATH=/workspace/notebook-data/bin:$PATH
 TERM=xterm; status.json can be stale — trust tmux/pgrep: unique trainings =
 `pgrep -af "agent.run-name train-" | grep -o "run-name train-[a-z][a-z0-9-]*" | sort -u`).
-- VERDICTS IN (exports/thriller_v3{a,b,d}/RESULT.txt): v3a arm RMS 9.72 deg (s2r-b baseline
+- VERDICTS IN (exports/thriller_v3{a,b,d}, thriller_v34): v3a arm RMS 9.72 deg (s2r-b baseline
   13.81); v3b 9.42 + ankle RMS 7.05 (coolest) + 100% survival BUT drift 1.20m (gate fail;
-  deploy contract: needs ARM_GROUND_KP_SCALE=2.5); v3d 10.20 vs sharp baseline 15.18.
-- PENDING: v4 "calm-legs" (THE deciding variant for the leg complaint — forensics-directed:
-  per-group action-rate, ang-vel tracking x2, leg delay DR 0-80ms, sharp ref); v3c (10k);
-  train-acro-1 backflip (launcher acro-launcher6 fires it at <=3 trainings; verify it did);
-  dance1-e2e (app-driven end-to-end pipeline validation — trains + gates itself).
-- KNOWN BUG: autopilot_v3 deletes gap_check.json/arm_tracking.json after evaluating (RESULT.txt
-  + jobs/*.log keep headlines). For the FINALISTS re-run cloud/sim_gap_check.py with
-  --output-file kept, + dump a sim trace and run tools/fluidity_forensics.py on it.
+  deploy contract: needs ARM_GROUND_KP_SCALE=2.5); v3d 10.20 vs sharp baseline 15.18;
+  v4 calm-legs 11.72 (mid ckpt) vs sharp 15.18.
+- **GATE DATA CAVEAT (found+fixed 2026-07-06 ~16:10 UTC):** sim_gap_check.py's argv shim
+  stripped the literal stock task after --task → gap_check crashed rc=2 for every stock-task
+  variant. v3a/v3d/v4 "GATE_FAIL" = "no gap data", NOT a real fail (v3b's drift 1.20 is the
+  only REAL gate number). Fixed (commit 7051956) + `gap-backfill` job re-ran the 4 missing
+  checks; `fluidity-sweep`/`v3c-fluidity` jobs dumped traces + leg 2-10Hz band numbers and
+  APPEND to each RESULT.txt. Check exports/*/​{last,mid}/gap_check.json + fluidity.json.
+- v3c: training killed at ~iter 9170/10000 by an ops error (tmux server kill, 2026-07-06
+  16:04 UTC — KILLED_NOTE.txt in run dir); model_9000.pt evaluated as final by v3c-autopilot3.
+- train-acro-1 backflip: RUNNING since 16:05 UTC (10k iters) + acro-autopilot armed. The
+  launcher's TERM=dumb had killed the original launch silently (fixed in
+  cloud/launch_acro_when_free.sh).
+- dance1-e2e (app job 20260706-172405-2eb6e0): train DONE (policy staged at
+  data/policies/dance1_e2e), verify stage running sim-gap on the box via the app server.
 
 ## DECISION PROCEDURE (when v4's verdict is in)
 Bar (cloud/V3_PROGRAM.md): gate v3 pass/near AND arm RMS < baseline AND 2-10Hz leg action band

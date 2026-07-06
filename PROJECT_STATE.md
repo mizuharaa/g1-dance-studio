@@ -1583,3 +1583,36 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - Session totals: ~35 commits; audit->retrain->hardware-validation->promotion cycle closed;
   music rehearsal done (placeholder track identified — real song pending); laptop audio fixed;
   many-dances pipeline live E2E; acro program staged; fluidity forensics + v4 recipe.
+
+## 2026-07-06 (evening resume) — GATE DATA WAS MISSING, NOT FAILING: gap-check CLI bug found+fixed; backfill + fluidity sweep live; backflip ACTUALLY training now.
+- **ROOT CAUSE (voids 3 "GATE_FAIL" verdicts):** cloud/sim_gap_check.py's argv shim
+  (known_tasks filter) stripped the literal stock task string even when it was the VALUE of
+  --task → tyro rc=2 "Missing value for argument '--task'" → NO gap_check.json for every
+  stock-task variant. v3a/v3d/v4 "gate=FAIL" means gap data missing (gate_pass(None)=False);
+  v3b (GAPEVAL task name, not in the filter set) is the only variant with a REAL gate number:
+  survival 1.000, rr_mpkpe 0.083, drift_max 1.20m (the actual fail). Shim fixed (only strips
+  a bare positional, commit 7051956); `gap-backfill` box job re-runs v3a-last/v3d-last/
+  v4-mid/v4-last with kept outputs.
+- **Fluidity decision numbers:** cloud/{sim_trace_dump,fluidity_sim_metrics,fluidity_trace_job}.py
+  (written last session, never pushed) committed, v4-dir bug fixed (exports/thriller_v34),
+  pushed; `fluidity-sweep` job runs s2rb-baseline + v3a/v3b/v3d/v4, `v3c-fluidity` waits on
+  v3c's RESULT — each appends FLUIDITY_LEG_BAND to its RESULT.txt (bar: leg 2-10Hz <= 0.20,
+  amp ratio > 0.5).
+- **OPS ERROR (mine, owned):** killed pid 883966 assuming "stale v3a tmux stub" — it was the
+  tmux SERVER; v3c training died with it at ~iter 9170/10000 (ETA was 51 min). model_9000.pt
+  (saved 16:00) is the final artifact; v3c-autopilot3 evaluates it (mid+9000) with the fixed
+  gap check. Lesson reinforced: identify what a pid IS before killing (CLAUDE.md discipline).
+  Also: pkill -f self-match killed two SSH sessions (bracket-escape or split calls).
+- **Backflip: the "hardened" acro launcher STILL had the terminfo bug** — it exported
+  TERM=dumb, waited 6 h correctly, then tmux refused the launch ("missing or unsuitable
+  terminal") and the job died with status.json stuck at "running". train-acro-1 launched
+  manually 16:05 UTC (10k iters, flight-grace mask 46/277 frames confirmed in log) +
+  acro-autopilot armed; launcher fixed (TERM=xterm).
+- dance1-e2e app job advanced unattended after app-server restart: train DONE (policy pulled
+  + staged data/policies/dance1_e2e), verify = sim-gap on box (uses the FIXED script).
+- Local: .gitignore now excludes data/{audio,body_models,jobs}; data/shows + telemetry
+  analyses + design mockups committed. Poller armed for gap-backfill+fluidity+v3c landing.
+- NEXT: when poller fires → fill the V3_PROGRAM decision matrix (gates + arm RMS + leg band),
+  pick winner per DECISION PROCEDURE, stage as CANDIDATE (never overwrite
+  data/policies/thriller/), 3x signed held-out exams, render sign-off; then user-facing:
+  tethered HW test of winner + ARM_GROUND_KP_SCALE A/B + robot-speaker/LED checklist.
