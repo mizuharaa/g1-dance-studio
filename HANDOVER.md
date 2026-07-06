@@ -87,11 +87,12 @@ s2r-b baseline; leg wobble < 0.10 rad/s in 2-10Hz band).
 ## HOW TO RESUME IN A FRESH SESSION
 Start the new session in `~/g1-dance` and paste:
 
-> Resuming the G1 dance project. Read `HANDOVER.md` then `PROJECT_STATE.md` (2026-07-05..06
-> entries). Thriller is SHOW-READY on the s2r-b policy — hardware-validated 3x full ground
-> dances, promoted through the guarded exam machinery. Work the "REMAINING TO PAID-SHOW
-> GRADE" list in HANDOVER; robot steps only with me present, damping remote in hand.
-> Measurement discipline is in CLAUDE.md: no DECISIVE claims without an independent
+> Resuming the G1 dance project. Read `HANDOVER.md` top to bottom, then the 2026-07-05..06
+> PROJECT_STATE.md entries. A GPU program is in flight on the box (survives sessions):
+> collect the remaining verdicts per "IN FLIGHT ON THE BOX", then run the "DECISION
+> PROCEDURE". Check "LOCAL STATE" first (app server on :8321, pollers need re-arming).
+> Robot motion only with me present + damping remote in hand. Keep the GPU busy always.
+> Measurement discipline per CLAUDE.md: no DECISIVE claims without an independent
 > cross-check; commit every measurement script + raw output.
 
 That's enough for a fresh Claude to pick up exactly here.
