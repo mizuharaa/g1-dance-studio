@@ -1,0 +1,108 @@
+{
+  "inputs": {
+    "raw": "data/motions/thriller/thriller_g1.csv",
+    "deploy_ref": "data/policies/thriller/thriller_deploy.csv"
+  },
+  "params": {
+    "margin": 0.9,
+    "per_joint_limits_rad_s": {
+      "left_hip_pitch": 28.8,
+      "left_hip_roll": 18.0,
+      "left_hip_yaw": 28.8,
+      "left_knee": 18.0,
+      "left_ankle_pitch": 33.3,
+      "left_ankle_roll": 33.3,
+      "right_hip_pitch": 28.8,
+      "right_hip_roll": 18.0,
+      "right_hip_yaw": 28.8,
+      "right_knee": 18.0,
+      "right_ankle_pitch": 33.3,
+      "right_ankle_roll": 33.3,
+      "waist_yaw": 28.8,
+      "waist_roll": 33.3,
+      "waist_pitch": 33.3,
+      "left_shoulder_pitch": 33.3,
+      "left_shoulder_roll": 33.3,
+      "left_shoulder_yaw": 33.3,
+      "left_elbow": 33.3,
+      "left_wrist_roll": 33.3,
+      "left_wrist_pitch": 19.8,
+      "left_wrist_yaw": 19.8,
+      "right_shoulder_pitch": 33.3,
+      "right_shoulder_roll": 33.3,
+      "right_shoulder_yaw": 33.3,
+      "right_elbow": 33.3,
+      "right_wrist_roll": 33.3,
+      "right_wrist_pitch": 19.8,
+      "right_wrist_yaw": 19.8
+    }
+  },
+  "despiked_cells": 1,
+  "clamped_frames": 5,
+  "frames": {
+    "out": 1554,
+    "ref": 1554,
+    "ramp": 75,
+    "show": 1479
+  },
+  "old_deploy": {
+    "vel_max": 8.48,
+    "vel_p99": 5.35
+  },
+  "v2_sharp": {
+    "vel_max": 33.3,
+    "vel_p99": 5.48
+  },
+  "fk_min_contact_height_m": -0.0198,
+  "vet": {
+    "pass": true,
+    "detail": {
+      "file": "data/motions/edits/thriller_deploy_v2_sharp.csv",
+      "frames": 1554,
+      "seconds": 51.8,
+      "ground_shift_m": -0.0198,
+      "hard": {
+        "root_excursion": {
+          "max_m": 0.568,
+          "footprint_radius_m": 0.568,
+          "footprint_center_xy": [
+            -0.012,
+            0.529
+          ],
+          "limit": 1.5,
+          "pass": true
+        },
+        "joint_limits": {
+          "worst_violation_rad": 0.0,
+          "pass": true
+        },
+        "pelvis_height": {
+          "min_m": 0.718,
+          "limit": 0.35,
+          "pass": true
+        }
+      },
+      "advisory": {
+        "joint_velocity": {
+          "peak_rad_s": 33.3,
+          "p99_rad_s": 5.48,
+          "frames_over_limit_pct": 2.7,
+          "limit": 9.42,
+          "ok": true
+        },
+        "foot_skate": {
+          "p95_stance_speed_m_s": 0.268,
+          "limit": 0.3,
+          "ok": true
+        },
+        "grounding": {
+          "input_contact_offset_m": -0.0198,
+          "limit": 0.05,
+          "ok": true
+        }
+      },
+      "pass": true
+    }
+  },
+  "out": "data/motions/edits/thriller_deploy_v2_sharp.csv"
+}

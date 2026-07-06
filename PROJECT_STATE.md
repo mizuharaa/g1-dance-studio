@@ -1475,3 +1475,20 @@ human-supervised session (NOT autonomous — no ground motion has run):
   s2r/s2r-b remain on the box's network volume if re-needed... NOTE checkpoints NOT pulled:
   logs/rsl_rl .pt files stay on the box volume; pull model_4999.pt for both runs before delete
   if retraining continuity matters). Deletion is console-only (user click). Meter ~18k VND/h.
+
+## 2026-07-06 — RETARGET FIDELITY: the "soft hits" were the FRONT-END's blanket velocity clamp, not the policy.
+- prep_motion's blanket 0.9*3pi=8.48 rad/s clamp sits 2-4x BELOW true G1 motor limits (hips 20-32,
+  shoulders/elbows 37, wrists 22); it modified 156/1329 frames and blunted 58 REAL dance accents
+  by 60-85% (13-17s punches: raw peak 56.4 -> 8.5 rad/s, HF energy kept 2.8%). Of 60 over-limit
+  events only 2 were glitches — the old "isolated spike" advisory read was wrong.
+- CORRECTIONS: GMR --velocity-limit was a NO-OP this run (thriller_vlim.csv byte-identical to raw);
+  the "0% over-velocity (was 3.1%)" effect came from prep's clamp. VFR->30fps normalize dropped
+  15.5% of source frames (use native avg fps for future videos).
+- Sharp reference PROTOTYPE (vet PASS, timing identical, seam <1e-6): data/motions/edits/
+  thriller_deploy_v2_sharp.csv via tools/make_sharp_reference.py (despike + per-joint 0.9x true
+  motor limits): accents kept 41% -> 96%. Full report docs/retarget_fidelity.md.
+- Pipeline standard (for many-dances work): retarget without blanket clamp; despike + per-joint
+  clamp in prep_motion; per-joint vet advisory; native-fps normalize. Morphology losses (head
+  snaps, claw fingers) are unfixable by any stage — hands remain authored-only (hands spike).
+- ACTION: v3 GPU program extended with variant v3d = precision recipe + SHARP reference (the
+  highest-leverage quality change identified today).
