@@ -10,10 +10,11 @@
 #   bash cloud/run_job.sh start acro-launcher -- \
 #     "bash /workspace/notebook-data/cloud/launch_acro_when_free.sh [motion.npz]"
 set -u
+export TERM=dumb TERMINFO=/usr/share/terminfo
 NB=/workspace/notebook-data
 export PATH="$NB/bin:$PATH"   # tmux lives in $NB/bin
 MOTION="${1:-$NB/motions/acro_backflip.npz}"
-MAX_CONCURRENT=2
+MAX_CONCURRENT=3
 ITERS=10000
 RUN_NAME=train-acro-1
 
@@ -21,7 +22,7 @@ RUN_NAME=train-acro-1
 
 echo "$(date -Is) acro-launcher: waiting for <=${MAX_CONCURRENT} live train jobs"
 while :; do
-    n=$(tmux ls 2>/dev/null | grep -c '^job-train-') || n=0
+    n=$(pgrep -af 'agent.run-name train-' | grep -o 'run-name train-[a-z][a-z0-9-]*' | grep -v train-acro | sort -u | wc -l) || n=0
     echo "$(date -Is) live train jobs: $n"
     [ "$n" -le "$MAX_CONCURRENT" ] && break
     sleep 180
