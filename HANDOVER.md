@@ -1,4 +1,4 @@
-# G1 Dance — Handover / Resume (2026-07-05 ~00:20 ICT)
+# G1 Dance — Handover / Resume (2026-07-06, post-promotion)
 
 **Read this first, then `PROJECT_STATE.md` for the full day-by-day log.** This file is the
 fast path to resume; PROJECT_STATE is the source of truth.
@@ -59,11 +59,11 @@ promoted through the app's guarded machinery (sha-pinned), deploy bundle rebuilt
 ## HOW TO RESUME IN A FRESH SESSION
 Start the new session in `~/g1-dance` and paste:
 
-> Resuming the G1 dance project. Read `HANDOVER.md` then `PROJECT_STATE.md`. We concluded the
-> thermal/balance/stepping failures are one sim2real gap (sim ankle 0 Nm vs real 15 Nm) and the
-> fix is a targeted sim2real retrain (latency + actuator DR + torque penalty + obs noise + mass/
-> push DR), not more deploy patching. Start by authoring the retrain config on the GPU box and
-> verifying in sim (ankle torque stays low + survives injected latency/pushes) BEFORE training.
-> Do not run the robot until I'm rigged with the damping remote.
+> Resuming the G1 dance project. Read `HANDOVER.md` then `PROJECT_STATE.md` (2026-07-05..06
+> entries). Thriller is SHOW-READY on the s2r-b policy — hardware-validated 3x full ground
+> dances, promoted through the guarded exam machinery. Work the "REMAINING TO PAID-SHOW
+> GRADE" list in HANDOVER; robot steps only with me present, damping remote in hand.
+> Measurement discipline is in CLAUDE.md: no DECISIVE claims without an independent
+> cross-check; commit every measurement script + raw output.
 
 That's enough for a fresh Claude to pick up exactly here.
