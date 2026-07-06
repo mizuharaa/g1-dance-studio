@@ -6,10 +6,12 @@ fast path to resume; PROJECT_STATE is the source of truth.
 ---
 
 ## ONE-LINE STATUS
-Thriller is SHOW-READY on s2r-b (hardware-proven 3x + music rehearsal done). All 5 dance
-verdicts are in (v3a/b/d/v4 + v3c@9000) and ALL beat the arm baseline ~30%; a gap-gate CLI
-bug voided the v3a/v3d/v4 gate columns — backfill + fluidity sweep ran 2026-07-06 evening;
-backflip train-acro-1 is ACTUALLY training now (launcher TERM bug had silently killed it).
+Thriller is SHOW-READY on s2r-b. **THE V3 PROGRAM IS DECIDED: v3c WON and is SIM-VERIFIED**
+(only gate-v3 PASS, arm RMS 8.75 vs 13.81 baseline, 3x signed 100% held-out exams,
+1536/1536) — staged at data/policies/thriller_v3c_candidate/, **waiting on USER: render
+sign-off (data/previews/rollout_v3c.mp4) + ONE tethered hardware run, then promotion**.
+v4 calm-legs CLOSED (0% survival, legs frozen). Backflip train-acro-1 training (sim-only);
+dance1-e2e verify chain running app-driven.
 
 ## IN FLIGHT ON THE BOX (survives everything; check first)
 Jobs via `bash cloud/run_job.sh list` + `tmux ls` (export PATH=/workspace/notebook-data/bin:$PATH
@@ -53,13 +55,16 @@ s2r-b baseline; leg wobble < 0.10 rad/s in 2-10Hz band).
   `tools/attach_music.py <file>` (converts/replaces/re-attaches; refuses click tracks).
 
 ## WAITING ON THE USER
-1. Real Thriller audio file -> attach_music.
-2. ~1h robot session (remote in hand): winning-policy tethered run + ARM_GROUND_KP_SCALE A/B
-   (1.5/2.5) + robot-speaker validation + LED cue (docs/SHOW_AUDIO.md checklist).
-3. Backflip HARDWARE decision — only after sim video + risk memo (docs/DYNAMIC_SKILLS.md —
-   verify it exists; the acro agent died mid-docs; regenerate from cloud/dynamic_skills_task.py
-   + exports/acro1 artifacts if missing).
-4. New dance videos (docs/NEW_DANCE_PLAYBOOK.md — the app now does video -> sim-verified alone).
+1. **v3c render sign-off**: watch data/previews/rollout_v3c.mp4 (arm crispness was your
+   complaint — judge it). Then the ~1h robot session (remote in hand): v3c tethered run w/
+   telemetry (NO gain knobs needed — stock deploy contract, same motion CSV; target:
+   hardware arm RMS well under s2r-b's 13.2 deg) + robot-speaker validation + LED cue
+   (docs/SHOW_AUDIO.md checklist). Promotion decision after that.
+2. Real Thriller audio file -> tools/attach_music.py.
+3. Backflip: docs/DYNAMIC_SKILLS.md memo now EXISTS (recommendation: sim showpiece, not
+   hardware). Sim video comes when train-acro-1's autopilot writes exports/acro1/.
+4. New dance videos (docs/NEW_DANCE_PLAYBOOK.md — the app now does video -> sim-verified
+   alone; dance1-e2e is proving the chain end-to-end right now).
 
 ## STANDING ORDERS (user)
 - Keep the GPU box busy ALWAYS (it bills regardless; box was never deleted — verify by SSH).
