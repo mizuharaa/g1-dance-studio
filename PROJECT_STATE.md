@@ -1574,3 +1574,12 @@ human-supervised session (NOT autonomous — no ground motion has run):
   when 2 trainings finish. Verdict poller armed (first-verdict wake).
 - NEXT AUTONOMOUS BUILD: end-to-end validation of the many-dances app pipeline on
   dance1_subject2_seg.csv (real box, deferred train-approval watcher gated on GPU slots).
+
+## 2026-07-06 (session end, handover) — v3 program: 3/6 verdicts in, ALL beat arm baseline ~30%.
+- v3a arm RMS 9.72 / v3b 9.42 (ankle 7.05 RMS, drift 1.20 gate-fail, deploy needs
+  ARM_GROUND_KP_SCALE=2.5) / v3d 10.20-vs-15.18. Pending: v4 calm-legs (leg decision), v3c,
+  backflip (train-acro-1 via acro-launcher6), dance1-e2e (app-driven). Full decision procedure
+  + resume state in HANDOVER.md. Autopilot artifact-retention bug noted there.
+- Session totals: ~35 commits; audit->retrain->hardware-validation->promotion cycle closed;
+  music rehearsal done (placeholder track identified — real song pending); laptop audio fixed;
+  many-dances pipeline live E2E; acro program staged; fluidity forensics + v4 recipe.

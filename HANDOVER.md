@@ -6,29 +6,57 @@ fast path to resume; PROJECT_STATE is the source of truth.
 ---
 
 ## ONE-LINE STATUS
-**Thriller is SHOW-READY on the s2r-b policy — validated end to end.** The sim2real retrain
-closed the gap: 3x full 51.8 s ground dances on hardware (tethered, trained gains, no boost,
-ankle 4.5-6.5 Nm mean, temps flat), 3x signed held-out exams at 100%/100% (1536/1536 episodes),
-promoted through the app's guarded machinery (sha-pinned), deploy bundle rebuilt+authorized.
+Thriller is SHOW-READY on s2r-b (hardware-proven 3x + music rehearsal done). A 6-workload
+GPU program is IN FLIGHT to fix the two user complaints (arm crispness + leg fluidity) and
+add a sim backflip; 3 of 6 verdicts are in and ALL beat the arm baseline by ~30%.
 
-## WHERE THINGS ARE
-- Show policy (canonical): data/policies/thriller/ (s2r-b; STAGED.txt = provenance chain).
-  Fallbacks: thriller_a2_fallback/ (prior HW-proven), thriller_s2r_fallback/ (attempt-1).
-  Checkpoints pulled to data/checkpoints/ (box is safe to DELETE — console-only, user click).
-- Dance record 20260704-18f65bbd: show-ready, policy sha pinned, motion_csv = the DEPLOYABLE
-  data/policies/thriller/thriller_deploy.csv.
-- Deploy runtime fixes all hardware-validated: yaw re-anchor (offsets -87..+88 deg observed,
-  all handled), torso anchor, per-joint action caps (legs 10 / arms x1.6), telemetry every run.
-- Full evidence + history: PROJECT_STATE.md 2026-07-05..06 entries;
-  docs/first_principles_audit.md (the audit that redirected the project).
+## IN FLIGHT ON THE BOX (survives everything; check first)
+Jobs via `bash cloud/run_job.sh list` + `tmux ls` (export PATH=/workspace/notebook-data/bin:$PATH
+TERM=xterm; status.json can be stale — trust tmux/pgrep: unique trainings =
+`pgrep -af "agent.run-name train-" | grep -o "run-name train-[a-z][a-z0-9-]*" | sort -u`).
+- VERDICTS IN (exports/thriller_v3{a,b,d}/RESULT.txt): v3a arm RMS 9.72 deg (s2r-b baseline
+  13.81); v3b 9.42 + ankle RMS 7.05 (coolest) + 100% survival BUT drift 1.20m (gate fail;
+  deploy contract: needs ARM_GROUND_KP_SCALE=2.5); v3d 10.20 vs sharp baseline 15.18.
+- PENDING: v4 "calm-legs" (THE deciding variant for the leg complaint — forensics-directed:
+  per-group action-rate, ang-vel tracking x2, leg delay DR 0-80ms, sharp ref); v3c (10k);
+  train-acro-1 backflip (launcher acro-launcher6 fires it at <=3 trainings; verify it did);
+  dance1-e2e (app-driven end-to-end pipeline validation — trains + gates itself).
+- KNOWN BUG: autopilot_v3 deletes gap_check.json/arm_tracking.json after evaluating (RESULT.txt
+  + jobs/*.log keep headlines). For the FINALISTS re-run cloud/sim_gap_check.py with
+  --output-file kept, + dump a sim trace and run tools/fluidity_forensics.py on it.
 
-## REMAINING TO PAID-SHOW GRADE (needs the user for robot steps)
-1. Slack-tether -> free ground runs (staged, same protocol as 2026-07-06 session).
-2. Music-synced rehearsal (audio machinery from show-production work; 1.5 s lead-in rule).
-3. End-of-run hold-then-handoff — kill the ~1-1.5 m onboard catch-step at run end (backlog).
-4. 2-3 min IN-PLACE choreography for real show pieces (filming guidance already recorded).
-5. Arm-over-onboard runtime (pipeline/arm_dance_runtime.py) built+tested, unproven on HW —
-   still the low-risk fallback/second act; first 5 s probe pending.
+## DECISION PROCEDURE (when v4's verdict is in)
+Bar (cloud/V3_PROGRAM.md): gate v3 pass/near AND arm RMS < baseline AND 2-10Hz leg action band
+<= 0.20 (s2r-b level; forensics docs/fluidity_forensics.md) AND leg amplitude ratio > 0.5
+preferred. Compute leg-band via fluidity tool on sim traces for finalists + s2r-b baseline.
+Winner -> stage as CANDIDATE dir under data/policies/ (NEVER overwrite data/policies/thriller/
+— it is the sha-pinned show policy), 3x held-out exams + mjlab_verify signing, render sign-off,
+then ONE tethered HW test w/ telemetry (target: hardware arm RMS well under the 13.2 deg
+s2r-b baseline; leg wobble < 0.10 rad/s in 2-10Hz band).
+
+## LOCAL STATE (check on resume)
+- App server (the e2e job's orchestrator) runs nohup'd on port 8321
+  (logs/app_server_e2e.log). Check `curl -s http://127.0.0.1:8321/api/jobs`; if dead,
+  restart: `nohup ~/miniconda3/envs/g1dance/bin/python -m ui.server --port 8321 >
+  logs/app_server_e2e.log 2>&1 &` — the runner resumes jobs cleanly.
+- All background pollers from the old session are DEAD — re-arm (poll box RESULT.txt files).
+- Laptop AUDIO WORKS (sof-arl.ri installed 2026-07-06). data/audio/thriller/music.wav IS THE
+  PLACEHOLDER CLICK TRACK — when the user provides the real song:
+  `tools/attach_music.py <file>` (converts/replaces/re-attaches; refuses click tracks).
+
+## WAITING ON THE USER
+1. Real Thriller audio file -> attach_music.
+2. ~1h robot session (remote in hand): winning-policy tethered run + ARM_GROUND_KP_SCALE A/B
+   (1.5/2.5) + robot-speaker validation + LED cue (docs/SHOW_AUDIO.md checklist).
+3. Backflip HARDWARE decision — only after sim video + risk memo (docs/DYNAMIC_SKILLS.md —
+   verify it exists; the acro agent died mid-docs; regenerate from cloud/dynamic_skills_task.py
+   + exports/acro1 artifacts if missing).
+4. New dance videos (docs/NEW_DANCE_PLAYBOOK.md — the app now does video -> sim-verified alone).
+
+## STANDING ORDERS (user)
+- Keep the GPU box busy ALWAYS (it bills regardless; box was never deleted — verify by SSH).
+- Robot motion ONLY with the user present + damping remote in hand. No exceptions — held twice.
+- Measurement discipline per CLAUDE.md (no DECISIVE without cross-check; commit raw outputs).
 
 ## KEY FACTS / INFRA
 - **GPU box** (alive): `root@103.245.250.152:46936`, key `~/g1-dance/.secrets/greennode_ssh_key`,
