@@ -1528,3 +1528,35 @@ human-supervised session (NOT autonomous — no ground motion has run):
   the running engine (isolated dirs, cloud deliberately unconfigured): upload -> vet PASS ->
   preview -> approval block -> approve -> honest cloud block. NO box jobs launched this
   session (box accessed read-only for contract recon).
+
+## 2026-07-06 — SHOW AUDIO BUILT: the robot plays its own music (PlayStream) / is its own cue light (LED). Robot untouched.
+- Rehearsal finding: operator watches the ROBOT, not the terminal — rehearsal_cue.sh's
+  banner failed ("had no idea when to start the music"). Product answer: the G1's own
+  speaker + head LED, over the same DDS the runtime already uses.
+- SDK recon (~/robot/unitree_sdk2_python, read-only): AudioClient PlayStream(app,stream_id,
+  pcm)->(code,data) g1_audio_client.py:63, PlayStop:68, SetVolume:47, LedControl(R,G,B):54,
+  service "voice" api 1001-1010; stream MUST be 16kHz mono s16 PCM (example
+  g1_audio_client_play_wav.py:25), sent as 96000-byte chunks / 1.0s pacing (wav.py:125).
+- Built pipeline/show_audio.py (ffmpeg->16k mono PCM, sample-aligned chunking, timing math,
+  4 modes) + tools/show_run.sh (rehearsal_cue successor; AUDIO_MODE=robot|led|laptop|banner;
+  same deploy cmd + gates, deploy_runtime UNMODIFIED — watches stdout for the policy-start
+  line, anchors tick0 via date +%s.%N in the shell so python spawn can't skew the cue) +
+  docs/SHOW_AUDIO.md. Timeline contract: music = tick0 + 2.5 (deploy_ramp.RAMP_S) + 1.5
+  (dance record audio.align.audio_delay_s) = 4.0s; AUDIO_LATENCY_COMP env starts audio
+  early by the (to-be-measured) robot playback startup latency. LED mode: blue T-3/-2/-1,
+  GREEN = press play. Abort: runtime STOP:/exit -> SIGTERM cue -> PlayStop + LED off
+  (music can never outlive a damped robot).
+- Dry-runs (fake runtime, banner mode, NO robot contact): cue fired at tick0+3.600s
+  (0.4s lead) with 0.1ms scheduling error; abort at +1.5s killed the cue before it fired.
+  Thriller music.wav converts to 1,417,600 B = 44.3s = 15 chunks; offset CLI -> 4.0.
+- Tests: tests/test_show_audio.py, 29 new, SDK fully faked (DDS never initialized; lazy
+  sdk import asserted). Full suite 365 passed, 3 skipped.
+- LAPTOP AUDIO ROOT CAUSE CLOSED: driver requests intel/sof-ipc4/arl/sof-arl.ri (journal:
+  sof_probe_work err -2); topology sof-hda-generic-2ch.tplg already installed. Intel-signed
+  blob staged+verified in scratchpad fw_install/sof-ipc4/arl/ (sof-bin v2025.01; 2025.12.2
+  alternate alongside); ARL uses the MTL image — offline fallback = symlink to the distro's
+  existing mtl/intel-signed/sof-mtl.ri. Exact sudo install+reload (or reboot) one-liner in
+  docs/SHOW_AUDIO.md — install BEFORE reboot, /tmp is volatile.
+- NEXT (robot-facing, human present): 30s speaker smoke test in damp, measure
+  AUDIO_LATENCY_COMP (film screen+speaker), LED cue check, then AUDIO_MODE=robot dress
+  rehearsal — checklist in docs/SHOW_AUDIO.md. NOT committed (per task instruction).
