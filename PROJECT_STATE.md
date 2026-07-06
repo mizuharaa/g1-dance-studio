@@ -1665,3 +1665,22 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - Hardware A/B note for the session: s2r-b hardware arm RMS was 13.2 deg; v3c sim predicts
   ~8.75 — measure on the tether and compare.
 - Still in flight: train-acro-1 (sim backflip, hours), dance1-e2e verify stage (app-driven).
+
+## 2026-07-07 (00:30 ICT) — dance1-e2e VERDICT: app pipeline mechanics VALIDATED end-to-end; the trained policy itself correctly REJECTED by the gap gate (fail-closed proven).
+- Full unattended chain exercised with real artifacts: CSV intake -> retarget/vet/preview ->
+  approve-train gate -> box convert -> train (5000 it) -> export -> pull+stage -> sim-gap
+  gate -> **FAIL CLOSED** with honest, actionable diagnostics (nominal survival 0.320,
+  delay20ms survival fail, ankle p95 fail; "targeted choreography edit or recipe delta,
+  then a FRESH job" — exactly per design).
+- Why the policy is bad (KNOWN, not a pipeline bug): dance1's prep clamped 487/1013 frames
+  (48%) under the blanket 8.48 rad/s velocity clamp (raw peak 26 rad/s) — the same
+  front-end defect documented in docs/retarget_fidelity.md. A coherent re-test belongs
+  AFTER the per-joint-clamp standard lands in prep_motion (v3 lane follow-up), via a fresh
+  job with dance.yaml knobs. NOT re-run now — no green-banner GPU burn.
+- Untested app segment: exams -> signed verdicts -> dance registration (blocked behind a
+  passing gate). Components individually proven today via the v3c manual chain (heldout_eval
+  x3 + mjlab_verify signing + signature_valid/derive_pass). Acceptable coverage; first
+  gate-passing app dance will exercise it in situ.
+- e2e job 20260706-172405-2eb6e0 left in honest failed state (its training cost is sunk in
+  the checkpoint; a future recipe-delta job can reuse the box npz).
+- Box: train-acro-1 now the sole trainer (~iter 2900/10000, ETA ~2.5h + autopilot eval).
