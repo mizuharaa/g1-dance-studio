@@ -1645,3 +1645,23 @@ human-supervised session (NOT autonomous — no ground motion has run):
   stays a SIM SHOWPIECE; 7-item evidence gate before any hardware conversation).
 - NEXT: exams land -> sign 3 verdicts -> if all >=99%: v3c is sim-verified, goes to the user
   with render + hardware-test ask (tethered, ARM_GROUND_KP_SCALE not needed for v3c).
+
+## 2026-07-07 (00:15 ICT) — v3c SIM-VERIFIED: 3x signed held-out exams, 100% (1536/1536), all bars met. Awaiting USER: render sign-off + tethered test.
+- Held-out exams (box job v3c-heldout, seeds 90001/90011/90021, 256 envs, deployable
+  motion): **nominal 256/256 AND push 256/256 on ALL THREE — 1536/1536**, mpkpe
+  0.172-0.184m (s2r-b was 0.173-0.179). Signed via pipeline/mjlab_verify.py; all 3
+  signature_valid + derive_pass (same machinery that promoted s2r-b). Evidence committed
+  in data/policies/thriller_v3c_candidate/.
+- v3c fluidity landed: leg band 0.156 (bar <=0.20 ok; s2r-b 0.147) + **LEG_AMP 0.456 — best
+  of the program** (s2r-b 0.34): legs move MORE and stay smooth. Decision bars: gate PASS /
+  arm 8.75 < 13.81 / band <=0.20 / amp best-of-field (pref >0.5 not fully met by anyone).
+- **v3c candidate = COMPLETE, waiting on HUMAN GATES (not to be automated):**
+  1. render sign-off: data/previews/rollout_v3c.mp4 (arm crispness is the complaint being
+     fixed — user judges);
+  2. ONE tethered hardware run w/ telemetry (user present + remote; NO gain knobs needed —
+     stock deploy contract, same motion CSV as the show policy);
+  3. promotion decision (user-ordered, guarded machinery) — data/policies/thriller/ (s2r-b)
+     remains the show policy until then.
+- Hardware A/B note for the session: s2r-b hardware arm RMS was 13.2 deg; v3c sim predicts
+  ~8.75 — measure on the tether and compare.
+- Still in flight: train-acro-1 (sim backflip, hours), dance1-e2e verify stage (app-driven).

@@ -1,0 +1,36 @@
+{
+  "schema": "sim_exam/v1",
+  "method": "mjlab_heldout_v1",
+  "dance": "thriller_deploy",
+  "policy": "data/policies/thriller_v3c_candidate/policy.onnx",
+  "policy_sha256": "ea9a6f884de7a2a9d29d0f55bf73453e5de73403e661fb31fc14c021be9387ee",
+  "motion_sha256": "8ffd1a17639ee93bfa1e5cb164afd59cccc8193f7985329cf3b5cd6ae962db27",
+  "motion_npz_sha256": null,
+  "venue_max_excursion_m": 1.5,
+  "nominal": {
+    "pass": true,
+    "success_rate": 1.0,
+    "n_success": 256,
+    "num_episodes": 256,
+    "mpkpe_m": 0.18445231020450592,
+    "ee_pos_error_m": 0.08735477179288864,
+    "held_out_seed": 90021
+  },
+  "push": {
+    "pass": true,
+    "success_rate": 1.0,
+    "n_success": 256,
+    "num_episodes": 256,
+    "force_n": 875.0,
+    "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
+    "mpkpe_m": 0.2072015404701233,
+    "held_out_seed": 90022
+  },
+  "repeatability": {
+    "pass": true,
+    "runs": 256,
+    "clean": 256
+  },
+  "verdict": "pass",
+  "signature": "773642de7742b6b97d26cee7bf16755c23e6b33a470b6ae5df631dcafd8dfc1c"
+}
