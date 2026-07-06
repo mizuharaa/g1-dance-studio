@@ -78,6 +78,21 @@ GROUND_LEG_KP_SCALE = float(os.environ.get("GROUND_LEG_KP_SCALE", "1.0"))
 # balance — stiffening them fought the policy and the robot fell sideways into the tether
 # (observed 2026-07-04, 5s run). Leave roll/yaw at trained gains so lateral balance is free.
 LEG_JOINT_IDX = [0, 3, 4, 6, 9, 10]  # L/R hip_pitch, knee, ankle_pitch
+# Policy-phase ARM gain boost (ground-run-legodom ONLY; dance-quality program 2026-07-06).
+# System-ID (tools/system_id_arms.py -> data/reports/system_id_20260706.json, 3 full-dance
+# telemetry runs): the arm plant lags its COMMANDED target 81-141 ms with Coulomb friction
+# 0.1-0.5 Nm; at the trained arm gains (kp 14.25/16.78) the PD command sits at the friction
+# floor (wrist_roll delivers only 0.24-0.37x) and shoulders under-swing (amp 0.83-0.92) —
+# the visible "arms less crisp than sim" gap. Scales kp AND kd of the 14 arm joints
+# (identified BY NAME from meta.joint_order, never positional) by the SAME factor:
+# damping ratio zeta = kd/(2*sqrt(kp*J)) then RISES by sqrt(scale) — never less damped
+# than trained (no oscillation risk; real friction adds damping sim lacked) — and it
+# exactly reproduces the V3B retrain's train-time actuator scaling, so one knob serves
+# both the deploy-side boost experiment and a V3B-policy deploy (REQUIRED 2.5 there).
+# At 2.5x the resulting kp (35.6 shoulder/elbow/wrist_roll, 41.9 wrist_pitch/yaw) stays
+# inside the teleop-proven envelope on these motors (kp 80 shoulder/elbow, 40 wrist).
+ARM_GROUND_KP_SCALE = float(os.environ.get("ARM_GROUND_KP_SCALE", "1.0"))
+ARM_GROUND_KP_SCALE_MAX = 3.0
 # Feedforward gravity compensation (EXPERIMENTAL, default OFF). NOTE (audit 2026-07-05):
 # the earlier rationale ("sim's position actuator implicitly provides gravity-hold torque")
 # was wrong physics — sim and firmware run the SAME PD law; sim stands because the POLICY
@@ -348,7 +363,8 @@ class Telemetry:
             arrays["kp"], arrays["kd"] = self.meta.kp, self.meta.kd
             arrays["run_meta_json"] = np.array(json.dumps({
                 "mode": self.mode, "approach_kp_scale": APPROACH_KP_SCALE,
-                "ground_leg_kp_scale": GROUND_LEG_KP_SCALE, "gravity_ff": GRAVITY_FF,
+                "ground_leg_kp_scale": GROUND_LEG_KP_SCALE,
+                "arm_ground_kp_scale": ARM_GROUND_KP_SCALE, "gravity_ff": GRAVITY_FF,
                 "yaw_align": YAW_ALIGN, "torso_anchor": TORSO_ANCHOR,
                 "max_action": MAX_ACTION, "ground_max_action": GROUND_MAX_ACTION,
                 **self.extra}))
@@ -1160,6 +1176,38 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
     _finalize_and_exit(0)
 
 
+def _arm_joint_indices(joint_order):
+    """The 14 arm joints, matched BY NAME (shoulder/elbow/wrist) — never positional."""
+    return [i for i, n in enumerate(joint_order)
+            if ("shoulder" in n) or ("elbow" in n) or ("wrist" in n)]
+
+
+def _arm_boost_gains(meta, kp, kd, scale=None):
+    """Apply the ARM_GROUND_KP_SCALE boost to policy-phase gains (copies).
+
+    Returns (kp, kd, arm_idx); arm_idx is [] when no boost is applied. kd scales
+    by the SAME factor as kp (see the knob comment: overdamped-ness rises with
+    sqrt(scale), and it matches the V3B retrain's train-time actuator scaling).
+    Refuses scales outside [1.0, ARM_GROUND_KP_SCALE_MAX] — above ~3x the wrist
+    kp leaves the teleop-proven envelope on these motors.
+    """
+    s = ARM_GROUND_KP_SCALE if scale is None else float(scale)
+    if s == 1.0:
+        return kp, kd, []
+    if not (1.0 <= s <= ARM_GROUND_KP_SCALE_MAX):
+        raise SystemExit(
+            f"REFUSED: ARM_GROUND_KP_SCALE={s:g} outside [1.0, "
+            f"{ARM_GROUND_KP_SCALE_MAX:g}] (teleop-proven arm envelope).")
+    idx = _arm_joint_indices(meta.joint_order)
+    if len(idx) != 14:
+        raise SystemExit(
+            f"REFUSED: expected 14 arm joints in joint_order, found {len(idx)}")
+    kp, kd = np.asarray(kp, float).copy(), np.asarray(kd, float).copy()
+    kp[idx] *= s
+    kd[idx] *= s
+    return kp, kd, idx
+
+
 def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
     """GROUND stage B (KINEMATIC ODOMETRY): run the PROVEN gantry policy on the ground with
     base_lin_vel + torso-height feedback estimated from the LEGS (joint q/dq + IMU), which
@@ -1204,6 +1252,13 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
     kd_pol[LEG_JOINT_IDX] *= GROUND_LEG_KP_SCALE
     if GROUND_LEG_KP_SCALE != 1.0:
         print(f"   LEG gains x{GROUND_LEG_KP_SCALE:.1f} during policy (weight-bearing); arms unchanged.")
+    kp_pol, kd_pol, _arm_idx = _arm_boost_gains(meta, kp_pol, kd_pol)
+    if _arm_idx:
+        print(f"   *** ARM gains x{ARM_GROUND_KP_SCALE:.2f} during policy (kp AND kd, "
+              f"{len(_arm_idx)} joints by name): shoulder/elbow kp -> "
+              f"{kp_pol[_arm_idx[0]]:.1f}, wrist_pitch/yaw kp -> {kp_pol[_arm_idx[-1]]:.1f} "
+              f"(teleop-proven 80/40). Legs/waist untouched. "
+              f"A V3B-retrained policy REQUIRES 2.5 here. ***")
     if GRAVITY_FF:
         print(f"   GRAVITY FEEDFORWARD on (x{GRAVITY_FF_SCALE:.2f}) — EXPERIMENTAL "
               f"(see audit note at the GRAVITY_FF flag).")
