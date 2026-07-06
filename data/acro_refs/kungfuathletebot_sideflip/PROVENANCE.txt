@@ -1,0 +1,33 @@
+CANDIDATE 2: KungfuAthleteBot side flip (aerial/side somersault) clips 449 & 464
+================================================================================
+
+SOURCE: same dataset/revision/license/pipeline as ../kungfuathletebot_backflip/PROVENANCE.txt
+  (HF LuluCao/KungfuAthleteBot @ ff09f3795dc99bef73b21413b03fa8470917a22c, Apache-2.0,
+   GVHMR video mocap + GMR retarget to Unitree G1 29-DoF).
+
+FILES (URL prefix: https://huggingface.co/datasets/LuluCao/KungfuAthleteBot/resolve/main/kungfu_athlete_for_g1_29dof/datasets/org/kongfu_jump)
+  449_org.npz / 449_source.mp4   <prefix>/449/449.{npz,mp4}
+  464_org.npz / 464_source.mp4   <prefix>/464/464.{npz,mp4}
+  (smoothed + smooth_mj variants also exist upstream at org_smooth/kongfu_jump_smoothed/<id>/
+   and org_smooth_mj/<id>.npz; not downloaded)
+
+WHY CHOSEN
+  Most dynamic alternative to the backflip from the same G1-native source; the dataset has
+  35 Side Flip samples -- these two are combo clips:
+  449: 侧空翻转体360°+旋子转体360°+跌竖叉 "side flip w/ 360 twist + butterfly twist (xuanzi)
+       360 + drop into split" - Scene-004.
+  464: 侧空翻转体360°和旋风脚360°+马步 "side flip 360 & whirlwind kick 360 + horse stance"
+       - Scene-005.
+
+FORMAT: identical to backflip candidate (fps=30, qpos (T,36), root quat WXYZ, 29 joints in
+  our exact order). Same trivial conversion to our CSV.
+
+DURATION / EVIDENCE (computed)
+  449: 163 frames @30fps = 5.43 s; roll-plane sweep 415 deg with 2 fully-inverted frames,
+       peak root z 0.75 m -> genuine aerial side rotation. BETTER of the two.
+  464: 147 frames @30fps = 4.90 s; pitch sweep 139 / roll sweep 127 deg, NO fully-inverted
+       frames -> the retarget likely attenuated the flip; treat as a dynamic jump-spin-kick
+       reference rather than a true flip.
+
+CAVEATS: same as backflip candidate (video mocap noise, possible height offset, verify in
+  MuJoCo). Downloaded 2026-07-06.

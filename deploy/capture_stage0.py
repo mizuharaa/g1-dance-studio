@@ -264,6 +264,12 @@ def _effective_gains(d, run_meta):
             kp[idx] *= s
             kd[idx] *= s
             notes.append(f"ground-run-legodom: sagittal leg gains scaled x{s:g}")
+        s_arm = float(rm.get("arm_ground_kp_scale", 1.0))
+        if s_arm != 1.0:
+            idx = list(range(15, 29))   # deploy_runtime ARM boost: shoulder/elbow/wrist
+            kp[idx] *= s_arm
+            kd[idx] *= s_arm
+            notes.append(f"ground-run-legodom: ARM gains scaled x{s_arm:g} (kp and kd)")
     if rm.get("gravity_ff"):
         notes.append("WARNING: run used GRAVITY_FF tau feedforward (not recorded) — "
                      "delivery ratios include the unmodeled FF term")

@@ -1,0 +1,50 @@
+CANDIDATE 3 (fallback, needs our own retarget): CMU Graphics Lab raw backflip mocap
+===================================================================================
+
+SOURCE
+  CMU Graphics Lab Motion Capture Database, http://mocap.cs.cmu.edu
+  Direct URLs:
+    http://mocap.cs.cmu.edu/subjects/87/87.asf      (skeleton, subject 87)
+    http://mocap.cs.cmu.edu/subjects/87/87_03.amc   "Backflip"
+    http://mocap.cs.cmu.edu/subjects/88/88.asf      (skeleton, subject 88)
+    http://mocap.cs.cmu.edu/subjects/88/88_01.amc   "backflip"
+    http://mocap.cs.cmu.edu/subjects/88/88_05.amc   "cartwheel into backflip"
+  Trial descriptions from the CMU index (mirror:
+    https://github.com/una-dinosauria/cmu-mocap/blob/master/cmu-mocap-index-text.txt).
+  Subjects 85-90 are the acrobatics/flips subjects (85 breakdance/flips, 87/88/89/90
+  acrobatics). ASF header names the performer session "Acrobat_Osman".
+  LICENSE: free for all uses, including commercial ("This data is free for use in research
+  projects. You may include this data in commercially-sold products, ... please send the
+  citation: mocap.cs.cmu.edu, funded by NSF EIA-0196217").
+
+FORMAT
+  ASF/AMC (Acclaim), CMU 31-bone human skeleton, Euler angles in degrees, root pos+rot.
+  Nominal capture rate 120 fps (some subject-88 trials are 60 fps -- the fleaven AMASS-G1
+  dataset labels 88_10/88_11 as 60 fps; verify per-trial when converting).
+  Frame counts (lines matching /^[0-9]+$/): 87_03 = 247, 88_01 = 202, 88_05 = 149
+  (~2.1 s / 1.7 s / 1.2 s at 120 fps, or 2x that if 60 fps).
+
+WHY CHOSEN
+  Clean studio optical mocap of true standing backflips (vs. the noisier video-mocap
+  KungfuAthleteBot clips) with an unrestricted license. NOT yet retargeted to G1 -- this is
+  the "retarget ourselves" fallback if the KungfuAthleteBot flips prove too noisy.
+
+CONVERTIBILITY TO OUR 36-col 30fps CSV: MODERATE EFFORT (needs retargeting)
+  Options:
+  a) AMC -> BVH (cgspeed's MotionBuilder-friendly BVH conversion of these trials exists;
+     mirrors: outworldz.com/Secondlife/Posts/CMU/) -> GMR (YanjieZe/GMR, supports BVH input)
+     -> G1 pkl -> csv (GMR ships retarget/scripts/pkl_2_csv.py producing the BeyondMimic
+     36-col CSV = our format).
+  b) AMASS SMPL-X version of CMU trials (registration-walled at amass.is.tue.mpg.de) -> GMR
+     smplx pathway. NOTE: the freely-mirrored AMASS-retargeted-G1 datasets
+     (fleaven/Retargeted_AMASS_for_robotics, ember-lab-berkeley/AMASS_Retargeted_for_G1)
+     DROPPED all flip trials (87_03, 88_01, 88_05, 90_19 etc. absent) -- only non-flip
+     trials of subjects 85-90 survived their filtering. So no shortcut there.
+  c) Our existing GVHMR pipeline (cloud/10_gvhmr.sh) does not apply (no video here); but a
+     video-of-mocap render could be fed through it in a pinch.
+
+OTHER FLIP TRIALS AVAILABLE AT SAME SOURCE (not downloaded):
+  88_02 backflips+jump onto platform+handstands, 88_08 crouch and flip backward on hands,
+  89_03/89_04/89_05 flips+handstands, 90_08 side flip, 90_14/90_15 front hand flip,
+  90_19 monkey backflip, 49_06..49_08 + 88_07 + 90_02..90_04 cartwheels.
+Downloaded 2026-07-06.

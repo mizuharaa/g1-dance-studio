@@ -1,0 +1,60 @@
+CANDIDATE 1 (BEST): KungfuAthleteBot standing backflip clips 278 & 280
+=======================================================================
+
+SOURCE
+  HuggingFace dataset : LuluCao/KungfuAthleteBot
+  Revision (sha)      : ff09f3795dc99bef73b21413b03fa8470917a22c (lastModified 2026-05-08)
+  Code repo           : https://github.com/NPCLEI/KungFuAthleteBot (MIT)
+  Paper               : "KungfuAthlete" arXiv:2602.13656, project https://kungfuathletebot.github.io/
+  License (data)      : Apache-2.0 (HF dataset card). Code repo is MIT.
+  Pipeline            : martial-arts training videos -> GVHMR video mocap -> GMR retarget to
+                        Unitree G1 29-DoF -> manual screening/refinement.
+
+FILES (URL prefix: https://huggingface.co/datasets/LuluCao/KungfuAthleteBot/resolve/main/kungfu_athlete_for_g1_29dof/datasets)
+  278_org.npz       <prefix>/org/kongfu_jump/278/278.npz            (30 fps qpos)
+  278_source.mp4    <prefix>/org/kongfu_jump/278/278.mp4            (source video = ground-truth evidence)
+  278_smoothed.npz  <prefix>/org_smooth/kongfu_jump_smoothed/278/278.npz  (fps field=50, same 104 frames -- appears re-timed/smoothed; verify before use)
+  278_smooth_mj.npz <prefix>/org_smooth_mj/278.npz                  (maximal-coords, mjlab/BeyondMimic csv_to_npz style)
+  280_*             same paths with id 280
+
+WHY CHOSEN
+  Only freely downloadable, already-G1-retargeted, 29-DoF STANDING BACKFLIP reference found
+  anywhere (ASAP, PBHC examples, LAFAN1-retarget, AMASS-G1 retargets all contain no flips).
+  Source video title: 原地后空翻+腾空飞脚180°+蝎式 = "standing backflip + 180 deg flying
+  kick + scorpion pose". 278 = Scene-002, 280 = Scene-005 of that video ("Action File
+  Title.csv" in the dataset root maps ids -> video titles). The repo's own demo GIF
+  (docs/example_g1_after_278.gif) is clip 278. Dataset Skills category: Backflip(3),
+  Side Flip(35), Air Spin(18), Lotus Swing(13); ids 278 & 280 are the backflip clips
+  that survived their quality filtering (276/277/279/281 were dropped upstream).
+
+FORMAT (verified locally with numpy)
+  *_org.npz: { fps: int64 scalar = 30, qpos: (T,36) float64 }  MuJoCo qpos for G1 29-DoF:
+    qpos[0:3] = root xyz (m), qpos[3:7] = root quaternion in WXYZ (w first; frame0 ~ [0.88,...]),
+    qpos[7:36] = 29 joint angles in EXACTLY our target order (verified against joint_names in
+    *_smooth_mj.npz: left_hip_pitch...left_ankle_roll, right leg, waist y/r/p, left arm 7,
+    right arm 7 -- identical to LAFAN1_Retargeting_Dataset / BeyondMimic CSV order).
+  *_smooth_mj.npz: fps=50, joint_pos (T-1,36), joint_vel (T-1,35), body_pos_w/body_quat_w/
+    body_lin_vel_w/body_ang_vel_w (T-1,53,3|4), joint_names (29), body_names (53).
+
+DURATION / FLIP EVIDENCE (computed from *_org.npz)
+  278: 104 frames @30fps = 3.47 s. Root fully inverted (body z-axis dot world z < -0.5)
+       frames 43-47 (t = 1.43-1.57 s); airborne z>0.85 m frames 34-53; peak root z 1.15 m;
+       sagittal tilt sweep 265 deg (flip + scorpion ending, ends low z=0.36).
+  280: 96 frames @30fps = 3.20 s. Inverted frames 31-34 (t = 1.03-1.13 s); cumulative
+       backward pitch sweep -448 deg (full 360 flip + landing recovery); peak root z 0.97 m.
+       280 is the cleanest pure standing-backflip segment of the two.
+
+CONVERTIBILITY TO OUR 36-col 30fps CSV: TRIVIAL
+  org npz is already 30 fps, 36-wide qpos with our joint order. Only change: our CSV stores
+  the root quaternion as x,y,z,w in cols 3-6 (loader: qpos[3]=m[:,6], qpos[4:7]=m[:,3:6]),
+  while the npz qpos[3:7] is w,x,y,z. So per frame write:
+    csv_row = [x, y, z, qx, qy, qz, qw, j1..j29] = qpos[[0,1,2,4,5,6,3,7..35]]
+
+CAVEATS
+  - Video mocap (GVHMR): jump subset flagged by authors as having "minor imperfections";
+    inspect in MuJoCo before training. Repo provides retarget/scripts/
+    adjust_robot_height_by_gravity.py for ground-height fixing.
+  - Kinematic reference only; human backflip timing may need time-scaling for G1 dynamics.
+  - "smoothed" file has fps=50 with unchanged frame count vs org (30fps) -> effectively a
+    1.67x speed-up if played at face value; prefer org (30 fps) and re-verify.
+Downloaded 2026-07-06.
