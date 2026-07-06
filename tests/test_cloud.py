@@ -87,6 +87,44 @@ def test_ssh_argv_requires_host():
         cloud._ssh_argv({"ssh": {}}, "true")
 
 
+# ---- scp transfer argv (no network) ------------------------------------------------
+
+def test_scp_argv_key_auth_remote_paths():
+    argv = cloud._scp_argv(
+        {"transport": "ssh",
+         "ssh": {"host": "10.0.0.1", "port": 46936, "user": "root",
+                 "key_path": "~/k.pem"}},
+        ["/local/a.csv"], "remote:/workspace/notebook-data/motions/a.csv")
+    assert argv[0] == "scp"
+    assert "-P" in argv and "46936" in argv         # scp uses -P, not -p
+    i = argv.index("-i")
+    assert argv[i + 1].startswith("/")              # ~ expanded
+    assert argv[-2] == "/local/a.csv"
+    assert argv[-1] == "root@10.0.0.1:/workspace/notebook-data/motions/a.csv"
+
+
+def test_scp_argv_password_uses_sshpass_env():
+    argv = cloud._scp_argv({"ssh": {"host": "h", "password": "pw"}},
+                           ["remote:/x/y"], "/tmp/y")
+    assert argv[:2] == ["sshpass", "-e"]
+    assert "pw" not in argv
+    assert argv[-2] == "root@h:/x/y"
+
+
+def test_push_file_requires_ssh_transport(tmp_path, cfg_path):
+    cloud.save_config({"transport": "jupyter", "ssh": {}, "jupyter": {"url": "x"}})
+    f = tmp_path / "a.txt"
+    f.write_text("hi")
+    with pytest.raises(RuntimeError, match="ssh transport"):
+        cloud.push_file(f, "/remote/a.txt")
+
+
+def test_push_file_missing_local_file(cfg_path):
+    cloud.save_config({"transport": "ssh", "ssh": {"host": "h"}, "jupyter": {}})
+    with pytest.raises(FileNotFoundError):
+        cloud.push_file("/no/such/file", "/remote/a.txt")
+
+
 # ---- transport selection / connection test ---------------------------------------
 
 def test_run_unconfigured_raises(cfg_path):

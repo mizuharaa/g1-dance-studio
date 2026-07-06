@@ -93,6 +93,44 @@ def _reconcile_jobs() -> None:
             _job_queue.put(job.id)
 
 
+# How often the poll loop looks for cloud-blocked jobs due a re-check. Stages set
+# meta["poll_after"] (via StageBlocked.retry_after_s) when they are waiting on a
+# box job; re-queueing re-runs the stage, which re-reads the box status.json.
+CLOUD_POLL_S = 30
+
+
+def _poll_cloud_jobs_once(now: float | None = None) -> list[str]:
+    """Re-queue every job whose current stage is blocked with an expired
+    poll_after. Returns the re-queued job ids (for tests)."""
+    now = time.time() if now is None else now
+    requeued = []
+    for job in store.list_jobs():
+        cur = job.current_stage()
+        if cur is None:
+            continue
+        st = job.stages[cur]
+        if st.state != "blocked":
+            continue
+        poll_after = st.meta.get("poll_after")
+        if not poll_after or now < poll_after:
+            continue
+        # bump so a slow worker doesn't collect duplicate re-queues every tick
+        st.meta["poll_after"] = now + CLOUD_POLL_S
+        job.save()
+        _job_queue.put(job.id)
+        requeued.append(job.id)
+    return requeued
+
+
+def _cloud_poll_loop() -> None:
+    while True:
+        time.sleep(CLOUD_POLL_S)
+        try:
+            _poll_cloud_jobs_once()
+        except Exception:  # noqa: BLE001 — the poller must never die
+            print(f"cloud-poll error:\n{traceback.format_exc()}", file=sys.stderr)
+
+
 @app.on_event("startup")
 def _start_worker() -> None:
     # A bad job.json or a seeding hiccup must NEVER prevent the worker thread from
@@ -109,6 +147,8 @@ def _start_worker() -> None:
               file=sys.stderr)
     threading.Thread(target=_worker_loop, name="job-worker", daemon=True).start()
     threading.Thread(target=_system_refresh_loop, name="system-monitor",
+                     daemon=True).start()
+    threading.Thread(target=_cloud_poll_loop, name="cloud-poll",
                      daemon=True).start()
 
 
@@ -232,6 +272,29 @@ def retry_job(job_id: str) -> dict:
     st.started_at = st.finished_at = None
     job.save()
     job.log(f"stage {cur}: reset by user — re-queued")
+    _job_queue.put(job.id)
+    return _job_dict(job)
+
+
+@app.post("/api/jobs/{job_id}/approve-train")
+def approve_train(job_id: str) -> dict:
+    """The human preview gate (architecture §5): training costs 2-3 GPU-hours, so
+    it never starts until the operator has watched the MuJoCo preview and clicked
+    Approve. Records who/when in the train stage meta and re-queues the job."""
+    try:
+        job = store.load_job(job_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such job: {job_id}")
+    if job.stages["retarget"].state != "done":
+        raise HTTPException(400, "nothing to approve yet — the motion preview is "
+                                 "not ready (retarget stage incomplete)")
+    st = job.stages["train"]
+    if st.state == "done":
+        raise HTTPException(400, "training already completed")
+    if not st.meta.get("approved"):
+        st.meta["approved"] = {"at": time.time(), "by": "operator"}
+        job.save()
+        job.log("train: APPROVED by operator (preview reviewed) — queueing")
     _job_queue.put(job.id)
     return _job_dict(job)
 

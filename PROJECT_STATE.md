@@ -1492,3 +1492,39 @@ human-supervised session (NOT autonomous — no ground motion has run):
   snaps, claw fingers) are unfixable by any stage — hands remain authored-only (hands spike).
 - ACTION: v3 GPU program extended with variant v3d = precision recipe + SHARP reference (the
   highest-leverage quality change identified today).
+
+## 2026-07-06 — APP PIPELINE GENERALIZED: video -> show-ready CANDIDATE, 3 human gates (parallel lane, not committed)
+- The manual Thriller flow is now the app's job pipeline (new pipeline/stages/cloud_motion.py +
+  extended RetargetStage): extract = 30fps re-encode -> push -> GVHMR job on box -> pull
+  hmr4d_results.pt; retarget = GMR retarget -> grounding -> window (or dance.yaml override) ->
+  vet gate -> MuJoCo preview -> prep_motion -> NEW pipeline/deploy_ramp.py (2.5s activation
+  ramp; reproduces the canonical thriller_deploy.csv bit-for-bit — golden-tested); train =
+  push deploy csv -> csv_to_npz job -> train_sim2real (Sim2Real task + the s2r-b
+  motion_global_root_pos delta, 5000-iter default) -> export_policy.py -> pull to
+  data/policies/<slug>/ {policy.onnx, policy_meta.json sidecar generated from
+  docs/mjlab_policy_interface.json, <slug>_deploy.csv/.npz}; verify = sim_gap_check v3 ->
+  3x heldout_eval (seeds 90001/90011/90021, 256 envs) -> signed sim_exam/v1 verdicts
+  (mjlab_verify) -> register-or-update dance BOUND to the deployable csv -> attach_policy ->
+  record_sim_run_from_verdict x3 => SIM-VERIFIED; export = deploy-contract audit + music
+  attach from data/audio/<slug>/music.* (1.5s lead-in rule). Promotion stays human (Shows UI).
+- Infra: box work via run_job.sh script-jobs (tmux + status.json, reboot-safe); stages persist
+  phase in stage meta and raise StageBlocked with honest progress (training shows iter/reward
+  parsed from the box log) + a retry_after_s hint; new server poll loop re-queues due jobs
+  every 30s; scp push/pull added to pipeline/cloud.py (ssh transport only).
+- HUMAN GATES: (1) Approve-training button (POST /api/jobs/{id}/approve-train) after preview
+  review — nothing reaches the GPU before that click; (2) promotion (guarded machinery
+  unchanged); (3) robot day (the app still has no robot code path). Legacy guard: extract
+  skips when retarget is already done, so the old Thriller job can't re-burn GPU on restart.
+- Per-dance knobs in ONE place: dance.yaml in the job dir (iterations, num_envs,
+  extra_train_args, window_start/end_s, heldout seeds/envs, velocity_limit); defaults = the
+  promoted recipe; unknown keys hard-error. Operator doc: docs/NEW_DANCE_PLAYBOOK.md
+  (exact clicks, ~3.5-5h timeline, failure playbook, artifact map).
+- NOTE (retarget-fidelity entry above): the sharp-reference/per-joint-clamp standard lands via
+  the v3 lane; when prep_motion/vet change there, this pipeline picks them up automatically
+  (it calls prep_motion + vet_motion directly). velocity_limit stays a dance.yaml knob.
+- Tests: full suite 339 passed (31 new: FakeBox-mocked walkthroughs of all four cloud stages
+  incl. failure honesty, deploy_ramp golden test vs the canonical deployable, scp argv,
+  poll loop, approve endpoint, model-marked real RetargetStage csv->deploy run). Also live-drove
+  the running engine (isolated dirs, cloud deliberately unconfigured): upload -> vet PASS ->
+  preview -> approval block -> approve -> honest cloud block. NO box jobs launched this
+  session (box accessed read-only for contract recon).

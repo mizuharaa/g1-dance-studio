@@ -198,6 +198,73 @@ def _run_jupyter(cfg: dict, command: str, timeout: int = 60) -> tuple[int, str, 
             pass
 
 
+# ---- file transfer (ssh/scp only) -----------------------------------------------
+# The GreenNode box is reached over SSH in practice; the jupyter transport was the
+# plan-B command channel and has no sane bulk-file path, so transfers require ssh.
+
+def _scp_argv(cfg: dict, sources: list[str], dest: str) -> list[str]:
+    """scp argv mirroring _ssh_argv's option/auth handling. `sources`/`dest` are
+    either local paths or 'remote:'-prefixed box paths (we add user@host)."""
+    s = cfg.get("ssh", {})
+    if not s.get("host"):
+        raise ValueError("ssh transport not configured (missing host)")
+    opts = [o for pair in zip(SSH_BASE_OPTS[::2], SSH_BASE_OPTS[1::2])
+            for o in pair if not (s.get("password") and pair[1] == "BatchMode=yes")]
+    argv = ["scp", "-q", *opts]
+    if s.get("port"):
+        argv += ["-P", str(s["port"])]           # scp uses -P, ssh uses -p
+    if s.get("key_path"):
+        argv += ["-i", str(Path(s["key_path"]).expanduser())]
+    if s.get("password"):
+        argv = ["sshpass", "-e", *argv]
+    host = f"{s.get('user', 'root')}@{s['host']}"
+
+    def resolve(p: str) -> str:
+        return f"{host}:{p[len('remote:'):]}" if p.startswith("remote:") else p
+
+    return [*argv, *[resolve(p) for p in sources], resolve(dest)]
+
+
+def _run_scp(cfg: dict, sources: list[str], dest: str, timeout: int) -> None:
+    if cfg.get("transport") != "ssh":
+        raise RuntimeError("file transfer needs the ssh transport (scp); the "
+                           "jupyter transport is command-only — configure SSH "
+                           "in Studio → Cloud GPU")
+    argv = _scp_argv(cfg, sources, dest)
+    if argv[0] == "sshpass" and not _which("sshpass"):
+        raise RuntimeError("password auth needs the 'sshpass' tool — either "
+                           "install it (conda-forge) or use an SSH key file")
+    env = {k: v for k, v in os.environ.items() if k != "LD_LIBRARY_PATH"}
+    pw = cfg.get("ssh", {}).get("password")
+    if pw:
+        env["SSHPASS"] = pw
+    proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
+                          env=env)
+    if proc.returncode != 0:
+        raise RuntimeError(f"scp failed (rc={proc.returncode}): "
+                           f"{(proc.stderr or proc.stdout).strip()[-300:]}")
+
+
+def push_file(local: Path | str, remote: str, timeout: int = 1800,
+              cfg: dict | None = None) -> None:
+    """Copy a local file to `remote` (absolute path) on the box."""
+    local = Path(local)
+    if not local.is_file():
+        raise FileNotFoundError(f"push_file: no such local file: {local}")
+    _run_scp(cfg or load_config(), [str(local)], f"remote:{remote}", timeout)
+
+
+def pull_file(remote: str, local: Path | str, timeout: int = 1800,
+              cfg: dict | None = None) -> Path:
+    """Copy a file from the box to `local`; returns the local path."""
+    local = Path(local)
+    local.parent.mkdir(parents=True, exist_ok=True)
+    _run_scp(cfg or load_config(), [f"remote:{remote}"], str(local), timeout)
+    if not local.is_file():
+        raise RuntimeError(f"pull_file: transfer reported ok but {local} is missing")
+    return local
+
+
 # ---- public API ----------------------------------------------------------------
 
 def run(command: str, timeout: int = 60, cfg: dict | None = None) -> tuple[int, str, str]:

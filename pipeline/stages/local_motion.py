@@ -1,11 +1,12 @@
 """Stage implementations that run on this laptop.
 
 CSV motion inputs (LAFAN1-convention robot motion) run fully locally:
-    retarget = window -> vet gate -> MuJoCo preview render.
-Video inputs need the cloud GPU (GreenNode) for extract/retarget, and every
-job needs it for train — until it is provisioned those stages raise
-StageBlocked so the UI shows an honest "waiting on cloud" state instead of
-fake progress. A re-queue (app restart or the Retry button) retries them.
+    retarget = window -> vet gate -> MuJoCo preview -> show prep -> deploy ramp.
+Video inputs run GMR retargeting here (from the GVHMR output the cloud extract
+stage pulled), then the same window/vet/preview/prep flow. The cloud-backed
+extract/train/verify/export stages live in stages/cloud_motion.py; when the
+GPU box is not configured they raise StageBlocked so the UI shows an honest
+"waiting on cloud" state instead of fake progress.
 """
 from __future__ import annotations
 
@@ -20,9 +21,8 @@ import numpy as np
 from ..config import DATA_DIR, PROJECT_ROOT
 from ..find_window import CSV_FPS, longest_window, window_center
 from ..store import Job
-from .base import Reporter, SkipStage, StageBlocked
+from .base import Reporter, StageBlocked
 
-CLOUD_MSG = "waiting on cloud GPU (GreenNode not provisioned yet)"
 PREVIEWS_DIR = DATA_DIR / "previews"
 
 
@@ -49,43 +49,49 @@ def _run_tool(script: str, args: list[str], job: Job, on_line=None,
                                        "".join(out_lines), err)
 
 
-class ExtractStage:
-    """Local part: intake validation via ffprobe (fail fast on unusable
-    footage). The GPU pose extraction itself is cloud-blocked until
-    GreenNode is provisioned."""
-
-    name = "extract"
-
-    def run(self, job: Job, report: Reporter) -> None:
-        if _input_csv(job):
-            raise SkipStage("input is already robot motion (CSV) — no video to extract")
-        st = job.stages[self.name]
-        if "video" not in st.meta:
-            from ..video_probe import validate
-            report(0.05, "checking video file")
-            st.meta["video"] = validate(job.dir / "input.mp4")  # raises w/ reason
-            for adv in st.meta["video"]["advisories"]:
-                job.log(f"extract: ADVISORY — {adv}")
-            job.log(f"extract: video ok — {st.meta['video']['duration_s']}s "
-                    f"{st.meta['video']['width']}x{st.meta['video']['height']} "
-                    f"@ {st.meta['video']['fps']}fps")
-            report(0.1, "video valid — waiting on cloud for pose extraction")
-        raise StageBlocked(CLOUD_MSG)
-
-
 class RetargetStage:
-    """CSV path: window -> vet -> preview. Video path: cloud (blocked)."""
+    """CSV path: window -> vet -> preview -> prep. Video path: GMR retarget of
+    the GVHMR output first, then the same flow. Ends with the show CSV and the
+    DEPLOYABLE <slug>_deploy.csv (2.5 s activation ramp) the train stage pushes."""
 
     name = "retarget"
 
     def run(self, job: Job, report: Reporter) -> None:
-        csv = _input_csv(job)
-        if csv is None:
-            raise StageBlocked(CLOUD_MSG)
+        from .cloud_motion import _slug, load_params
+        params = load_params(job)
         out_dir = job.stage_dir(self.name)
         st = job.stages[self.name]
 
-        report(0.05, "finding deployable window")
+        csv = _input_csv(job)
+        if csv is None:
+            pred = job.dir / "extract" / "hmr4d_results.pt"
+            if not pred.exists():
+                raise StageBlocked("needs the GVHMR extraction output "
+                                   "(extract stage incomplete)")
+            csv = out_dir / "raw_g1.csv"
+            if not csv.exists():
+                report(0.02, "retargeting human motion to the G1 (GMR)")
+
+                def on_retarget_line(line: str) -> None:
+                    if line.startswith("retarget "):
+                        try:
+                            i, total = line.split()[1].split("/")
+                            report(0.02 + 0.15 * int(i) / max(1, int(total)),
+                                   f"GMR retarget {i}/{total}")
+                        except (ValueError, IndexError):
+                            pass
+
+                args = ["--pred", str(pred), "--out", str(csv)]
+                if params["velocity_limit"]:
+                    args.append("--velocity-limit")
+                r = _run_tool("retarget_gvhmr.py", args, job,
+                              on_line=on_retarget_line)
+                if r.returncode != 0 or not csv.exists():
+                    raise RuntimeError(f"GMR retarget failed: {r.stderr[-500:]}")
+                job.log("retarget: GMR retarget done (30 fps, 29 DoF, "
+                        f"velocity_limit={params['velocity_limit']})")
+
+        report(0.2, "finding deployable window")
         from ..motion_io import load_motion_csv
         m = load_motion_csv(csv)  # clear error on a malformed CSV, not a traceback
         # Ground-reference before window/vet so the absolute-z gate is meaningful
@@ -96,7 +102,14 @@ class RetargetStage:
             if abs(shift) > UNGROUNDED_FLAG_M:
                 job.log(f"retarget: grounded motion (input contact was "
                         f"{shift:+.3f} m off the floor)")
-        s, e = longest_window(m)
+        if params["window_start_s"] is not None and params["window_end_s"] is not None:
+            # explicit per-dance window (dance.yaml) — still subject to the vet gate
+            s = max(0, int(round(float(params["window_start_s"]) * CSV_FPS)))
+            e = min(len(m) - 1,
+                    int(round(float(params["window_end_s"]) * CSV_FPS)) - 1)
+            job.log(f"retarget: window override from dance params: frames {s}..{e}")
+        else:
+            s, e = longest_window(m)
         if e <= s:
             raise RuntimeError("no frame window satisfies the dance-area limits")
         seg = m[s:e + 1].copy()
@@ -156,31 +169,29 @@ class RetargetStage:
         link.symlink_to(preview)
         st.meta["preview"] = f"/previews/{link.name}"
         job.log(f"retarget: preview rendered ({preview.stat().st_size} bytes)")
-        report(1.0, "reference motion ready")
 
-
-class TrainStage:
-    name = "train"
-
-    def run(self, job: Job, report: Reporter) -> None:
-        raise StageBlocked(CLOUD_MSG)
-
-
-class VerifyStage:
-    name = "verify"
-
-    def run(self, job: Job, report: Reporter) -> None:
-        raise StageBlocked("needs a trained policy first")
-
-
-class ExportStage:
-    name = "export"
-
-    def run(self, job: Job, report: Reporter) -> None:
-        raise StageBlocked("needs a verified policy first")
+        # Show prep + deployable motion (the exact Thriller recipe): residual
+        # velocity clamp + FK ground fix + standing pad/blends (prep_motion),
+        # then the 2.5 s standby->frame-0 activation ramp (deploy_ramp). The
+        # train stage pushes ONLY the _deploy.csv — it is the artifact every
+        # downstream consumer (training, exams, dance record, bundle) binds to.
+        report(0.96, "prepping show + deployable motion")
+        from ..deploy_ramp import make_deploy_csv
+        from ..prep_motion import prep
+        slug = _slug(job.name)
+        show_csv = out_dir / f"{slug}_show.csv"
+        deploy_csv = out_dir / f"{slug}_deploy.csv"
+        st.meta["prep"] = prep(motion_csv, show_csv)
+        st.meta["ramp"] = make_deploy_csv(show_csv, deploy_csv)
+        st.meta["show_csv"] = str(show_csv)
+        st.meta["deploy_csv"] = str(deploy_csv)
+        job.log(f"retarget: deployable motion ready — {deploy_csv.name} "
+                f"({st.meta['ramp']['seconds']}s incl. 2.5s activation ramp)")
+        report(1.0, "motion ready — review the preview, then approve training")
 
 
 def build_stages() -> dict:
+    from .cloud_motion import ExportStage, ExtractStage, TrainStage, VerifyStage
     stages = [ExtractStage(), RetargetStage(), TrainStage(), VerifyStage(),
               ExportStage()]
     return {s.name: s for s in stages}

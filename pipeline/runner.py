@@ -51,6 +51,11 @@ class Runner:
             st.state = "blocked"
             st.message = str(e)
             st.started_at = None      # it never really ran
+            # A stage waiting on a cloud job can ask to be re-checked: the server
+            # poll loop re-queues the job once meta["poll_after"] has passed.
+            retry_s = getattr(e, "retry_after_s", None)
+            if retry_s:
+                st.meta["poll_after"] = time.time() + float(retry_s)
             job.log(f"stage {name}: blocked — {e}")
         except Exception as e:
             st.state = "failed"

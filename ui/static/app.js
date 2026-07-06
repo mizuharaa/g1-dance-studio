@@ -269,9 +269,11 @@ function jobDetail(j) {
   }).join("");
   const cur = j.stages[j.current_stage] || {};
   const canRetry = ["failed", "blocked"].includes(cur.state);
+  // Human gate: train blocked waiting for the operator's preview sign-off.
+  const needsApproval = j.current_stage === "train" && cur.state === "blocked" && /approv/i.test(cur.message || "");
   const prev = j.preview_url;
   const vet = j.vet && j.vet.checks ? Object.entries(j.vet.checks).map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:right">${v.pass === false ? '<span class="badge b-warn">CHECK</span>' : '<span class="badge b-ready">PASS</span>'}</td></tr>`).join("") : "";
-  return `<div class="card-h"><div class="ico">${svg('<path d="M4 4v16h16"/><path d="M4 15l5-5 4 3 5-6"/>')}</div><h3>${esc(j.name)}</h3>${canRetry ? `<button class="btn btn-ghost btn-sm" id="retryBtn" style="margin-left:auto">Retry</button>` : ""}</div>
+  return `<div class="card-h"><div class="ico">${svg('<path d="M4 4v16h16"/><path d="M4 15l5-5 4 3 5-6"/>')}</div><h3>${esc(j.name)}</h3>${needsApproval ? `<button class="btn btn-sm" id="approveTrainBtn" style="margin-left:auto">Approve training</button>` : canRetry ? `<button class="btn btn-ghost btn-sm" id="retryBtn" style="margin-left:auto">Retry</button>` : ""}</div>
     <div class="stepper">${steps}</div>
     ${cur.state === "blocked" ? `<div class="hint" style="color:var(--warn)">${svg('<path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/>')}${esc(cur.message || "waiting on the cloud GPU")}</div>` : ""}
     ${prev ? `<div class="section-title">Preview</div><video class="preview" src="${esc(prev)}" controls muted onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'empty',innerHTML:'preview unavailable'}))"></video>` : ""}
@@ -282,6 +284,12 @@ document.addEventListener("click", async (e) => {
   const jr = e.target.closest("[data-job]");
   if (jr) { S.selJob = jr.dataset.job; RENDER.studio(); }
   if (e.target.id === "retryBtn") { e.target.disabled = true; try { await api(`/api/jobs/${S.selJob}/retry`, { method: "POST" }); toast("Stage re-queued", "ok"); await refreshJobs(); RENDER.studio(); } catch (err) { toast(err.message, "err"); e.target.disabled = false; } }
+  if (e.target.id === "approveTrainBtn") {
+    if (!confirm("Approve training? This starts a ~2-3 h GPU run on the cloud box. Only approve after reviewing the motion preview.")) return;
+    e.target.disabled = true;
+    try { await api(`/api/jobs/${S.selJob}/approve-train`, { method: "POST" }); toast("Training approved — job queued", "ok"); await refreshJobs(); RENDER.studio(); }
+    catch (err) { toast(err.message, "err"); e.target.disabled = false; }
+  }
 });
 async function loadJobLog(id) { try { const d = await api("/api/jobs/" + id); const l = $("#jobLog"); if (l) l.textContent = (d.log_tail || []).join("\n") || "(no log yet)"; } catch { } }
 
