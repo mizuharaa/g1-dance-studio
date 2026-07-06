@@ -1453,3 +1453,25 @@ human-supervised session (NOT autonomous — no ground motion has run):
   show-ready: repeatability (3x clean full runs per exam standard), slack-tether -> free runs,
   music-synced show run, outcome recording in the app, and the promotion decision vs the 99%
   held-out standard (s2r-b gate numbers + hardware evidence to be taken to the user).
+
+## 2026-07-06 — s2r-b PROMOTED TO SHOW POLICY (user-ordered, full guarded machinery). Thriller = SHOW-READY.
+- Formal held-out exams x3 (de-correlated seeds 90001/90011/90021, 256 envs each):
+  **nominal 256/256 AND push 256/256 on all three — 1536/1536 episodes clean**, mpkpe 0.173-0.179.
+- Three HMAC-signed sim_exam/v1 verdicts bound to the canonical policy+deployable-CSV bytes
+  (data/policies/thriller/heldout_verdict_s2rb_s{1,2,3}.json); dance record motion_csv fixed to
+  the DEPLOYABLE thriller_deploy.csv (was pre-ramp thriller_show.csv — audit motion-sha seam);
+  attach_policy -> 3x record_sim_run_from_verdict -> promote(): **status=show-ready, policy sha
+  pinned b3511dd31fe96e40...**. Deploy bundle rebuilt + authorized (deploy/bundles/thriller).
+- Artifact layout: data/policies/thriller/ = s2r-b (canonical, STAGED.txt has provenance);
+  a2 preserved at data/policies/thriller_a2_fallback/. Evidence chain: 3x signed sim exams +
+  s2rb_gap_check.json (gate v3) + 3x full-dance hardware telemetry (2026-07-06).
+- Deploy nit closed: read_state drain now opt-in (DRAIN_READS=0 default — no-op at verified
+  depth-1 QoS, and sub-ms reads spammed SDK error prints into the control loop).
+- REMAINING to paid-show grade: slack-tether -> free runs; music-synced rehearsal (audio wiring
+  from show-production work); end-of-run hold-then-handoff (catch-step fix, backlog); 2-3 min
+  in-place choreography for real show pieces; venue checks. Robot-facing steps need the user.
+- **BOX RECOMMENDATION: DELETE the GreenNode notebook** — training + exams complete, policy
+  promoted, all artifacts pulled to the laptop (evals, verdicts, ONNX, videos, checkpoints for
+  s2r/s2r-b remain on the box's network volume if re-needed... NOTE checkpoints NOT pulled:
+  logs/rsl_rl .pt files stay on the box volume; pull model_4999.pt for both runs before delete
+  if retraining continuity matters). Deletion is console-only (user click). Meter ~18k VND/h.

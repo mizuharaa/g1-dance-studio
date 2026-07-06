@@ -1,0 +1,174 @@
+{
+  "id": "20260704-18f65bbd",
+  "name": "Thriller",
+  "created_at": 1783099634.195152,
+  "updated_at": 1783314325.7978675,
+  "status": "show-ready",
+  "duration_s": 49.3,
+  "motion_csv": "data/policies/thriller/thriller_deploy.csv",
+  "policy_path": "data/policies/thriller/policy.onnx",
+  "preview": "data/previews/progress/train-thriller-a1_iter1500.mp4",
+  "vet": {
+    "file": "/home/alois/g1-dance/data/jobs/20260703-215617-3d5060/retarget/motion.csv",
+    "frames": 1329,
+    "seconds": 44.3,
+    "hard": {
+      "root_excursion": {
+        "max_m": 0.882,
+        "limit": 1.5,
+        "pass": true
+      },
+      "joint_limits": {
+        "worst_violation_rad": 0.0,
+        "pass": true
+      },
+      "pelvis_height": {
+        "min_m": 0.661,
+        "limit": 0.35,
+        "pass": true
+      }
+    },
+    "advisory": {
+      "joint_velocity": {
+        "peak_rad_s": 56.38,
+        "p99_rad_s": 5.81,
+        "frames_over_limit_pct": 3.1,
+        "limit": 9.42,
+        "ok": true
+      },
+      "foot_skate": {
+        "p95_stance_speed_m_s": 0.171,
+        "limit": 0.3,
+        "ok": true
+      }
+    },
+    "pass": true
+  },
+  "sim_exam": {
+    "verdict": "pass",
+    "at": 1783314325.7931647,
+    "exam_id": null,
+    "metrics": {
+      "nominal": {
+        "pass": true,
+        "success_rate": 1.0,
+        "n_success": 256,
+        "num_episodes": 256,
+        "mpkpe_m": 0.17914289236068726,
+        "ee_pos_error_m": 0.10318762063980103,
+        "held_out_seed": 90021
+      },
+      "push": {
+        "pass": true,
+        "success_rate": 1.0,
+        "n_success": 256,
+        "num_episodes": 256,
+        "force_n": 875.0,
+        "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
+        "mpkpe_m": 0.18304438889026642,
+        "held_out_seed": 90022
+      },
+      "repeatability": 256
+    },
+    "policy_sha256": "b3511dd31fe96e406b6693170f849c1b05dc6526d0cc5f6a27d91780d6a0eb35"
+  },
+  "source_job": "train-thriller-a1",
+  "notes": "s2r-b (sim2real recipe v2, train-thriller-s2r-b model_4999). Promoted 2026-07-06: 3x signed held-out exams 100%/100% (seeds 90001/90011/90021) + 3x full 51.8s ground dances on hardware (tethered, ankle 4.5-6.5Nm mean, temps flat). a2 fallback at data/policies/thriller_a2_fallback/.",
+  "policy_sha256": "b3511dd31fe96e406b6693170f849c1b05dc6526d0cc5f6a27d91780d6a0eb35",
+  "incident": null,
+  "audio": null,
+  "repeatability": {
+    "consecutive_clean": 3,
+    "total_runs": 3,
+    "last_run_at": 1783314325.7931647,
+    "history": [
+      {
+        "passed": true,
+        "at": 1783314325.7931647,
+        "exam_id": null,
+        "metrics": {
+          "nominal": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "mpkpe_m": 0.17914289236068726,
+            "ee_pos_error_m": 0.10318762063980103,
+            "held_out_seed": 90021
+          },
+          "push": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "force_n": 875.0,
+            "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
+            "mpkpe_m": 0.18304438889026642,
+            "held_out_seed": 90022
+          },
+          "repeatability": 256
+        },
+        "video": null,
+        "policy_sha256": "b3511dd31fe96e406b6693170f849c1b05dc6526d0cc5f6a27d91780d6a0eb35"
+      },
+      {
+        "passed": true,
+        "at": 1783314325.7870383,
+        "exam_id": null,
+        "metrics": {
+          "nominal": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "mpkpe_m": 0.1746777445077896,
+            "ee_pos_error_m": 0.10301843285560608,
+            "held_out_seed": 90011
+          },
+          "push": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "force_n": 875.0,
+            "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
+            "mpkpe_m": 0.19123736023902893,
+            "held_out_seed": 90012
+          },
+          "repeatability": 256
+        },
+        "video": null,
+        "policy_sha256": "b3511dd31fe96e406b6693170f849c1b05dc6526d0cc5f6a27d91780d6a0eb35"
+      },
+      {
+        "passed": true,
+        "at": 1783314325.7769034,
+        "exam_id": null,
+        "metrics": {
+          "nominal": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "mpkpe_m": 0.17318107187747955,
+            "ee_pos_error_m": 0.10271671414375305,
+            "held_out_seed": 90001
+          },
+          "push": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "force_n": 875.0,
+            "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
+            "mpkpe_m": 0.18420174717903137,
+            "held_out_seed": 90002
+          },
+          "repeatability": 256
+        },
+        "video": null,
+        "policy_sha256": "b3511dd31fe96e406b6693170f849c1b05dc6526d0cc5f6a27d91780d6a0eb35"
+      }
+    ]
+  }
+}
