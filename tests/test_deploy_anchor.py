@@ -192,3 +192,22 @@ def test_ground_max_action_default_is_measured_need():
     import os
     if "GROUND_MAX_ACTION" not in os.environ:
         assert dr.GROUND_MAX_ACTION == 10.0
+
+
+def test_action_cap_vector_per_joint():
+    """Arm joints get scaled headroom (wrist choreography rides 10-12 units by
+    design); legs/waist keep the tight runaway tripwire (HW measured legs <=3.4)."""
+    meta = dr.Meta(dr.DEFAULT_META)
+    cap = dr.action_cap_vector(meta, 10.0)
+    for i, name in enumerate(meta.joint_order):
+        if any(t in name for t in ("shoulder", "elbow", "wrist")):
+            assert cap[i] == pytest.approx(10.0 * dr.ARM_ACTION_CAP_SCALE)
+        else:
+            assert cap[i] == pytest.approx(10.0)
+    # the observed benign wrist action (12.12) passes; a leg at 12 trips
+    a = np.zeros(29)
+    a[meta.joint_order.index("right_wrist_yaw_joint")] = 12.12
+    assert not np.any(np.abs(a) > cap)
+    a2 = np.zeros(29)
+    a2[meta.joint_order.index("left_knee_joint")] = 12.0
+    assert np.any(np.abs(a2) > cap)

@@ -131,6 +131,23 @@ GROUND_MOTION = ROOT / "data/policies/thriller_ground/thriller_deploy.npz"
 # the old default 6.0 false-tripped ~4% of ticks (runbook Stage B-ODOM); 10.0 is the
 # measured-need default (audit item 7c). Re-measure for any retrained policy. Env-overridable.
 GROUND_MAX_ACTION = float(os.environ.get("GROUND_MAX_ACTION", "10.0"))
+# The action cap is a RUNAWAY tripwire, but action units are per-joint (action_scale
+# 0.074 wrists vs 0.35 knees): Thriller's claw choreography legitimately rides the
+# wrist at 10-12 units (= ~0.9 rad on a 5 Nm motor) while the legs never exceeded
+# |a| 3.4 on hardware (2026-07-06 runs). A uniform cap conflates the two — so ARM
+# joints (shoulder/elbow/wrist) get cap*ARM_ACTION_CAP_SCALE, legs/waist keep the
+# tight tripwire that actually protects balance.
+ARM_ACTION_CAP_SCALE = float(os.environ.get("ARM_ACTION_CAP_SCALE", "1.6"))
+_ARM_NAME_TOKENS = ("shoulder", "elbow", "wrist")
+
+
+def action_cap_vector(meta, base_cap):
+    """Per-joint |action| tripwire: base_cap for legs/waist, scaled for arm joints."""
+    cap = np.full(meta.n, float(base_cap))
+    for i, name in enumerate(meta.joint_order):
+        if any(tok in name for tok in _ARM_NAME_TOKENS):
+            cap[i] = base_cap * ARM_ACTION_CAP_SCALE
+    return cap
 # Per-term widths, so build_obs_ground can validate ANY layout the ground meta
 # declares (it reads the order from the meta rather than hard-coding it).
 TERM_WIDTHS = {
@@ -845,6 +862,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None):
           f"Ctrl-C / remote-damp to stop.")
     global _TELEM
     telem = _TELEM = Telemetry("run", meta)
+    _acap = action_cap_vector(meta, MAX_ACTION)
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
     try:
@@ -865,8 +883,10 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None):
             if not np.all(np.isfinite(obs)):
                 raise RuntimeError(f"non-finite obs at tick {tick}")
             action = run_policy(session, obs, tick)
-            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > MAX_ACTION):
-                raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
+            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > _acap):
+                j = int(np.abs(np.asarray(action) / _acap).argmax())
+                raise RuntimeError(f"bad action at tick {tick} ({meta.joint_order[j]} "
+                                   f"|a|={abs(action[j]):.2f} > cap {_acap[j]:.1f})")
             last_action = action
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
@@ -979,6 +999,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order):
           f"Tethered. Ctrl-C / remote-damp to stop.")
     global _TELEM
     telem = _TELEM = Telemetry("ground-run", meta)
+    _acap = action_cap_vector(meta, GROUND_MAX_ACTION)
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
     try:
@@ -996,8 +1017,10 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order):
             if not np.all(np.isfinite(obs)):
                 raise RuntimeError(f"non-finite obs at tick {tick}")
             action = run_policy(session, obs, tick)
-            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > GROUND_MAX_ACTION):
-                raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
+            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > _acap):
+                j = int(np.abs(np.asarray(action) / _acap).argmax())
+                raise RuntimeError(f"bad action at tick {tick} ({meta.joint_order[j]} "
+                                   f"|a|={abs(action[j]):.2f} > cap {_acap[j]:.1f})")
             last_action = action
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
@@ -1058,6 +1081,7 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
           f"action cap {GROUND_MAX_ACTION:.1f}. Tethered. Ctrl-C / remote-damp to stop.")
     global _TELEM
     telem = _TELEM = Telemetry("ground-run-odom", meta)
+    _acap = action_cap_vector(meta, GROUND_MAX_ACTION)
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
     odom_pos0 = None
@@ -1106,8 +1130,10 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
             if not np.all(np.isfinite(obs)):
                 raise RuntimeError(f"non-finite obs at tick {tick}")
             action = run_policy(session, obs, tick)
-            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > GROUND_MAX_ACTION):
-                raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
+            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > _acap):
+                j = int(np.abs(np.asarray(action) / _acap).argmax())
+                raise RuntimeError(f"bad action at tick {tick} ({meta.joint_order[j]} "
+                                   f"|a|={abs(action[j]):.2f} > cap {_acap[j]:.1f})")
             last_action = action
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
@@ -1178,6 +1204,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
               f"(see audit note at the GRAVITY_FF flag).")
     global _TELEM
     telem = _TELEM = Telemetry("ground-run-legodom", meta)
+    _acap = action_cap_vector(meta, GROUND_MAX_ACTION)
     try:
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
         _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
@@ -1202,8 +1229,10 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
             if not np.all(np.isfinite(obs)):
                 raise RuntimeError(f"non-finite obs at tick {tick}")
             action = run_policy(session, obs, tick)
-            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > GROUND_MAX_ACTION):
-                raise RuntimeError(f"bad action at tick {tick} (|a|max={np.abs(action).max():.2f})")
+            if not np.all(np.isfinite(action)) or np.any(np.abs(action) > _acap):
+                j = int(np.abs(np.asarray(action) / _acap).argmax())
+                raise RuntimeError(f"bad action at tick {tick} ({meta.joint_order[j]} "
+                                   f"|a|={abs(action[j]):.2f} > cap {_acap[j]:.1f})")
             last_action = action
             last_target = action_to_target(meta, action)
             # Gravity-comp feedforward at the COMMANDED pose, in the current torso frame (IMU),
