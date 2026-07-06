@@ -10,7 +10,10 @@
 #   bash cloud/run_job.sh start acro-launcher -- \
 #     "bash /workspace/notebook-data/cloud/launch_acro_when_free.sh [motion.npz]"
 set -u
-export TERM=dumb TERMINFO=/usr/share/terminfo
+# TERM must be a real terminal type: run_job.sh launches via tmux, and tmux
+# refuses "dumb" ("missing or unsuitable terminal") — this exact bug ate the
+# 2026-07-06 acro launch after a 6 h correct wait.
+export TERM=xterm TERMINFO=/usr/share/terminfo
 NB=/workspace/notebook-data
 export PATH="$NB/bin:$PATH"   # tmux lives in $NB/bin
 MOTION="${1:-$NB/motions/acro_backflip.npz}"

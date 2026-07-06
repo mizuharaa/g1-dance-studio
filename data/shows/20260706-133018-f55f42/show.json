@@ -1,0 +1,17 @@
+{
+  "id": "20260706-133018-f55f42",
+  "dance_id": "20260704-18f65bbd",
+  "dance_name": "Thriller",
+  "operator": "alois",
+  "created_at": 1783319418.824685,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "clean",
+    "notes": "First music-synced rehearsal: full 2589 ticks, ankle 5.8Nm mean. User verdict: music in cue after manual adjust (cue banner unusable \u2014 operator watches robot, not terminal); legs clunky/unstable vs reference and sim \u2014 quality program (v3 variants) in flight.",
+    "at": 1783320220.5536115
+  },
+  "closed": true,
+  "mode": "rehearsal",
+  "setlist_id": null
+}

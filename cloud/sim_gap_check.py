@@ -339,8 +339,12 @@ def _run_condition(
 def main() -> None:
   import mjlab.tasks  # noqa: F401
 
+  # Tolerate a bare positional task id (legacy callers), but never strip the
+  # value of an explicit --task flag — that made "--task <stock>" unparseable.
   known_tasks = {"Mjlab-Tracking-Flat-Unitree-G1"}
-  argv = [a for a in sys.argv[1:] if a not in known_tasks]
+  raw = sys.argv[1:]
+  argv = [a for i, a in enumerate(raw)
+          if a not in known_tasks or (i > 0 and raw[i - 1] == "--task")]
   cfg = tyro.cli(Cfg, args=argv)
   configure_torch_backends()
   device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")

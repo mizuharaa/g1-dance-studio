@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>G1 Dance Studio</title>
+<style>
+:root{
+  /* elevation layers */
+  --bg-0:#0a0b0f; --bg-1:#111319; --bg-2:#171a22; --bg-3:#1f232d; --bg-hover:#262b37;
+  /* accent */
+  --accent:#22d3ee; --accent-dim:#0e7490; --accent-glow:rgba(34,211,238,.15);
+  --violet:#a78bfa; --violet-dim:#6d28d9;
+  /* status */
+  --ok:#34d399; --ok-dim:#065f46; --warn:#fbbf24; --warn-dim:#78350f;
+  --danger:#f87171; --danger-dim:#7f1d1d; --draft:#8b93a4;
+  /* text */
+  --text:#eceef3; --text-dim:#9aa2b1; --text-faint:#5c6472;
+  /* lines */
+  --border:rgba(255,255,255,.07); --border-2:rgba(255,255,255,.12);
+  --r:10px; --r-lg:16px; --r-sm:7px;
+  --shadow:0 8px 30px rgba(0,0,0,.45);
+  --font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'SF Mono','JetBrains Mono',ui-monospace,'Cascadia Code',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:var(--font);background:var(--bg-0);color:var(--text);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  display:flex;overflow:hidden;
+  background-image:radial-gradient(1200px 600px at 80% -10%,rgba(34,211,238,.06),transparent),radial-gradient(900px 500px at -10% 110%,rgba(167,139,250,.05),transparent);
+}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--bg-3);border-radius:6px;border:2px solid var(--bg-0)}
+::-webkit-scrollbar-thumb:hover{background:var(--bg-hover)}
+h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
+.mono{font-family:var(--mono)}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+a{color:var(--accent);text-decoration:none}
+
+/* ===== SIDEBAR ===== */
+.sidebar{
+  width:236px;flex-shrink:0;background:linear-gradient(180deg,var(--bg-1),var(--bg-0));
+  border-right:1px solid var(--border);display:flex;flex-direction:column;padding:18px 14px;height:100vh;
+}
+.logo{display:flex;align-items:center;gap:11px;padding:6px 8px 20px;}
+.logo-mark{width:36px;height:36px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--violet));
+  display:grid;place-items:center;box-shadow:0 4px 16px var(--accent-glow);position:relative;}
+.logo-mark svg{width:22px;height:22px}
+.logo-txt b{display:block;font-size:15px;letter-spacing:-.02em;line-height:1.1}
+.logo-txt span{font-size:10.5px;color:var(--text-faint);letter-spacing:.04em;text-transform:uppercase}
+.nav-group{margin-top:6px}
+.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-faint);padding:12px 10px 6px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:12px;padding:9px 11px;border-radius:var(--r);color:var(--text-dim);
+  font-weight:500;font-size:13.5px;margin-bottom:2px;transition:.14s;position:relative;width:100%;text-align:left}
+.nav-item svg{width:18px;height:18px;flex-shrink:0;opacity:.85}
+.nav-item:hover{background:var(--bg-2);color:var(--text)}
+.nav-item.active{background:var(--bg-3);color:var(--text)}
+.nav-item.active::before{content:"";position:absolute;left:-14px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+.nav-item.active svg{opacity:1;color:var(--accent)}
+.nav-badge{margin-left:auto;font-size:10px;background:var(--accent);color:#031316;border-radius:20px;padding:1px 7px;font-weight:700}
+.sidebar-foot{margin-top:auto;border-top:1px solid var(--border);padding-top:12px}
+.status-chip{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--r);background:var(--bg-2);margin-bottom:8px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.live{background:var(--ok);box-shadow:0 0 0 0 rgba(52,211,153,.6);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 7px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+.status-chip .sc-txt{font-size:11.5px;line-height:1.3}
+.status-chip .sc-txt b{font-size:12px}
+.status-chip .sc-txt span{color:var(--text-faint)}
+.cost-mini{padding:2px 4px}
+.cost-mini .cm-top{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:5px}
+.cost-mini .cm-top b{color:var(--text)}
+.bar{height:5px;background:var(--bg-3);border-radius:4px;overflow:hidden}
+.bar>i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--violet))}
+
+/* ===== MAIN ===== */
+.main{flex:1;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
+.topbar{height:60px;flex-shrink:0;border-bottom:1px solid var(--border);display:flex;align-items:center;
+  padding:0 28px;gap:16px;position:sticky;top:0;background:rgba(10,11,15,.8);backdrop-filter:blur(12px);z-index:20}
+.topbar h2{font-size:17px}
+.crumb{color:var(--text-faint);font-size:12.5px;font-weight:500}
+.topbar .spacer{flex:1}
+.search{display:flex;align-items:center;gap:8px;background:var(--bg-2);border:1px solid var(--border);
+  border-radius:var(--r);padding:7px 12px;width:240px;color:var(--text-faint)}
+.search input{background:none;border:none;outline:none;color:var(--text);font-size:13px;width:100%}
+.search svg{width:15px;height:15px}
+.content{padding:26px 28px 60px;max-width:1180px;width:100%}
+.screen{display:none;animation:fade .3s ease}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:var(--r);font-weight:600;
+  font-size:13px;transition:.15s;border:1px solid transparent}
+.btn svg{width:16px;height:16px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#38bdf8);color:#03181c;box-shadow:0 4px 16px var(--accent-glow)}
+.btn-primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.btn-ghost{background:var(--bg-2);border-color:var(--border-2);color:var(--text)}
+.btn-ghost:hover{background:var(--bg-3)}
+.btn-danger{background:var(--danger-dim);border-color:var(--danger);color:#fecaca}
+.btn-danger:hover{background:#991b1b}
+.btn-sm{padding:6px 11px;font-size:12px}
+
+/* cards */
+.card{background:var(--bg-1);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px}
+.card-h{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.card-h h3{font-size:14px}
+.card-h .ico{width:30px;height:30px;border-radius:8px;background:var(--bg-3);display:grid;place-items:center}
+.card-h .ico svg{width:16px;height:16px;color:var(--accent)}
+.card-h .more{margin-left:auto;color:var(--text-faint);font-size:12px}
+.grid{display:grid;gap:18px}
+.g-3{grid-template-columns:repeat(3,1fr)}
+.g-2{grid-template-columns:repeat(2,1fr)}
+.g-4{grid-template-columns:repeat(4,1fr)}
+
+/* badges */
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:.01em}
+.badge .dot{width:6px;height:6px}
+.b-ready{background:rgba(52,211,153,.14);color:var(--ok)}
+.b-verified{background:rgba(34,211,238,.14);color:var(--accent)}
+.b-draft{background:rgba(139,147,164,.15);color:var(--draft)}
+.b-train{background:rgba(167,139,250,.16);color:var(--violet)}
+.b-warn{background:rgba(251,191,36,.14);color:var(--warn)}
+
+/* stat cards */
+.stat{background:var(--bg-1);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px;position:relative;overflow:hidden}
+.stat .lbl{font-size:12px;color:var(--text-dim);display:flex;align-items:center;gap:7px;margin-bottom:10px}
+.stat .lbl svg{width:15px;height:15px;opacity:.7}
+.stat .big{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.stat .sub{font-size:12px;color:var(--text-faint);margin-top:3px}
+.stat .trend{position:absolute;top:16px;right:16px;font-size:11px;font-weight:600;color:var(--ok)}
+
+/* gauge */
+.gauge{--v:75;width:120px;height:120px;border-radius:50%;margin:4px auto 0;
+  background:conic-gradient(var(--accent) calc(var(--v)*1%),var(--bg-3) 0);
+  display:grid;place-items:center;position:relative}
+.gauge::before{content:"";position:absolute;inset:11px;border-radius:50%;background:var(--bg-1)}
+.gauge .gv{position:relative;text-align:center}
+.gauge .gv b{font-size:22px}.gauge .gv span{display:block;font-size:10.5px;color:var(--text-faint)}
+
+/* progress row */
+.prog-row{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--border)}
+.prog-row:last-child{border:none}
+.prog-row .nm{width:130px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.prog-row .bar{flex:1}
+.prog-row .pct{width:52px;text-align:right;font-size:12px;color:var(--text-dim);font-variant-numeric:tabular-nums}
+
+/* sparkline */
+.spark{width:100%;height:40px}
+.spark path{fill:none;stroke:var(--accent);stroke-width:2;filter:drop-shadow(0 0 4px var(--accent-glow))}
+.spark .fill{fill:url(#sparkgrad);stroke:none;opacity:.25}
+
+/* activity */
+.act{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px}
+.act:last-child{border:none}
+.act .ai{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;background:var(--bg-3)}
+.act .ai svg{width:15px;height:15px}
+.act .at{flex:1}.act .at b{font-weight:600}
+.act .aw{color:var(--text-faint);font-size:11.5px;white-space:nowrap}
+
+/* dance card grid */
+.dance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.dcard{background:var(--bg-1);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;transition:.16s;cursor:pointer}
+.dcard:hover{border-color:var(--border-2);transform:translateY(-3px);box-shadow:var(--shadow)}
+.dthumb{height:150px;position:relative;display:grid;place-items:center;overflow:hidden}
+.dthumb .play{width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);
+  display:grid;place-items:center;border:1.5px solid rgba(255,255,255,.5);transition:.15s}
+.dcard:hover .dthumb .play{transform:scale(1.12);background:var(--accent);border-color:var(--accent)}
+.dcard:hover .dthumb .play svg{color:#03181c}
+.dthumb .play svg{width:18px;height:18px;color:#fff;margin-left:2px}
+.dthumb .dur{position:absolute;bottom:9px;right:9px;background:rgba(0,0,0,.6);font-size:11px;padding:2px 7px;border-radius:5px;font-weight:600}
+.dbody{padding:13px 15px}
+.dbody .dn{font-weight:650;font-size:14px;display:flex;align-items:center;justify-content:space-between}
+.dbody .dm{font-size:11.5px;color:var(--text-faint);margin-top:3px}
+.thumb-1{background:linear-gradient(135deg,#5b21b6,#0891b2)}
+.thumb-2{background:linear-gradient(135deg,#be185d,#7c3aed)}
+.thumb-3{background:linear-gradient(135deg,#0f766e,#0284c7)}
+.thumb-4{background:linear-gradient(135deg,#1e3a8a,#0891b2)}
+.thumb-5{background:linear-gradient(135deg,#7c2d12,#b45309)}
+
+/* filter pills */
+.pills{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.pill{padding:6px 13px;border-radius:20px;font-size:12.5px;font-weight:500;background:var(--bg-2);border:1px solid var(--border);color:var(--text-dim)}
+.pill.on{background:var(--bg-3);color:var(--text);border-color:var(--border-2)}
+
+/* stepper */
+.stepper{display:flex;align-items:flex-start;margin:6px 0 26px;padding:0 4px}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;text-align:center}
+.step:not(:last-child)::after{content:"";position:absolute;top:17px;left:50%;width:100%;height:2px;background:var(--bg-3);z-index:0}
+.step.done:not(:last-child)::after{background:var(--ok)}
+.step .sdot{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--bg-3);
+  border:2px solid var(--bg-3);position:relative;z-index:1;font-weight:700;font-size:13px;color:var(--text-faint)}
+.step .sdot svg{width:17px;height:17px}
+.step.done .sdot{background:var(--ok-dim);border-color:var(--ok);color:var(--ok)}
+.step.active .sdot{background:var(--violet-dim);border-color:var(--violet);color:#fff;box-shadow:0 0 0 4px rgba(167,139,250,.18)}
+.step .slbl{font-size:12px;margin-top:9px;font-weight:600;color:var(--text-dim)}
+.step.active .slbl{color:var(--text)}.step.done .slbl{color:var(--text)}
+.step .sst{font-size:10.5px;color:var(--text-faint);margin-top:2px}
+
+/* dropzone */
+.dropzone{border:2px dashed var(--border-2);border-radius:var(--r-lg);padding:38px;text-align:center;
+  background:var(--bg-1);transition:.15s;margin-bottom:22px}
+.dropzone:hover{border-color:var(--accent);background:var(--bg-2)}
+.dropzone .dz-ic{width:54px;height:54px;border-radius:14px;margin:0 auto 14px;background:var(--bg-3);display:grid;place-items:center}
+.dropzone .dz-ic svg{width:26px;height:26px;color:var(--accent)}
+.dropzone h3{font-size:15px;margin-bottom:5px}
+.dropzone p{color:var(--text-faint);font-size:12.5px}
+
+/* robot preview */
+.preview-stage{height:230px;border-radius:var(--r);background:
+  radial-gradient(400px 200px at 50% 20%,rgba(34,211,238,.08),transparent),
+  linear-gradient(180deg,var(--bg-2),var(--bg-0));
+  display:grid;place-items:center;position:relative;overflow:hidden;border:1px solid var(--border)}
+.preview-stage .floor{position:absolute;bottom:36px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--border-2),transparent)}
+.robot{position:relative;width:70px;height:130px;animation:sway 2.4s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+.robot .head{width:22px;height:22px;border-radius:7px;background:var(--accent);margin:0 auto;box-shadow:0 0 14px var(--accent-glow)}
+.robot .torso{width:30px;height:44px;border-radius:9px;background:#cbd5e1;margin:5px auto 0;position:relative}
+.robot .arm{position:absolute;top:4px;width:9px;height:38px;border-radius:6px;background:#94a3b8}
+.robot .arm.l{left:-12px;transform-origin:top;animation:armL 1.2s ease-in-out infinite}
+.robot .arm.r{right:-12px;transform-origin:top;animation:armR 1.2s ease-in-out infinite}
+@keyframes armL{0%,100%{transform:rotate(18deg)}50%{transform:rotate(-42deg)}}
+@keyframes armR{0%,100%{transform:rotate(-18deg)}50%{transform:rotate(42deg)}}
+.robot .legs{display:flex;gap:6px;justify-content:center;margin-top:2px}
+.robot .leg{width:11px;height:40px;border-radius:6px;background:#cbd5e1;transform-origin:top}
+.robot .leg.l{animation:legL 1.2s ease-in-out infinite}
+.robot .leg.r{animation:legR 1.2s ease-in-out infinite}
+@keyframes legL{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(8deg)}}
+@keyframes legR{0%,100%{transform:rotate(6deg)}50%{transform:rotate(-8deg)}}
+.preview-stage .ctrls{position:absolute;bottom:10px;left:12px;right:12px;display:flex;align-items:center;gap:10px}
+.preview-stage .ctrls .pbtn{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.1);display:grid;place-items:center}
+.preview-stage .ctrls .pbtn svg{width:14px;height:14px}
+.preview-stage .scrub{flex:1;height:4px;background:rgba(255,255,255,.15);border-radius:3px;position:relative}
+.preview-stage .scrub>i{position:absolute;left:0;top:0;bottom:0;width:38%;background:var(--accent);border-radius:3px}
+.preview-stage .tm{font-size:11px;color:var(--text-dim);font-variant-numeric:tabular-nums}
+
+/* checklist */
+.checklist{max-width:560px}
+.chk-item{display:flex;align-items:center;gap:14px;padding:15px 17px;border-radius:var(--r);
+  background:var(--bg-1);border:1px solid var(--border);margin-bottom:10px;transition:.15s}
+.chk-item.done{border-color:var(--ok-dim)}
+.chk-item .cb{width:26px;height:26px;border-radius:8px;border:2px solid var(--border-2);flex-shrink:0;display:grid;place-items:center;transition:.15s}
+.chk-item.done .cb{background:var(--ok-dim);border-color:var(--ok)}
+.chk-item.done .cb svg{width:15px;height:15px;color:var(--ok)}
+.chk-item .ct b{font-size:13.5px}.chk-item .ct span{display:block;font-size:11.5px;color:var(--text-faint)}
+.chk-item .cx{margin-left:auto}
+.deploy-lock{margin-top:20px;padding:20px;border-radius:var(--r-lg);background:var(--bg-1);border:1px solid var(--border);text-align:center}
+.deploy-lock.locked{opacity:.55}
+.deploy-lock .dl-ic{width:44px;height:44px;border-radius:12px;margin:0 auto 12px;display:grid;place-items:center;background:var(--bg-3)}
+.deploy-lock .dl-ic svg{width:22px;height:22px;color:var(--warn)}
+
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);padding:9px 10px;font-weight:600;border-bottom:1px solid var(--border)}
+td{padding:11px 10px;border-bottom:1px solid var(--border)}
+tr:last-child td{border:none}
+td.mono{font-family:var(--mono);font-size:12px;color:var(--text-dim)}
+
+/* mini chart bars */
+.minichart{display:flex;align-items:flex-end;gap:3px;height:38px}
+.minichart i{flex:1;background:linear-gradient(180deg,var(--accent),var(--accent-dim));border-radius:2px;opacity:.85}
+
+/* settings rows */
+.set-row{display:flex;align-items:center;gap:16px;padding:16px 0;border-bottom:1px solid var(--border)}
+.set-row:last-child{border:none}
+.set-row .si{width:40px;height:40px;border-radius:10px;background:var(--bg-3);display:grid;place-items:center;flex-shrink:0}
+.set-row .si svg{width:19px;height:19px;color:var(--accent)}
+.set-row .st{flex:1}.set-row .st b{font-size:13.5px}.set-row .st span{display:block;font-size:12px;color:var(--text-faint)}
+input.field{background:var(--bg-0);border:1px solid var(--border-2);border-radius:var(--r-sm);padding:8px 11px;color:var(--text);font-size:13px;font-family:inherit;outline:none}
+input.field:focus{border-color:var(--accent)}
+.section-title{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);font-weight:600;margin:26px 0 12px}
+.toggle{width:40px;height:22px;border-radius:20px;background:var(--accent);position:relative;flex-shrink:0}
+.toggle::after{content:"";position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#fff}
+.hint{font-size:12px;color:var(--text-faint);margin-top:6px;display:flex;gap:7px;align-items:flex-start}
+.hint svg{width:14px;height:14px;flex-shrink:0;margin-top:2px;color:var(--warn)}
+</style>
+</head>
+<body>
+
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#03181c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><path d="M12 7.2v6M12 9l-4 2M12 9l4 2M12 13l-3 5M12 13l3 5"/></svg>
+    </div>
+    <div class="logo-txt"><b>Dance Studio</b><span>Unitree G1</span></div>
+  </div>
+
+  <div class="nav-group">
+    <button class="nav-item active" data-nav="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      Dashboard</button>
+    <button class="nav-item" data-nav="library">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 4v16"/></svg>
+      Library <span class="nav-badge">5</span></button>
+    <button class="nav-item" data-nav="studio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      Create</button>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">Operate</div>
+    <button class="nav-item" data-nav="show">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      Show Mode</button>
+    <button class="nav-item" data-nav="system">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>
+      System</button>
+    <button class="nav-item" data-nav="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H7a1.6 1.6 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V7a1.6 1.6 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+      Settings</button>
+  </div>
+
+  <div class="sidebar-foot">
+    <div class="status-chip">
+      <span class="dot live"></span>
+      <div class="sc-txt"><b>GPU · RTX 4090</b><span>99% · 74°C · training</span></div>
+    </div>
+    <div class="cost-mini">
+      <div class="cm-top"><span>Spend this run</span><b>142K / 1.5M ₫</b></div>
+      <div class="bar"><i style="width:9.5%"></i></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ===== MAIN ===== -->
+<main class="main">
+  <div class="topbar">
+    <h2 id="pageTitle">Dashboard</h2>
+    <span class="crumb" id="pageCrumb">Overview of your studio</span>
+    <div class="spacer"></div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+      <input placeholder="Search dances, jobs…">
+    </div>
+    <button class="btn btn-primary" data-nav="studio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New Dance</button>
+  </div>
+
+  <div class="content">
+
+  <!-- ========== DASHBOARD ========== -->
+  <section class="screen active" id="dashboard">
+    <div class="grid g-4" style="margin-bottom:18px">
+      <div class="stat"><div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M4 16l5-5 4 3 6-7"/></svg>Active Training</div><div class="big">Thriller</div><div class="sub">reward 31.3 · 95% survival</div><span class="trend">+8%</span></div>
+      <div class="stat"><div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>Dances</div><div class="big">5</div><div class="sub">1 show-ready · 1 verified</div></div>
+      <div class="stat"><div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>GPU Spend</div><div class="big">142K ₫</div><div class="sub">of 1.5M budget · ~$5.60</div></div>
+      <div class="stat"><div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>Show-Ready</div><div class="big">1</div><div class="sub">Thriller · pending robot day</div></div>
+    </div>
+
+    <div class="grid g-2" style="margin-bottom:18px">
+      <div class="card">
+        <div class="card-h"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M4 15l4-4 3 2 5-6 4 3"/></svg></div><h3>Training Progress</h3><span class="badge b-train"><span class="dot" style="background:var(--violet)"></span>Live</span><span class="more">W&amp;B ↗</span></div>
+        <svg class="spark" viewBox="0 0 300 40" preserveAspectRatio="none"><defs><linearGradient id="sparkgrad" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="transparent"/></linearGradient></defs><path class="fill" d="M0,38 L0,34 C20,33 30,30 50,27 C80,22 90,17 120,14 C150,11 170,9 200,7 C230,6 260,5 300,4 L300,40 Z"/><path d="M0,34 C20,33 30,30 50,27 C80,22 90,17 120,14 C150,11 170,9 200,7 C230,6 260,5 300,4"/></svg>
+        <div class="prog-row"><div class="nm"><span class="badge b-train">Thriller</span></div><div class="bar"><i style="width:31%"></i></div><div class="pct">3.1K/10K</div></div>
+        <div class="prog-row"><div class="nm"><span class="badge b-draft">Benchmark</span></div><div class="bar"><i style="width:12%;background:var(--draft)"></i></div><div class="pct">3.5K/30K</div></div>
+        <p style="font-size:12px;color:var(--text-faint);margin-top:12px">Thriller converging faster than benchmark — likely a first-attempt success. Sim-exam auto-runs on convergence.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Budget</h3></div>
+        <div class="gauge" style="--v:9.5"><div class="gv"><b>9.5%</b><span>of cap used</span></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:12.5px"><span style="color:var(--text-dim)">Spent <b style="color:var(--text)">142K ₫</b></span><span style="color:var(--text-dim)">Cap <b style="color:var(--text)">1.5M ₫</b></span></div>
+        <div class="hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>Billing runs until the box is deleted — not just stopped.</div>
+      </div>
+    </div>
+
+    <div class="grid g-2">
+      <div class="card">
+        <div class="card-h"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg></div><h3>Recent Activity</h3></div>
+        <div class="act"><div class="ai" style="background:var(--ok-dim)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.2"><path d="m5 12 4 4L19 6"/></svg></div><div class="at"><b>Thriller</b> extraction passed vetting — 0.88m excursion</div><div class="aw">2h ago</div></div>
+        <div class="act"><div class="ai" style="background:var(--violet-dim)"><svg viewBox="0 0 24 24" fill="none" stroke="#ddd6fe" stroke-width="2"><path d="M4 4v16h16"/><path d="M4 15l5-5 4 3"/></svg></div><div class="at"><b>Training</b> started — Thriller attempt 1</div><div class="aw">2h ago</div></div>
+        <div class="act"><div class="ai" style="background:var(--accent-dim)"><svg viewBox="0 0 24 24" fill="none" stroke="#a5f3fc" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></div><div class="at">Deploy path <b>safety-reviewed</b> — 33 findings fixed</div><div class="aw">3h ago</div></div>
+        <div class="act"><div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></div><div class="at"><b>Body models</b> installed — SMPL + SMPL-X</div><div class="aw">5h ago</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h8l-1 8 10-12h-8l1-8Z"/></svg></div><h3>Next Steps</h3></div>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:var(--r);background:var(--bg-2);border:1px solid var(--border)"><span class="badge b-verified">1</span><div style="flex:1"><b style="font-size:13px">Thriller sim-exam</b><div style="font-size:11.5px;color:var(--text-faint)">Auto-runs when training converges</div></div><span style="color:var(--text-faint)">→</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:var(--r);background:var(--bg-2);border:1px solid var(--border)"><span class="badge b-warn">2</span><div style="flex:1"><b style="font-size:13px">Schedule robot day</b><div style="font-size:11.5px;color:var(--text-faint)">Gantry test · health check · 30 min</div></div><span style="color:var(--text-faint)">→</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:13px;border-radius:var(--r);background:var(--bg-2);border:1px solid var(--border)"><span class="badge b-draft">3</span><div style="flex:1"><b style="font-size:13px">Add show music</b><div style="font-size:11.5px;color:var(--text-faint)">Source video has no audio track</div></div><span style="color:var(--text-faint)">→</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== LIBRARY ========== -->
+  <section class="screen" id="library">
+    <div class="pills">
+      <span class="pill on">All Dances</span><span class="pill">Show-Ready</span><span class="pill">Sim-Verified</span><span class="pill">Draft</span><span class="pill">Training</span>
+    </div>
+    <div class="dance-grid">
+      <div class="dcard"><div class="dthumb thumb-2"><div class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div><span class="dur">0:49</span></div><div class="dbody"><div class="dn">Thriller <span class="badge b-verified">Verified</span></div><div class="dm">49.3s · attempt 1 · reward 31.3</div></div></div>
+      <div class="dcard"><div class="dthumb thumb-1"><div class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div><span class="dur">0:29</span></div><div class="dbody"><div class="dn">Test Segment <span class="badge b-ready">Ready</span></div><div class="dm">28.8s · benchmark · 3 clean runs</div></div></div>
+      <div class="dcard"><div class="dthumb thumb-3"><div class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div><span class="dur">1:12</span></div><div class="dbody"><div class="dn">Moonwalk <span class="badge b-train">Training</span></div><div class="dm">72s · attempt 1 · 4.2K/10K iters</div></div></div>
+      <div class="dcard"><div class="dthumb thumb-4"><div class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div><span class="dur">0:38</span></div><div class="dbody"><div class="dn">Robot Boogie <span class="badge b-draft">Draft</span></div><div class="dm">38s · retargeted · vet passed</div></div></div>
+      <div class="dcard"><div class="dthumb thumb-5"><div class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div><span class="dur">2:04</span></div><div class="dbody"><div class="dn">Gangnam <span class="badge b-draft">Draft</span></div><div class="dm">124s · extracting pose…</div></div></div>
+      <div class="dcard" style="border-style:dashed;display:grid;place-items:center;min-height:214px" data-nav="studio"><div style="text-align:center;color:var(--text-faint)"><div style="width:44px;height:44px;border-radius:12px;background:var(--bg-3);display:grid;place-items:center;margin:0 auto 10px"><svg viewBox="0 0 24 24" width="22" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div><b style="font-size:13px;color:var(--text-dim)">New Dance</b><div style="font-size:11.5px">Upload a reference video</div></div></div>
+    </div>
+  </section>
+
+  <!-- ========== STUDIO / CREATE ========== -->
+  <section class="screen" id="studio">
+    <div class="dropzone">
+      <div class="dz-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg></div>
+      <h3>Drop a reference dance video</h3>
+      <p>One dancer · whole body visible · camera still · 15s–4min · no floorwork</p>
+      <button class="btn btn-primary" style="margin-top:16px">Choose file…</button>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M4 15l5-5 4 3 5-6"/></svg></div><h3>Thriller — Pipeline</h3><span class="badge b-train" style="margin-left:auto"><span class="dot" style="background:var(--violet)"></span>Training · step 4/6</span></div>
+
+      <div class="stepper">
+        <div class="step done"><div class="sdot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 12 4 4L19 6"/></svg></div><div class="slbl">Extract</div><div class="sst">GVHMR · done</div></div>
+        <div class="step done"><div class="sdot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 12 4 4L19 6"/></svg></div><div class="slbl">Retarget</div><div class="sst">1329 frames</div></div>
+        <div class="step done"><div class="sdot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 12 4 4L19 6"/></svg></div><div class="slbl">Vet</div><div class="sst">PASS · 0.88m</div></div>
+        <div class="step active"><div class="sdot">4</div><div class="slbl">Train</div><div class="sst">3.1K/10K</div></div>
+        <div class="step"><div class="sdot">5</div><div class="slbl">Sim-Exam</div><div class="sst">queued</div></div>
+        <div class="step"><div class="sdot">6</div><div class="slbl">Ready</div><div class="sst">—</div></div>
+      </div>
+
+      <div class="grid g-2" style="margin-top:8px">
+        <div>
+          <div class="section-title" style="margin-top:0">Preview</div>
+          <div class="preview-stage">
+            <div class="floor"></div>
+            <div class="robot"><div class="head"></div><div class="torso"><div class="arm l"></div><div class="arm r"></div></div><div class="legs"><div class="leg l"></div><div class="leg r"></div></div></div>
+            <div class="ctrls"><div class="pbtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></div><div class="scrub"><i></i></div><span class="tm">0:19 / 0:49</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="section-title" style="margin-top:0">Vetting Report</div>
+          <table>
+            <tr><td>Root excursion</td><td class="mono">0.88 m</td><td style="text-align:right"><span class="badge b-ready">PASS</span></td></tr>
+            <tr><td>Joint limits</td><td class="mono">0 violations</td><td style="text-align:right"><span class="badge b-ready">PASS</span></td></tr>
+            <tr><td>Floorwork</td><td class="mono">none</td><td style="text-align:right"><span class="badge b-ready">PASS</span></td></tr>
+            <tr><td>Foot-skate</td><td class="mono">2.1 cm/s</td><td style="text-align:right"><span class="badge b-warn">ADVISORY</span></td></tr>
+            <tr><td>Over motor limit</td><td class="mono">0% frames</td><td style="text-align:right"><span class="badge b-ready">PASS</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== SHOW ========== -->
+  <section class="screen" id="show">
+    <div class="grid g-2">
+      <div>
+        <div class="section-title" style="margin-top:0">1 · Select a show-ready dance</div>
+        <div class="dcard" style="cursor:default;border-color:var(--accent)"><div class="dthumb thumb-2" style="height:120px"><div class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div><span class="dur">0:49</span></div><div class="dbody"><div class="dn">Thriller <span class="badge b-ready">Show-Ready</span></div><div class="dm">3 clean sim runs · exam passed · music attached</div></div></div>
+
+        <div class="section-title">2 · Pre-show checklist</div>
+        <div class="checklist">
+          <div class="chk-item done"><div class="cb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 12 4 4L19 6"/></svg></div><div class="ct"><b>Robot health check</b><span>All 29 motors reporting · firmware OK</span></div></div>
+          <div class="chk-item done"><div class="cb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 12 4 4L19 6"/></svg></div><div class="ct"><b>Performance area clear</b><span>2m radius · flat floor confirmed</span></div></div>
+          <div class="chk-item done"><div class="cb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 12 4 4L19 6"/></svg></div><div class="ct"><b>Battery level</b><span>87% · above 30% floor</span></div><div class="cx"><input class="field" style="width:64px" value="87%"></div></div>
+          <div class="chk-item"><div class="cb"></div><div class="ct"><b>E-stop in hand</b><span>Damping remote ready — the only stop on this robot</span></div><div class="cx"><button class="btn btn-ghost btn-sm">Confirm</button></div></div>
+          <div class="chk-item"><div class="cb"></div><div class="ct"><b>Venue acknowledged</b><span>Grand Ballroom · 2026-07-10</span></div><div class="cx"><button class="btn btn-ghost btn-sm">Confirm</button></div></div>
+        </div>
+
+        <div class="deploy-lock locked">
+          <div class="dl-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+          <b style="font-size:14px">Complete the checklist to unlock</b>
+          <p style="font-size:12px;color:var(--text-faint);margin:6px 0 0">2 of 5 steps remaining · deploy requires typing DEPLOY</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title" style="margin-top:0">Performance</div>
+        <div class="preview-stage" style="height:280px">
+          <div class="floor"></div>
+          <div class="robot" style="transform:scale(1.25)"><div class="head"></div><div class="torso"><div class="arm l"></div><div class="arm r"></div></div><div class="legs"><div class="leg l"></div><div class="leg r"></div></div></div>
+          <div style="position:absolute;top:12px;left:14px" class="badge b-ready"><span class="dot" style="background:var(--ok)"></span>Sim-Verified</div>
+        </div>
+
+        <div class="section-title">Show history</div>
+        <table>
+          <thead><tr><th>Dance</th><th>Venue</th><th>Date</th><th>Result</th></tr></thead>
+          <tr><td><b>Thriller</b></td><td>Rehearsal</td><td class="mono">Jul 3</td><td><span class="badge b-ready">Clean</span></td></tr>
+          <tr><td><b>Test Seg</b></td><td>Lab gantry</td><td class="mono">Jul 3</td><td><span class="badge b-ready">Clean</span></td></tr>
+          <tr><td><b>Test Seg</b></td><td>Lab floor</td><td class="mono">Jul 2</td><td><span class="badge b-warn">Aborted</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== SYSTEM ========== -->
+  <section class="screen" id="system">
+    <div class="hint" style="margin-bottom:16px;background:var(--bg-1);border:1px solid var(--border);padding:11px 14px;border-radius:var(--r)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>The GreenNode console shows instance <b>state</b>, not live load. This panel reads the hardware directly over SSH.</div>
+
+    <div class="grid g-4" style="margin-bottom:18px">
+      <div class="stat"><div class="lbl">GPU Utilization</div><div class="big">99%</div><div class="bar" style="margin-top:8px"><i style="width:99%"></i></div></div>
+      <div class="stat"><div class="lbl">VRAM</div><div class="big">4.7<span style="font-size:15px;color:var(--text-faint)"> / 24 GB</span></div><div class="bar" style="margin-top:8px"><i style="width:20%"></i></div></div>
+      <div class="stat"><div class="lbl">Power</div><div class="big">213<span style="font-size:15px;color:var(--text-faint)"> W</span></div><div class="sub">of 450W TDP</div></div>
+      <div class="stat"><div class="lbl">Temp</div><div class="big">74<span style="font-size:15px;color:var(--text-faint)">°C</span></div><div class="sub">nominal</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-h"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M4 14l5-5 4 3"/></svg></div><h3>Training Jobs</h3></div>
+      <table>
+        <thead><tr><th>Job</th><th>Iteration</th><th>Reward</th><th>Ep-Length</th><th>Trend</th><th></th></tr></thead>
+        <tr><td><b>train-thriller-a1</b></td><td class="mono">3,090 / 10,000</td><td class="mono" style="color:var(--ok)">31.3</td><td class="mono">477 / 500</td><td><div class="minichart"><i style="height:20%"></i><i style="height:35%"></i><i style="height:50%"></i><i style="height:68%"></i><i style="height:82%"></i><i style="height:95%"></i></div></td><td style="text-align:right"><a href="#">W&amp;B ↗</a></td></tr>
+        <tr><td><b>train-dance1-seg</b></td><td class="mono">3,486 / 30,000</td><td class="mono" style="color:var(--ok)">26.0</td><td class="mono">427 / 500</td><td><div class="minichart"><i style="height:15%"></i><i style="height:28%"></i><i style="height:44%"></i><i style="height:60%"></i><i style="height:72%"></i><i style="height:80%"></i></div></td><td style="text-align:right"><a href="#">W&amp;B ↗</a></td></tr>
+      </table>
+    </div>
+
+    <div class="grid g-2">
+      <div class="card">
+        <div class="card-h"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Cost this run</h3></div>
+        <div style="display:flex;align-items:baseline;gap:8px"><div style="font-size:30px;font-weight:700">142K ₫</div><span style="color:var(--text-faint);font-size:13px">≈ $5.60</span></div>
+        <div class="bar" style="margin:14px 0 8px;height:8px"><i style="width:9.5%"></i></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-faint)"><span>9.5% of 1.5M cap</span><span>18,170 ₫/hr · 7.8 hrs</span></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div><h3>Cloud Box</h3></div>
+        <div class="set-row" style="padding-top:0"><div class="si"><span class="dot live"></span></div><div class="st"><b>g1dance-gpu</b><span>103.245.250.152 · HCM · Active</span></div><span class="badge b-ready">Reachable</span></div>
+        <div class="set-row"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H4z"/><path d="M2 20h20"/></svg></div><div class="st"><b>Network Volume</b><span>g1dance-data · 147 GB · persistent</span></div><span class="badge b-verified">Mounted</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== SETTINGS ========== -->
+  <section class="screen" id="settings">
+    <div class="card" style="max-width:720px">
+      <div class="section-title" style="margin-top:0">Cloud Connection</div>
+      <div class="set-row"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg></div><div class="st"><b>GreenNode GPU box</b><span>SSH · root@103.245.250.152:46936</span></div><span class="badge b-ready">Connected</span></div>
+      <div class="set-row"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><path d="m9 11 3 3L22 4"/></svg></div><div class="st"><b>Weights &amp; Biases</b><span>luong-alois-vng-group · key set</span></div><span class="badge b-verified">•set•</span></div>
+
+      <div class="section-title">Assets</div>
+      <div class="set-row"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7z"/></svg></div><div class="st"><b>Body models</b><span>SMPL v1.1.0 · SMPL-X v1.1</span></div><span class="badge b-ready">Installed</span></div>
+      <div class="set-row"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></div><div class="st"><b>Library backup</b><span>Export or restore your trained dances</span></div><button class="btn btn-ghost btn-sm">Export .tar.gz</button></div>
+
+      <div class="section-title">Safety</div>
+      <div class="set-row"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="st"><b>Signed sim-exam verdicts</b><span>Only cryptographically-signed exam results can authorize a robot deploy</span></div><div class="toggle"></div></div>
+      <div class="set-row"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></div><div class="st"><b>Repeatability target</b><span>Consecutive clean sim runs required for Show-Ready</span></div><input class="field" style="width:56px" value="3"></div>
+    </div>
+  </section>
+
+  </div>
+</main>
+
+<script>
+const titles={dashboard:['Dashboard','Overview of your studio'],library:['Library','Your trained dances'],studio:['Create','Video → balanced robot dance'],show:['Show Mode','Operator console'],system:['System','Cloud GPU & training'],settings:['Settings','Connections & safety']};
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.nav===id));
+  const t=titles[id]||['',''];document.getElementById('pageTitle').textContent=t[0];document.getElementById('pageCrumb').textContent=t[1];
+  document.querySelector('.main').scrollTo(0,0);
+}
+document.querySelectorAll('[data-nav]').forEach(el=>el.addEventListener('click',()=>go(el.dataset.nav)));
+// pill toggles
+document.querySelectorAll('.pill').forEach(p=>p.addEventListener('click',()=>{document.querySelectorAll('.pill').forEach(x=>x.classList.remove('on'));p.classList.add('on')}));
+// checklist demo
+document.querySelectorAll('.chk-item .btn').forEach(b=>b.addEventListener('click',()=>{const it=b.closest('.chk-item');it.classList.add('done');it.querySelector('.cb').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 12 4 4L19 6"/></svg>';b.remove();
+  const left=document.querySelectorAll('#show .chk-item:not(.done)').length;const lock=document.querySelector('.deploy-lock');
+  if(left===0){lock.classList.remove('locked');lock.innerHTML='<div class="dl-ic" style="background:var(--ok-dim)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></div><b style="font-size:14px">Checklist complete</b><p style="font-size:12px;color:var(--text-faint);margin:6px 0 12px">Type DEPLOY to perform</p><button class="btn btn-danger">Deploy Thriller →</button>';}
+  else{lock.querySelector('p').textContent=left+' of 5 steps remaining · deploy requires typing DEPLOY';}
+}));
+</script>
+</body>
+</html>

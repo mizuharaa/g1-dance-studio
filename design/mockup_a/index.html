@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>G1 Dance Studio</title>
+<style>
+:root{
+  /* palette */
+  --accent:#5b5bd6; --accent-hover:#4a4ac9; --accent-soft:#eef0ff; --accent-ring:rgba(91,91,214,.28);
+  --bg:#f7f8fa; --surface:#ffffff; --surface-2:#fbfbfd;
+  --border:#e7e8ee; --border-strong:#d7d9e2;
+  --ink:#1a1c25; --ink-2:#5a5e6e; --ink-3:#8a8fa0; --ink-inv:#ffffff;
+  --ok:#16a34a; --ok-soft:#e7f6ec; --warn:#d97706; --warn-soft:#fdf1e3;
+  --danger:#dc2626; --danger-soft:#fdecec; --info:#2563eb; --info-soft:#e8f0fe;
+  /* spacing scale (8px) */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
+  --r1:6px; --r2:10px; --r3:14px; --r4:20px;
+  --shadow-sm:0 1px 2px rgba(20,22,35,.06),0 1px 3px rgba(20,22,35,.05);
+  --shadow-md:0 2px 6px rgba(20,22,35,.06),0 8px 24px rgba(20,22,35,.07);
+  --shadow-lg:0 12px 40px rgba(20,22,35,.12);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --mono:"SF Mono",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent-ring)}
+
+/* ---------- layout ---------- */
+.app{display:grid;grid-template-columns:248px 1fr;height:100vh;overflow:hidden}
+
+/* ---------- sidebar ---------- */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh}
+.brand{display:flex;align-items:center;gap:var(--s3);padding:var(--s5) var(--s5) var(--s4);border-bottom:1px solid var(--border)}
+.brand .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#6d6df0,#5b5bd6 60%,#7b4fd6);display:grid;place-items:center;box-shadow:0 4px 12px var(--accent-ring);flex-shrink:0}
+.brand .logo svg{width:20px;height:20px;color:#fff}
+.brand .name{font-weight:650;font-size:15px;letter-spacing:-.01em}
+.brand .sub{font-size:11px;color:var(--ink-3);font-weight:500}
+.nav{padding:var(--s4) var(--s3);display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto}
+.nav .group-label{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding:var(--s4) var(--s3) var(--s2)}
+.nav a{display:flex;align-items:center;gap:var(--s3);padding:9px var(--s3);border-radius:var(--r1);color:var(--ink-2);font-weight:500;font-size:13.5px;position:relative;transition:background .12s,color .12s}
+.nav a svg{width:18px;height:18px;flex-shrink:0;color:var(--ink-3);transition:color .12s}
+.nav a:hover{background:var(--surface-2);color:var(--ink)}
+.nav a:hover svg{color:var(--ink-2)}
+.nav a.active{background:var(--accent-soft);color:var(--accent)}
+.nav a.active svg{color:var(--accent)}
+.nav a .badge-count{margin-left:auto;font-size:11px;font-weight:600;background:var(--border);color:var(--ink-2);border-radius:20px;padding:1px 7px}
+.nav a.active .badge-count{background:#fff;color:var(--accent)}
+.sidebar-foot{border-top:1px solid var(--border);padding:var(--s4);display:flex;flex-direction:column;gap:var(--s3)}
+.mini-stat{display:flex;align-items:center;gap:var(--s3)}
+.mini-stat .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.live{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.mini-stat .ms-label{font-size:11px;color:var(--ink-3);font-weight:500}
+.mini-stat .ms-val{font-size:12px;font-weight:600;margin-left:auto}
+.budget-mini{height:5px;border-radius:4px;background:var(--border);overflow:hidden}
+.budget-mini > i{display:block;height:100%;width:9%;background:linear-gradient(90deg,var(--accent),#7b4fd6);border-radius:4px}
+
+/* ---------- main ---------- */
+.main{overflow-y:auto;height:100vh}
+.topbar{position:sticky;top:0;z-index:5;background:rgba(247,248,250,.85);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--border);padding:var(--s4) var(--s6);display:flex;align-items:center;gap:var(--s4)}
+.topbar h1{font-size:19px;font-weight:650;letter-spacing:-.02em}
+.topbar .crumb{font-size:12.5px;color:var(--ink-3);font-weight:500}
+.topbar .spacer{flex:1}
+.content{padding:var(--s6);max-width:1180px;margin:0 auto}
+.view{display:none;animation:fade .25s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.page-head{margin-bottom:var(--s5)}
+.page-head h2{font-size:22px;font-weight:650;letter-spacing:-.02em}
+.page-head p{color:var(--ink-2);font-size:13.5px;margin-top:2px}
+
+/* ---------- components ---------- */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r3);box-shadow:var(--shadow-sm)}
+.card-pad{padding:var(--s5)}
+.card-head{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) var(--s5);border-bottom:1px solid var(--border)}
+.card-head h3{font-size:14px;font-weight:620}
+.card-head .ch-sub{font-size:12px;color:var(--ink-3);font-weight:500}
+.card-head .spacer{flex:1}
+.grid{display:grid;gap:var(--s5)}
+.g-2{grid-template-columns:repeat(2,1fr)}
+.g-3{grid-template-columns:repeat(3,1fr)}
+.g-4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:1000px){.g-3,.g-4{grid-template-columns:repeat(2,1fr)}}
+
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:var(--r1);font-weight:560;font-size:13px;transition:.13s;border:1px solid transparent;white-space:nowrap}
+.btn svg{width:15px;height:15px}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 1px 2px var(--accent-ring)}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-ghost{background:var(--surface);border-color:var(--border-strong);color:var(--ink)}
+.btn-ghost:hover{background:var(--surface-2);border-color:var(--ink-3)}
+.btn-soft{background:var(--accent-soft);color:var(--accent)}
+.btn-soft:hover{background:#e4e7ff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:#c11f1f}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:.01em}
+.pill svg{width:12px;height:12px}
+.pill .pdot{width:6px;height:6px;border-radius:50%}
+.pill-draft{background:#f0f1f5;color:var(--ink-2)} .pill-draft .pdot{background:var(--ink-3)}
+.pill-verified{background:var(--info-soft);color:var(--info)} .pill-verified .pdot{background:var(--info)}
+.pill-ready{background:var(--ok-soft);color:var(--ok)} .pill-ready .pdot{background:var(--ok)}
+.pill-running{background:var(--accent-soft);color:var(--accent)} .pill-running .pdot{background:var(--accent);animation:pulse 1.4s infinite}
+.pill-warn{background:var(--warn-soft);color:var(--warn)} .pill-warn .pdot{background:var(--warn)}
+
+.stat{padding:var(--s5)}
+.stat .st-label{font-size:12px;color:var(--ink-3);font-weight:550;display:flex;align-items:center;gap:6px}
+.stat .st-label svg{width:15px;height:15px;color:var(--ink-3)}
+.stat .st-val{font-size:28px;font-weight:680;letter-spacing:-.02em;margin-top:var(--s3);line-height:1}
+.stat .st-val small{font-size:14px;font-weight:550;color:var(--ink-3)}
+.stat .st-foot{font-size:12px;color:var(--ink-2);margin-top:var(--s3)}
+.trend-up{color:var(--ok);font-weight:600}
+
+.progress{height:8px;border-radius:6px;background:var(--border);overflow:hidden}
+.progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#7b4fd6);border-radius:6px;transition:width .4s}
+.bar-track{height:10px;border-radius:6px;background:var(--border);overflow:hidden;position:relative}
+.bar-track > i{display:block;height:100%;border-radius:6px}
+
+/* thumbnail placeholder */
+.thumb{aspect-ratio:16/10;border-radius:var(--r2);position:relative;overflow:hidden;background:linear-gradient(135deg,#3a3d5c,#20223a);display:grid;place-items:center}
+.thumb.tA{background:linear-gradient(135deg,#5b5bd6,#8b3fd6)}
+.thumb.tB{background:linear-gradient(135deg,#2b8a9e,#1f5f8b)}
+.thumb.tC{background:linear-gradient(135deg,#c2410c,#7c2d12)}
+.thumb.tD{background:linear-gradient(135deg,#334155,#0f172a)}
+.thumb .robot{width:34%;height:60%;position:relative;opacity:.92}
+.thumb .play{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,12,24,.15);opacity:0;transition:.15s}
+.thumb:hover .play{opacity:1}
+.thumb .play span{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.94);display:grid;place-items:center;box-shadow:var(--shadow-md)}
+.thumb .play span svg{width:18px;height:18px;color:var(--ink);margin-left:2px}
+.thumb .dur{position:absolute;bottom:8px;right:8px;font-size:11px;font-weight:600;background:rgba(10,12,24,.6);color:#fff;padding:2px 7px;border-radius:5px;backdrop-filter:blur(4px)}
+
+/* dancing robot (CSS) */
+.robot-anim{display:flex;flex-direction:column;align-items:center;gap:2px}
+.robot-anim .head{width:14px;height:14px;border-radius:5px;background:#fff}
+.robot-anim .torso{width:22px;height:30px;border-radius:7px;background:#fff;margin-top:2px;transform-origin:top center;animation:sway 1.6s ease-in-out infinite}
+.robot-anim .arms{position:absolute;top:26px;width:52px;display:flex;justify-content:space-between}
+.robot-anim .arms i{width:7px;height:24px;border-radius:5px;background:rgba(255,255,255,.9)}
+.robot-anim .arms i:first-child{animation:armL 1.6s ease-in-out infinite;transform-origin:top}
+.robot-anim .arms i:last-child{animation:armR 1.6s ease-in-out infinite;transform-origin:top}
+@keyframes sway{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+@keyframes armL{0%,100%{transform:rotate(20deg)}50%{transform:rotate(-40deg)}}
+@keyframes armR{0%,100%{transform:rotate(-20deg)}50%{transform:rotate(40deg)}}
+
+/* sparkline */
+.spark{width:100%;height:40px}
+.spark path.line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.spark path.area{fill:url(#sparkfill);opacity:.5}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);padding:10px var(--s4);border-bottom:1px solid var(--border)}
+td{padding:11px var(--s4);border-bottom:1px solid var(--border);color:var(--ink-2)}
+tr:last-child td{border-bottom:none}
+td.strong{color:var(--ink);font-weight:560}
+
+/* stepper */
+.stepper{display:flex;align-items:center;gap:0;margin:var(--s2) 0}
+.step{display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;position:relative}
+.step .node{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:13px;background:var(--surface);border:2px solid var(--border-strong);color:var(--ink-3);z-index:2}
+.step .node svg{width:16px;height:16px}
+.step .slabel{font-size:11.5px;font-weight:550;color:var(--ink-3)}
+.step .sstate{font-size:10px;color:var(--ink-3)}
+.step::before{content:"";position:absolute;top:17px;left:-50%;width:100%;height:2px;background:var(--border-strong);z-index:1}
+.step:first-child::before{display:none}
+.step.done .node{background:var(--ok);border-color:var(--ok);color:#fff}
+.step.done::before{background:var(--ok)}
+.step.done .slabel{color:var(--ink)}
+.step.running .node{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 5px var(--accent-ring)}
+.step.running::before{background:linear-gradient(90deg,var(--ok),var(--accent))}
+.step.running .slabel{color:var(--accent);font-weight:650}
+.step.blocked .node{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.step.pending .slabel{color:var(--ink-3)}
+
+/* upload zone */
+.dropzone{border:2px dashed var(--border-strong);border-radius:var(--r3);padding:var(--s7) var(--s5);text-align:center;background:var(--surface-2);transition:.15s;cursor:pointer}
+.dropzone:hover{border-color:var(--accent);background:var(--accent-soft)}
+.dropzone .dz-ico{width:52px;height:52px;border-radius:14px;background:var(--accent-soft);display:grid;place-items:center;margin:0 auto var(--s4)}
+.dropzone .dz-ico svg{width:24px;height:24px;color:var(--accent)}
+.dropzone h4{font-size:15px;font-weight:600}
+.dropzone p{color:var(--ink-3);font-size:12.5px;margin-top:4px}
+
+/* checklist */
+.checklist{display:flex;flex-direction:column;gap:var(--s3)}
+.check-item{display:flex;align-items:center;gap:var(--s4);padding:var(--s4);border:1px solid var(--border);border-radius:var(--r2);background:var(--surface)}
+.check-item.done{background:var(--ok-soft);border-color:#bfe6cb}
+.check-item.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.check-item .cbox{width:26px;height:26px;border-radius:8px;border:2px solid var(--border-strong);display:grid;place-items:center;flex-shrink:0}
+.check-item.done .cbox{background:var(--ok);border-color:var(--ok)}
+.check-item.done .cbox svg{width:15px;height:15px;color:#fff}
+.check-item .ci-title{font-weight:560;font-size:13.5px}
+.check-item .ci-sub{font-size:12px;color:var(--ink-3)}
+.check-item .spacer{flex:1}
+
+/* health dot big */
+.healthdot{width:10px;height:10px;border-radius:50%}
+.healthdot.g{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+.healthdot.a{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+.healthdot.r{background:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
+
+.kv{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+.kv:last-child{border-bottom:none}
+.kv .k{color:var(--ink-3)}
+.kv .v{font-weight:560;font-family:var(--mono);font-size:12.5px}
+
+.banner{display:flex;align-items:center;gap:var(--s3);padding:var(--s4);border-radius:var(--r2);font-size:13px;font-weight:500}
+.banner svg{width:18px;height:18px;flex-shrink:0}
+.banner-info{background:var(--info-soft);color:#1e40af}
+.banner-warn{background:var(--warn-soft);color:#92400e}
+
+.gauge-wrap{display:flex;align-items:center;gap:var(--s5)}
+.mutewrap{color:var(--ink-3);font-size:12.5px}
+.section-gap{margin-top:var(--s6)}
+.flex{display:flex;align-items:center;gap:var(--s3)}
+.between{display:flex;align-items:center;justify-content:space-between}
+.searchbar{display:flex;align-items:center;gap:var(--s2);background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r1);padding:7px var(--s3);width:280px}
+.searchbar svg{width:16px;height:16px;color:var(--ink-3)}
+.searchbar input{border:none;outline:none;background:none;font-size:13px;width:100%;color:var(--ink)}
+.chip{font-size:12px;font-weight:530;padding:5px 11px;border-radius:20px;border:1px solid var(--border-strong);color:var(--ink-2);background:var(--surface)}
+.chip.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.muted{color:var(--ink-3)}
+.mono{font-family:var(--mono);font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.4"/><path d="M12 7.5v6M12 9l-4 2M12 9l4 2M9.5 20l2.5-6 2.5 6"/></svg>
+      </div>
+      <div>
+        <div class="name">G1 Dance Studio</div>
+        <div class="sub">Choreography · Unitree G1</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="active" data-nav="dashboard" onclick="go('dashboard')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</a>
+      <a data-nav="library" onclick="go('library')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Library<span class="badge-count">5</span></a>
+      <a data-nav="create" onclick="go('create')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Create Dance</a>
+      <div class="group-label">Operations</div>
+      <a data-nav="show" onclick="go('show')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H4z"/><path d="M12 16v4M8 20h8"/><path d="m10 8 4 2-4 2z" fill="currentColor"/></svg>Show Mode</a>
+      <a data-nav="system" onclick="go('system')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>System</a>
+      <a data-nav="settings" onclick="go('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="mini-stat"><span class="dot live"></span><span class="ms-label">GPU · training</span><span class="ms-val">99%</span></div>
+      <div>
+        <div class="mini-stat" style="margin-bottom:6px"><span class="ms-label">Budget used</span><span class="ms-val">₫148k / 1.5M</span></div>
+        <div class="budget-mini"><i></i></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <div class="topbar">
+      <h1 id="pgtitle">Dashboard</h1>
+      <span class="crumb" id="pgcrumb">Overview of your studio</span>
+      <div class="spacer"></div>
+      <div class="pill pill-running"><span class="pdot"></span>2 jobs training</div>
+      <button class="btn btn-primary" onclick="go('create')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New Dance</button>
+    </div>
+    <div class="content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <section class="view active" id="v-dashboard">
+      <div class="grid g-4" style="margin-bottom:var(--s5)">
+        <div class="card stat">
+          <div class="st-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dances</div>
+          <div class="st-val">5</div>
+          <div class="st-foot"><span class="trend-up">1 sim-verified</span> · 3 draft</div>
+        </div>
+        <div class="card stat">
+          <div class="st-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>GPU utilisation</div>
+          <div class="st-val">99<small>%</small></div>
+          <div class="st-foot">RTX 4090 · 74°C · 213W</div>
+        </div>
+        <div class="card stat">
+          <div class="st-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Spend today</div>
+          <div class="st-val">₫148<small>k</small></div>
+          <div class="st-foot">of ₫1.5M cap · ~$5.80</div>
+        </div>
+        <div class="card stat">
+          <div class="st-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Show-ready</div>
+          <div class="st-val">0</div>
+          <div class="st-foot">Thriller in sim-exam →</div>
+        </div>
+      </div>
+
+      <div class="grid g-2">
+        <div class="card">
+          <div class="card-head"><h3>Active training</h3><span class="spacer"></span><span class="pill pill-running"><span class="pdot"></span>Running</span></div>
+          <div class="card-pad">
+            <div class="between" style="margin-bottom:var(--s3)"><div class="flex"><div class="thumb tA" style="width:52px;aspect-ratio:1;border-radius:9px"><div class="robot-anim" style="transform:scale(.4)"><div class="head"></div><div class="torso"></div></div></div><div><div style="font-weight:600">Thriller</div><div class="muted" style="font-size:12px">attempt 1 · 49.3s show cut</div></div></div><div style="text-align:right"><div style="font-weight:680;font-size:20px">3,090<small class="muted" style="font-size:13px;font-weight:500"> / 10k</small></div><div class="muted" style="font-size:11px">iterations</div></div></div>
+            <div class="progress" style="margin-bottom:var(--s4)"><i style="width:31%"></i></div>
+            <div class="between" style="margin-bottom:6px"><span class="muted" style="font-size:12px">Mean reward · climbing</span><span style="font-weight:640;color:var(--ok)">31.3 ↑</span></div>
+            <svg class="spark" viewBox="0 0 300 40" preserveAspectRatio="none"><defs><linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b5bd6" stop-opacity=".4"/><stop offset="1" stop-color="#5b5bd6" stop-opacity="0"/></linearGradient></defs><path class="area" d="M0,38 L0,36 C40,34 60,30 90,22 C130,14 160,12 200,8 C240,5 270,4 300,3 L300,40 L0,40 Z"/><path class="line" d="M0,36 C40,34 60,30 90,22 C130,14 160,12 200,8 C240,5 270,4 300,3"/></svg>
+            <div class="flex" style="margin-top:var(--s4)"><button class="btn btn-soft btn-sm" onclick="go('create')">View pipeline</button><a class="btn btn-ghost btn-sm" href="#" onclick="return false">Open in W&amp;B ↗</a></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Next actions</h3></div>
+          <div class="card-pad" style="display:flex;flex-direction:column;gap:var(--s3)">
+            <div class="check-item active"><div class="cbox" style="border-color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.4"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg></div><div><div class="ci-title">Thriller sim-exam running</div><div class="ci-sub">Nominal + push + repeatability</div></div><div class="spacer"></div><span class="pill pill-running"><span class="pdot"></span>Auto</span></div>
+            <div class="check-item"><div class="cbox"></div><div><div class="ci-title">Drop the real Thriller song</div><div class="ci-sub">Video has no audio — needed for show</div></div><div class="spacer"></div><button class="btn btn-ghost btn-sm">Upload</button></div>
+            <div class="check-item"><div class="cbox"></div><div><div class="ci-title">Schedule robot day</div><div class="ci-sub">Gantry test before first ground run</div></div><div class="spacer"></div><button class="btn btn-ghost btn-sm">Plan</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card section-gap">
+        <div class="card-head"><h3>Recent activity</h3></div>
+        <table>
+          <tbody>
+            <tr><td style="width:130px"><span class="pill pill-verified"><span class="pdot"></span>Verified</span></td><td class="strong">Thriller reached 94% episode survival</td><td class="muted" style="text-align:right">2 min ago</td></tr>
+            <tr><td><span class="pill pill-running"><span class="pdot"></span>Training</span></td><td class="strong">Benchmark test-segment · reward 26.0</td><td class="muted" style="text-align:right">18 min ago</td></tr>
+            <tr><td><span class="pill pill-draft"><span class="pdot"></span>Rendered</span></td><td class="strong">Progress clip · thriller_iter1500.mp4</td><td class="muted" style="text-align:right">31 min ago</td></tr>
+            <tr><td><span class="pill pill-ready"><span class="pdot"></span>Passed</span></td><td class="strong">Motion vetting · 0.88 m excursion, no floorwork</td><td class="muted" style="text-align:right">1 hr ago</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== LIBRARY ===== -->
+    <section class="view" id="v-library">
+      <div class="between" style="margin-bottom:var(--s5)">
+        <div class="searchbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Search dances…"></div>
+        <div class="flex"><span class="chip on">All</span><span class="chip">Show-ready</span><span class="chip">Sim-verified</span><span class="chip">Draft</span></div>
+      </div>
+      <div class="grid g-3" id="lib-grid"></div>
+    </section>
+
+    <!-- ===== CREATE ===== -->
+    <section class="view" id="v-create">
+      <div class="page-head"><h2>Create a dance</h2><p>Turn a reference video into a balance-robust performance. Watch it move through every stage.</p></div>
+      <div class="grid g-2" style="grid-template-columns:1fr 1.3fr;align-items:start">
+        <div class="card card-pad">
+          <div class="dropzone">
+            <div class="dz-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M7 8l5-5 5 5"/><path d="M5 21h14"/></svg></div>
+            <h4>Drop a dance video</h4>
+            <p>MP4 or MOV · one dancer, full body, still camera · 15s–4min</p>
+            <button class="btn btn-ghost" style="margin-top:var(--s4)">Choose file…</button>
+          </div>
+          <div style="text-align:center;color:var(--ink-3);font-size:12px;margin:var(--s4) 0">— or —</div>
+          <button class="btn btn-soft" style="width:100%;justify-content:center">Start from a motion CSV</button>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Thriller</h3><span class="ch-sub">· attempt 1</span><span class="spacer"></span><span class="pill pill-running"><span class="pdot"></span>Training</span></div>
+          <div class="card-pad">
+            <div class="stepper">
+              <div class="step done"><div class="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></div><div class="slabel">Extract</div><div class="sstate">GVHMR</div></div>
+              <div class="step done"><div class="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></div><div class="slabel">Retarget</div><div class="sstate">GMR</div></div>
+              <div class="step done"><div class="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></div><div class="slabel">Vet</div><div class="sstate">Passed</div></div>
+              <div class="step running"><div class="node">4</div><div class="slabel">Train</div><div class="sstate">31% · r 31.3</div></div>
+              <div class="step pending"><div class="node">5</div><div class="slabel">Sim-Exam</div><div class="sstate">queued</div></div>
+              <div class="step pending"><div class="node">6</div><div class="slabel">Ready</div><div class="sstate">—</div></div>
+            </div>
+          </div>
+          <div class="card-head" style="border-top:1px solid var(--border)"><h3 style="font-size:13px">Vetting report</h3><span class="spacer"></span><span class="pill pill-ready"><span class="pdot"></span>Pass</span></div>
+          <table>
+            <tr><td>Root excursion</td><td class="strong">0.88 m</td><td class="muted">≤ 1.5 m</td><td style="text-align:right"><span class="pill pill-ready"><span class="pdot"></span>OK</span></td></tr>
+            <tr><td>Joint limits</td><td class="strong">0 violations</td><td class="muted">hard</td><td style="text-align:right"><span class="pill pill-ready"><span class="pdot"></span>OK</span></td></tr>
+            <tr><td>Floorwork</td><td class="strong">none</td><td class="muted">hard</td><td style="text-align:right"><span class="pill pill-ready"><span class="pdot"></span>OK</span></td></tr>
+            <tr><td>Over-velocity frames</td><td class="strong">0%</td><td class="muted">advisory</td><td style="text-align:right"><span class="pill pill-ready"><span class="pdot"></span>OK</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SHOW ===== -->
+    <section class="view" id="v-show">
+      <div class="page-head"><h2>Show mode</h2><p>Run a rehearsed dance in front of an audience. Complete every safety check before the robot moves.</p></div>
+      <div class="grid g-2" style="grid-template-columns:1.1fr 1fr;align-items:start">
+        <div class="card">
+          <div class="card-head"><h3>Performance</h3><span class="spacer"></span><span class="pill pill-verified"><span class="pdot"></span>Thriller</span></div>
+          <div class="card-pad">
+            <div class="thumb tA" style="aspect-ratio:16/9;margin-bottom:var(--s4)"><div class="robot-anim"><div class="head"></div><div class="torso"></div><div class="arms"><i></i><i></i></div></div><div class="dur">49.3s</div></div>
+            <div class="banner banner-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>This G1 has no torque-cut e-stop — only the remote's damping. Keep it in hand.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Pre-show checklist</h3><span class="spacer"></span><span class="muted" style="font-size:12px">3 of 5</span></div>
+          <div class="card-pad">
+            <div class="checklist">
+              <div class="check-item done"><div class="cbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="ci-title">Robot health check</div><div class="ci-sub">29 motors reporting · firmware OK</div></div></div>
+              <div class="check-item done"><div class="cbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="ci-title">Performance area clear</div><div class="ci-sub">2 m radius · flat floor</div></div></div>
+              <div class="check-item done"><div class="cbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="ci-title">Battery level</div><div class="ci-sub">87% · above 30% floor</div></div></div>
+              <div class="check-item active"><div class="cbox" style="border-color:var(--accent)"></div><div><div class="ci-title">E-stop in hand</div><div class="ci-sub">Confirm you're holding the remote</div></div><div class="spacer"></div><button class="btn btn-primary btn-sm">Confirm</button></div>
+              <div class="check-item"><div class="cbox"></div><div><div class="ci-title">Venue acknowledgment</div><div class="ci-sub">Space &amp; surface signed off</div></div></div>
+            </div>
+            <button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:var(--s5)" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m10 8 6 4-6 4z"/><circle cx="12" cy="12" r="9"/></svg>Deploy &amp; perform — complete checklist</button>
+            <p class="muted" style="font-size:11.5px;text-align:center;margin-top:var(--s3)">Deploy requires typing DEPLOY and stays record-only until robot day.</p>
+          </div>
+        </div>
+      </div>
+      <div class="card section-gap">
+        <div class="card-head"><h3>Performance history</h3></div>
+        <table>
+          <thead><tr><th>Date</th><th>Dance</th><th>Operator</th><th>Outcome</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="strong">— no shows yet</td><td class="muted" colspan="4">Your first performance will appear here.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== SYSTEM ===== -->
+    <section class="view" id="v-system">
+      <div class="page-head"><h2>System</h2><p>Live hardware &amp; training telemetry — read straight from the GPU box, not the cloud console.</p></div>
+      <div class="banner banner-info" style="margin-bottom:var(--s5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>The GreenNode console shows instance <b>state</b>, not live GPU load. This panel reads the hardware directly over SSH.</div>
+      <div class="grid g-2" style="align-items:start">
+        <div class="card">
+          <div class="card-head"><span class="healthdot g"></span><h3>GPU box · g1dance-gpu</h3><span class="spacer"></span><span class="pill pill-ready"><span class="pdot"></span>Reachable</span></div>
+          <div class="card-pad">
+            <div class="grid g-2">
+              <div><div class="muted" style="font-size:12px">Utilisation</div><div style="font-size:24px;font-weight:680">99%</div><div class="bar-track" style="margin-top:6px"><i style="width:99%;background:var(--accent)"></i></div></div>
+              <div><div class="muted" style="font-size:12px">VRAM</div><div style="font-size:24px;font-weight:680">4.7<small class="muted" style="font-size:13px"> / 24 GB</small></div><div class="bar-track" style="margin-top:6px"><i style="width:20%;background:var(--info)"></i></div></div>
+            </div>
+            <div style="margin-top:var(--s4)"><div class="kv"><span class="k">Power draw</span><span class="v">213 W</span></div><div class="kv"><span class="k">Temperature</span><span class="v">74 °C</span></div><div class="kv"><span class="k">Driver</span><span class="v">580.65.06</span></div><div class="kv"><span class="k">Uptime</span><span class="v">8h 12m</span></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Cost this session</h3></div>
+          <div class="card-pad">
+            <div class="st-val" style="font-size:30px;font-weight:680">₫148,000 <small class="muted" style="font-size:14px">/ 1.5M cap</small></div>
+            <div class="bar-track" style="margin:var(--s4) 0"><i style="width:10%;background:linear-gradient(90deg,var(--accent),#7b4fd6)"></i></div>
+            <div class="kv"><span class="k">Rate (4090 · −25% · +VAT)</span><span class="v">₫18,170 / h</span></div>
+            <div class="kv"><span class="k">Billed since</span><span class="v">creation → deletion</span></div>
+            <div class="banner banner-warn" style="margin-top:var(--s4);font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>Delete the instance (not just stop) to end billing.</div>
+          </div>
+        </div>
+      </div>
+      <div class="card section-gap">
+        <div class="card-head"><h3>Training jobs</h3></div>
+        <table>
+          <thead><tr><th>Job</th><th>Iteration</th><th>Reward</th><th>Episode len</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="strong">train-thriller-a1</td><td class="mono">3,090 / 10k</td><td class="strong">31.3 <span class="trend-up">↑</span></td><td class="mono">477 / 500</td><td><span class="pill pill-running"><span class="pdot"></span>Running</span></td><td style="text-align:right"><a class="muted" href="#" onclick="return false">W&amp;B ↗</a></td></tr>
+            <tr><td class="strong">train-dance1-seg</td><td class="mono">3,486 / 30k</td><td class="strong">26.0</td><td class="mono">431 / 500</td><td><span class="pill pill-running"><span class="pdot"></span>Running</span></td><td style="text-align:right"><a class="muted" href="#" onclick="return false">W&amp;B ↗</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== SETTINGS ===== -->
+    <section class="view" id="v-settings">
+      <div class="page-head"><h2>Settings</h2><p>Cloud connection, assets, and library backup.</p></div>
+      <div class="grid g-2" style="align-items:start">
+        <div class="card">
+          <div class="card-head"><span class="healthdot g"></span><h3>Cloud GPU connection</h3></div>
+          <div class="card-pad">
+            <div class="kv"><span class="k">Host</span><span class="v">103.245.250.152:46936</span></div>
+            <div class="kv"><span class="k">Transport</span><span class="v">SSH · ed25519 key</span></div>
+            <div class="kv"><span class="k">Status</span><span class="v" style="color:var(--ok)">connected</span></div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:var(--s4)">Test connection</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="healthdot g"></span><h3>Body models</h3></div>
+          <div class="card-pad">
+            <div class="kv"><span class="k">SMPL v1.1.0</span><span class="v" style="color:var(--ok)">installed</span></div>
+            <div class="kv"><span class="k">SMPL-X v1.1</span><span class="v" style="color:var(--ok)">installed</span></div>
+            <div class="kv"><span class="k">GMR link</span><span class="v" style="color:var(--ok)">ready</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Dance library backup</h3></div>
+          <div class="card-pad">
+            <p class="muted" style="font-size:12.5px;margin-bottom:var(--s4)">Export every trained dance, policy, and preview to a single portable archive.</p>
+            <div class="flex"><button class="btn btn-primary btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v13M7 12l5 5 5-5M5 21h14"/></svg>Export library</button><button class="btn btn-ghost btn-sm">Restore…</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Exam signing</h3></div>
+          <div class="card-pad">
+            <div class="kv"><span class="k">Verdict signing key</span><span class="v" style="color:var(--ok)">present</span></div>
+            <div class="kv"><span class="k">Repeatability target</span><span class="v">3 clean runs</span></div>
+            <p class="muted" style="font-size:11.5px;margin-top:var(--s3)">Sim-exam verdicts are HMAC-signed so a policy can't be marked show-ready without a genuine passing exam.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const TITLES = {
+  dashboard:['Dashboard','Overview of your studio'],
+  library:['Library','Every dance you’ve created'],
+  create:['Create Dance','Video → balanced robot performance'],
+  show:['Show Mode','Operator console'],
+  system:['System','Live hardware & training telemetry'],
+  settings:['Settings','Connection, assets & backup'],
+};
+function go(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('v-'+id).classList.add('active');
+  document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.nav===id));
+  document.getElementById('pgtitle').textContent=TITLES[id][0];
+  document.getElementById('pgcrumb').textContent=TITLES[id][1];
+  document.querySelector('.main').scrollTop=0;
+}
+
+// library cards
+const DANCES=[
+  {n:'Thriller',d:'49.3s',s:'verified',t:'tA',note:'attempt 1 · sim-exam running'},
+  {n:'test-segment',d:'28.8s',s:'verified',t:'tD',note:'benchmark reference'},
+  {n:'Uptown Funk',d:'2:41',s:'draft',t:'tB',note:'retargeting'},
+  {n:'Gangnam Style',d:'1:12',s:'draft',t:'tC',note:'queued for training'},
+  {n:'Single Ladies',d:'0:58',s:'draft',t:'tB',note:'video uploaded'},
+];
+const SMAP={verified:['pill-verified','Sim-Verified'],ready:['pill-ready','Show-Ready'],draft:['pill-draft','Draft']};
+document.getElementById('lib-grid').innerHTML=DANCES.map(x=>`
+  <div class="card" style="overflow:hidden">
+    <div class="thumb ${x.t}">
+      <div class="robot-anim" style="transform:scale(.8)"><div class="head"></div><div class="torso"></div><div class="arms"><i></i><i></i></div></div>
+      <div class="play"><span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>
+      <div class="dur">${x.d}</div>
+    </div>
+    <div class="card-pad" style="padding:14px 16px">
+      <div class="between"><div style="font-weight:620;font-size:14.5px">${x.n}</div><span class="pill ${SMAP[x.s][0]}"><span class="pdot"></span>${SMAP[x.s][1]}</span></div>
+      <div class="muted" style="font-size:12px;margin-top:3px">${x.note}</div>
+      <div class="flex" style="margin-top:14px"><button class="btn btn-soft btn-sm">Open</button><button class="btn btn-ghost btn-sm">Preview</button></div>
+    </div>
+  </div>`).join('');
+</script>
+</body>
+</html>
