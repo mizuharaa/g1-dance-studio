@@ -103,6 +103,9 @@ TORSO_ANCHOR = os.environ.get("TORSO_ANCHOR", "1") != "0"
 # every motion run now records automatically so hardware numbers have provenance.
 TELEMETRY = os.environ.get("TELEMETRY", "1") != "0"
 TELEMETRY_DIR = Path(os.environ.get("TELEMETRY_DIR", str(ROOT / "data" / "telemetry")))
+# See read_state: drain is a no-op with the verified depth-1 DDS QoS and spams SDK
+# error prints at sub-ms timeouts — opt-in only.
+DRAIN_READS = os.environ.get("DRAIN_READS", "0") == "1"
 # Constant ankle_pitch trim (DEGREES) applied to the STAND-HOLD targets ONLY — enables
 # the audit's ±3 deg posture sweep (posture -> ankle torque -> heat mapping; first-
 # principles audit §4 exp #6) without code edits. Clamped to ±6 deg, loudly printed
@@ -377,15 +380,17 @@ def read_state(sub, timeout_s=2.0):
     msg = sub.Read(timeout_s)
     if msg is None:
         raise SystemExit(f"no LowState within {timeout_s}s — robot off / wrong iface / LAN down. NO-GO.")
-    # Drain any queued history to the LATEST sample (bounded). With default DDS QoS the
-    # reader keeps only the newest sample and this is a no-op, but any deeper history
-    # would feed the policy stale state — the thermal monitor went blind on exactly
-    # that bug class. 0.5 ms poll, break on first empty read.
-    for _ in range(8):
-        newer = sub.Read(0.0005)
-        if newer is None:
-            break
-        msg = newer
+    # Optional drain to the LATEST queued sample. With default DDS QoS (KEEP_LAST depth 1
+    # — verified on hardware: staleness p95 1.75-1.78 ms across two sessions) the reader
+    # already returns the newest sample, so draining is a no-op; worse, the sub-ms timeout
+    # reads make the SDK print "[Reader] take sample error" every tick (observed
+    # 2026-07-06). Default OFF; DRAIN_READS=1 only if a deep-queue subscriber is ever used.
+    if DRAIN_READS:
+        for _ in range(8):
+            newer = sub.Read(0.0005)
+            if newer is None:
+                break
+            msg = newer
     q = np.array([msg.motor_state[i].q for i in range(29)], float)
     dq = np.array([msg.motor_state[i].dq for i in range(29)], float)
     imu = msg.imu_state
