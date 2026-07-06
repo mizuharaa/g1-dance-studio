@@ -1428,3 +1428,28 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - NEXT HARDWARE STEP (needs remote): ONE tethered ground-run-legodom of s2r-b (--max-secs 30),
   full telemetry auto-captured, yaw-align offset printed+recorded; then the deferred measurement
   steps (standing baseline, trim sweep). Remote still unavailable this session.
+
+## 2026-07-06 — 🏆 FULL THRILLER ON THE GROUND, TETHERED, COMPLETE (2589/2589 ticks). Sim2real chain VALIDATED end to end.
+- **Staged tethered progression of s2r-b (user present with remote, all runs telemetry-recorded):**
+  preflight PASS (yaw-align proved live: offsets -87/-57/+38/+85/+88 deg across runs — every one
+  would have been near-worst-case OOD under the old code) → 5s ✓ → 15s ✓ (through stepping-window
+  entry, calmest section) → 30s ✓ (full stepping window) → **FULL 51.8s DANCE ✓ (2589 ticks)**.
+- **FULL-DANCE HARDWARE NUMBERS: ankle |tau| mean 6.5 / RMS 8.9 Nm — the DANCING robot's ankles
+  run cooler than the vendor controller pays to STAND (9.2 avg measured). Ankle temps FLAT
+  (0.0 C/min) over the dance; worst motor +2.3 C/min (waist, choreography), hottest 54 C
+  (shoulder). The ankle thermal wall is gone.** Legs |a| max 4.75; gyro p95 0.89.
+  Old policy at same task: 15-20 Nm ankle, 22.5 C/min, gain boosts, brace-falls at 14-16s.
+  s2r-b at TRAINED GAINS, no boost: sim gate numbers reproduced on hardware (RMS 8.9 vs ~8-10 sim).
+- Two mid-session safety-layer refinements (committed, tested): per-joint action caps (two benign
+  right_wrist_yaw trips at 10/12 during claw choreography; legs never exceeded 3.4-4.9 —
+  legs keep cap 10, arms x1.6) + abort messages name the joint.
+- **NEW RUNBOOK FINDING: end-of-run damp->restore handoff on loaded feet triggers onboard
+  catch-stepping (~1-1.5m, consistently rightward = the measured left-heavy stance).** Tether
+  never loaded; onboard caught it every time. Backlog: hold-then-handoff (restore 'ai' while
+  still balanced) + keep clearance to fences at run end.
+- Onboard-standby baseline (audit exp#5 CLOSED, committed): vendor stands at ankle 12.3/6.2 Nm
+  (NOT ~0), left hip_roll 25 Nm, left_ankle_roll +2.7 C/min @52C. Staleness replicated 1.75ms.
+- **STATUS: s2r-b VALIDATED ON HARDWARE — the sim2real retrain closed the gap.** Remaining to
+  show-ready: repeatability (3x clean full runs per exam standard), slack-tether -> free runs,
+  music-synced show run, outcome recording in the app, and the promotion decision vs the 99%
+  held-out standard (s2r-b gate numbers + hardware evidence to be taken to the user).
