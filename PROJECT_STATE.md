@@ -1560,3 +1560,17 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - NEXT (robot-facing, human present): 30s speaker smoke test in damp, measure
   AUDIO_LATENCY_COMP (film screen+speaker), LED cue check, then AUDIO_MODE=robot dress
   rehearsal — checklist in docs/SHOW_AUDIO.md. NOT committed (per task instruction).
+
+## 2026-07-06 (post-reboot) — LAPTOP AUDIO WORKS (sof-arl.ri installed); "beeps" = the placeholder click track; v4+acro queued.
+- Reboot completed the SOF driver bind: sof-hda-dsp card live, analog Speaker port active,
+  played to speakers successfully. THE FILE data/audio/thriller/music.wav IS THE PLACEHOLDER
+  CLICK TRACK (verified: 76% silence, single ~3.3kHz tone) — the real song was never dropped
+  in (source video has no audio). WAITING ON USER: real Thriller track -> tools/attach_music
+  flow will convert/replace/re-attach. The phone rehearsal used the real song from the phone.
+- v4 calm-legs training launched (5-way share with v3a-d; ETAs +~1h). autopilot_v3 patched for
+  v4 (sharp-ref eval). Acro/backflip: reference verified (-344deg pitch, 5.6s), converted npz
+  staged on box; launcher hardened (terminfo-proof process counting, unique-job count,
+  threshold 3) after a premature 6-way launch was cleaned; now WAITING and will take a slot
+  when 2 trainings finish. Verdict poller armed (first-verdict wake).
+- NEXT AUTONOMOUS BUILD: end-to-end validation of the many-dances app pipeline on
+  dance1_subject2_seg.csv (real box, deferred train-approval watcher gated on GPU slots).
