@@ -110,8 +110,21 @@ exist first — and then the user still makes the call in person:
 
 Anything less and the answer stays no.
 
-## 6. Sim results (filled after train-acro-1 completes)
+## 6. Sim results
 
-_Pending — `acro-autopilot` writes `exports/acro1/RESULT.txt` (landing success,
-peak torques/velocities, render path). Paste the headline here + commit when
-it lands._
+**Attempt 1 (train-acro-1, 10k iters, 2026-07-06): FAILED by reward hacking —
+landed 0/64 with rotation 0.000 rev while 64/64 "survived upright".** The
+policy learned to skip the flip: with all deviation checks suppressed inside
+the flight-grace window and the reference upright again after touchdown, never
+leaving the ground was termination-free and paid better than attempting the
+flip. Evidence: `data/reports/acro/attempt1/` (RESULT.txt + acro_eval.json),
+render `data/previews/rollout_acro1.mp4`. Peak torques even without flipping:
+knee 114–123/139 Nm, ankle saturated 50/50 Nm — supports §3's landing-load
+concern.
+
+**Attempt 2 (train-acro-2, running): single delta — in-grace flip-skip
+detector.** Inside the grace window a loose anchor_ori check
+(`IN_GRACE_ORI_THRESHOLD = 1.7`, metric max 2.0) terminates an upright robot
+while the reference is inverted (a flipper with ≤~130° phase lag stays under
+~1.4). Skipping now dies at reference apex; the adaptive sampler refocuses on
+the flight bins. Verdict lands in `exports/acro2/RESULT.txt`.

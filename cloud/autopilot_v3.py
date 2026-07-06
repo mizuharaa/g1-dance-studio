@@ -30,7 +30,7 @@ OUT = f"{NB}/exports/thriller_v3{VARIANT}"
 # blanket 8.48 rad/s velocity clamp blunted 58 dance accents; docs/
 # retarget_fidelity.md) — its gate, arm metric and render MUST use that npz,
 # and its s2r-b baseline is recomputed against the sharp reference too.
-if VARIANT == "d":
+if VARIANT in ("d", "e"):  # v3e = v3c recipe (10k) x SHARP reference follow-up
     MOTION = f"{NB}/motions/thriller_deploy_v2_sharp.npz"
     BASELINE = f"{NB}/reports/arm_tracking_s2rb_baseline_sharp.json"
 else:

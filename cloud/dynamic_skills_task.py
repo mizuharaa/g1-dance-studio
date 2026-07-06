@@ -101,6 +101,17 @@ ANCHOR_POS_Z_THRESHOLD = 0.45   # (0.25) crouch/landing-compression timing slack
 ANCHOR_ORI_THRESHOLD = 1.4      # (0.8)  metric range 0..2; ~2 when flat-on-floor
 EE_BODY_POS_Z_THRESHOLD = 0.45  # (0.25) feet/hand swing timing slack
 
+# --- in-grace flip-skip detector (attempt-2 fix) --------------------------------
+# Attempt 1 reward-hacked: with ALL deviation checks suppressed inside the
+# flight-grace window, "never leave the ground" was termination-free (after
+# touchdown the reference is upright again and matches a non-flipper), so the
+# policy learned to skip the flip: landed 0/64 with rot=0.000 rev while 64/64
+# "survived upright" (data/reports/acro/attempt1/). Fix: inside grace, keep ONE
+# very loose anchor_ori check. While the reference is inverted, an upright
+# robot shows a gravity-z mismatch near the metric's max of 2.0; a flipper with
+# <=~130 deg of phase lag stays under ~1.4. 1.7 kills exactly the skippers.
+IN_GRACE_ORI_THRESHOLD = 1.7
+
 
 class _FlightGraceMixin:
   """Shared lazily-built per-frame grace mask over the reference motion.
@@ -147,7 +158,12 @@ class anchor_pos_z_flip_aware(_FlightGraceMixin):
 class anchor_ori_flip_aware(_FlightGraceMixin):
   def __call__(self, env, asset_cfg, command_name: str, threshold: float) -> torch.Tensor:
     raw = tracking_mdp.bad_anchor_ori(env, asset_cfg, command_name, threshold)
-    return raw & ~self._grace(env, command_name)
+    grace = self._grace(env, command_name)
+    # In-grace flip-skip detector (see IN_GRACE_ORI_THRESHOLD note): lagging
+    # flippers pass, upright non-flippers terminate at reference apex.
+    skipped = tracking_mdp.bad_anchor_ori(
+      env, asset_cfg, command_name, IN_GRACE_ORI_THRESHOLD)
+    return (raw & ~grace) | (skipped & grace)
 
 
 class ee_body_pos_z_flip_aware(_FlightGraceMixin):

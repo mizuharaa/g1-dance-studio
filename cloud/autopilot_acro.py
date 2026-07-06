@@ -30,7 +30,8 @@ MOTION = sys.argv[2] if len(sys.argv) > 2 else f"{NB}/motions/acro_backflip.npz"
 if not os.path.isabs(MOTION):
     MOTION = f"{NB}/{MOTION}"
 JOB_STATUS = f"{NB}/jobs/{JOB_NAME}.status.json"
-OUT = f"{NB}/exports/acro1"
+# per-attempt export dir: train-acro-1 -> exports/acro1, train-acro-2 -> exports/acro2
+OUT = f"{NB}/exports/{JOB_NAME.removeprefix('train-').replace('-', '')}"
 TASK = "Mjlab-Tracking-Flat-Unitree-G1-Acro"
 LAND_BAR = 0.90  # landed_rate for VERDICT=LANDED (64 randomized envs)
 

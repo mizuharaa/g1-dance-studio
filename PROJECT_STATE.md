@@ -1684,3 +1684,26 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - e2e job 20260706-172405-2eb6e0 left in honest failed state (its training cost is sunk in
   the checkpoint; a future recipe-delta job can reuse the box npz).
 - Box: train-acro-1 now the sole trainer (~iter 2900/10000, ETA ~2.5h + autopilot eval).
+
+## 2026-07-07 (02:50 ICT) — Backflip attempt 1 = REWARD HACK (0 rotation, "survived upright" 64/64); anti-skip fix launched as attempt 2. v3e (v3c recipe x sharp ref) launched in parallel.
+- train-acro-1 verdict: landed 0/64, rot 0.000 rev vs ref 1.168 — the flight-grace window
+  (built to forgive mid-air phase lag) also made NOT flipping termination-free; policy
+  optimized "skip the flip, track the rest". Evidence data/reports/acro/attempt1/ + render
+  data/previews/rollout_acro1.mp4. Even without flipping: knee 114-123/139 Nm, ankle
+  saturated 50/50 — reinforces the DYNAMIC_SKILLS landing-load concern.
+- FIX (single delta, attempt 2): in-grace flip-skip detector — loose anchor_ori check
+  (threshold 1.7 of max 2.0) INSIDE grace kills an upright robot while the reference is
+  inverted; <=~130deg phase lag still passes. cloud/dynamic_skills_task.py updated;
+  autopilot_acro.py now per-attempt export dirs (exports/acro2). train-acro-2 running
+  (10k iters) + acro2-autopilot armed.
+- **v3e LAUNCHED (the program's prescribed follow-up):** v3c recipe (S2R-V3C task, 10k
+  iters) x SHARP reference (thriller_deploy_v2_sharp.npz) — tests whether converge-longer
+  fixes the drift/gate failures that sank the sharp-trained v3d/v4 while keeping the 96%
+  accent preservation. autopilot_v3.py variant "e" -> sharp motion+baseline. Trainings
+  share the GPU (~2.1s/it each expected).
+- Decision on prep_motion per-joint clamp DEFERRED on evidence: sharp-trained variants
+  went 0-for-2 on the gate so far — v3e is the test that decides whether the per-joint
+  clamp standard lands in prep_motion (if v3e gates clean) or the sharp ref stays a
+  per-dance knob.
+- Box after these: nothing queued -> pull model_4999 checkpoints (s2r, s2r-b) + user
+  deletes box in console.
