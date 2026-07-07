@@ -56,15 +56,40 @@ def test_make_deploy_csv_roundtrip(tmp_path):
 
 
 def test_reproduces_canonical_thriller_deploy_exactly():
-    """Golden test against the hardware-validated deployable (2026-07-06 promotion)."""
+    """Golden test: the activation-ramp LOGIC against the promoted hardware deployable.
+
+    History: this used to byte-assert add_activation_ramp(thriller_show) == the WHOLE
+    thriller_deploy.csv. After the 2026-07-06 SHARP promotion the deployable's BODY is the
+    per-joint sharp reference (thriller_deploy_v2_sharp), no longer the thriller_show-derived
+    blanket-clamped body, so whole-file equality is stale. The SHARP promotion copied the
+    2.5 s activation ramp VERBATIM, so the ramp PREFIX is still EXACTLY reproducible from
+    thriller_show — that is the reproducible artifact this golden now guards, together with
+    the documented ramp invariants (frame0 == standby default, last ramp row == show frame 0,
+    root held across the whole ramp). A broken ramp still fails this.
+    """
     show = PROJECT / "data/motions/thriller/thriller_show.csv"
     dep = PROJECT / "data/policies/thriller/thriller_deploy.csv"
     if not (show.exists() and dep.exists()):
         pytest.skip("canonical Thriller motions not present in this checkout")
-    got = add_activation_ramp(np.loadtxt(show, delimiter=","), default_joint_pos())
+    show_arr = np.loadtxt(show, delimiter=",")
+    dj = default_joint_pos()
+    got = add_activation_ramp(show_arr, dj)
     ref = np.loadtxt(dep, delimiter=",")
-    assert got.shape == ref.shape
-    np.testing.assert_allclose(got, ref, atol=1e-12)
+    assert got.shape == ref.shape                      # ramp + show length preserved
+    # Byte-equality guard, pointed at the artifact that IS reproducible now: the ramp prefix
+    # (root cols included) that the sharp promotion copied verbatim from thriller_show.
+    np.testing.assert_allclose(got[:RAMP_FRAMES], ref[:RAMP_FRAMES], atol=1e-12)
+    # ...and the documented ramp invariants, asserted directly on the canonical prefix:
+    np.testing.assert_allclose(ref[0, 7:], dj, atol=1e-12)                # frame0 == standby
+    np.testing.assert_allclose(ref[RAMP_FRAMES - 1, 7:], show_arr[0, 7:],
+                               atol=1e-12)                                # last ramp row == show[0]
+    np.testing.assert_allclose(ref[:RAMP_FRAMES, :7],
+                               np.tile(show_arr[0, :7], (RAMP_FRAMES, 1)),
+                               atol=1e-12)                                # root held across ramp
+    # The BODY is the SHARP reference, deliberately NOT a raw thriller_show append — this is
+    # exactly why whole-file equality was retired; guards against a silent revert to the
+    # blanket-clamped, show-derived deployable.
+    assert not np.allclose(ref[RAMP_FRAMES:], show_arr, atol=1e-6)
 
 
 def test_rejects_wrong_column_count():

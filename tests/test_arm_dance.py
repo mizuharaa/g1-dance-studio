@@ -111,7 +111,23 @@ def test_extract_arm_trajectory_shape_and_finite():
     traj, rows = ad.extract_arm_trajectory(meta, ad.DEFAULT_MOTION)
     assert traj.shape == (2589, 14)
     assert np.all(np.isfinite(traj))
-    assert ad.max_arm_speed(traj) <= ad.MAX_ARM_SPEED_RAD_S
+    # Velocity sanity must use the TRUE PER-JOINT motor limits, NOT a blanket 20 rad/s.
+    # The promoted SHARP reference deliberately preserves fast arm accents up to 0.9x the
+    # true motor limits (shoulders/elbows/wrist-roll 37, wrist-pitch/yaw 22 rad/s;
+    # docs/retarget_fidelity.md §5), so its shoulders peak ~33 rad/s — legitimate motion a
+    # blanket-20 ceiling would wrongly reject. A per-joint check still catches a genuinely
+    # impossible velocity (a joint above its motor's physical limit => broken npz). Limits
+    # come from the committed canonical table (tools/retarget_fidelity_analysis.py).
+    from tools.retarget_fidelity_analysis import true_limit
+    per_joint = np.max(np.abs(np.diff(traj, axis=0)), axis=0) * ad.CONTROL_HZ
+    limits = np.array([true_limit(name) for _, _, name in rows])
+    over = [(name, round(float(v), 2), lim)
+            for (_, _, name), v, lim in zip(rows, per_joint, limits) if v > lim]
+    assert not over, f"arm joints exceed their true motor velocity limit: {over}"
+    # ...and the sharp accents (shoulders ~33 rad/s) genuinely exceed the retired blanket-20
+    # ceiling, so this check is not vacuously satisfied and would have failed the old blanket
+    # assertion — that regression is the whole reason this test changed.
+    assert per_joint.max() > 20.0
 
 
 @needs_artifacts

@@ -331,6 +331,29 @@ class ExtractStage:
             _reencode_30fps(job.dir / "input.mp4", clip)
             job.log("extract: re-encoded to constant 30 fps for GVHMR")
 
+        # Capture the source video's OWN soundtrack for the show music. The 30 fps
+        # re-encode above stays silent on purpose (GVHMR needs silent video); this
+        # pulls the audio track to the job dir, and the retarget window trims it to
+        # the danced span at export (see _prepare_windowed_music). A silent source
+        # simply stays silent — the operator can attach a music file later. Failures
+        # here are never fatal (audio is presentation-only).
+        if "source_audio" not in st.meta:
+            try:
+                from .. import audio as audio_mod
+                src_video = job.dir / "input.mp4"
+                if audio_mod.has_audio(src_video):
+                    src_audio = job.dir / "source_audio.wav"
+                    audio_mod.extract_audio(src_video, src_audio)
+                    st.meta["source_audio"] = str(src_audio)
+                    job.log(f"extract: captured source audio -> {src_audio.name}")
+                else:
+                    st.meta["source_audio"] = None
+                    job.log("extract: source video has no audio track — dance "
+                            "stays silent (attach music later on the Shows page)")
+            except Exception as e:  # noqa: BLE001 — audio is presentation-only
+                st.meta["source_audio"] = None
+                job.log(f"extract: source-audio capture skipped (non-fatal): {e}")
+
         _require_cloud()
         stem = f"{_slug(job.name)}_{_suffix(job)}"
         box_video = f"{NB}/videos_in/{stem}.mp4"
@@ -376,6 +399,28 @@ class TrainStage:
         _require_cloud()
         params = load_params(job)
         slug, suffix = _slug(job.name), _suffix(job)
+        # STAND-END: the trained/deployed motion must FINISH at the standby pose so
+        # the dance ends STANDING and deploy_runtime --exit stand can hand back to
+        # onboard balance (validated on hardware 2026-07-07). RetargetStage builds
+        # the deploy CSV with only the 2.5 s activation ramp; here we rebuild it
+        # from the show CSV WITH the return-to-standing tail (deploy_ramp stand_end)
+        # and train + deploy THAT. Idempotent (keyed on the file); falls back to the
+        # retarget deploy CSV when no show CSV is on record (e.g. a hand-retargeted
+        # legacy job). Only writes into this job's own train stage dir — the golden
+        # data/policies/thriller deploy CSV is never touched.
+        show_csv = rmeta.get("show_csv")
+        if show_csv and Path(show_csv).exists():
+            standend_csv = job.stage_dir(self.name) / f"{slug}_deploy.csv"
+            if not standend_csv.exists():
+                from ..deploy_ramp import make_deploy_csv
+                st.meta["deploy_ramp"] = make_deploy_csv(
+                    Path(show_csv), standend_csv, stand_end=True)
+                st.meta["stand_end"] = True
+                job.log("train: rebuilt deployable WITH return-to-standing tail — "
+                        f"{st.meta['deploy_ramp']['seconds']}s, ends "
+                        f"{st.meta['deploy_ramp']['final_max_delta_rad']:.3f} rad "
+                        "from the standby pose (ends standing)")
+            deploy_csv = str(standend_csv)
         run_name = f"train-{slug}-{suffix}"
         box_csv = f"{NB}/motions/{slug}_deploy.csv"
         box_npz = f"{NB}/motions/{slug}_deploy.npz"
@@ -641,8 +686,13 @@ class ExportStage:
             raise RuntimeError("dance motion_csv is not bound to the deployable "
                                f"CSV ({pol_dir / (slug + '_deploy.csv')}) — audit seam")
 
-        # Music: attach data/audio/<slug>/music.* if the user provided it.
+        # Music: window the source video's captured soundtrack to the danced span
+        # and write it to data/audio/<slug>/music.wav (no-op for CSV inputs / silent
+        # videos / when a real music file is already there), then attach whatever
+        # data/audio/<slug>/music.* is present. attach_audio_for_dance adds the
+        # prep lead-in on top of the already-windowed track.
         report(0.6, "attaching music (if provided)")
+        _prepare_windowed_music(job, slug)
         track = _find_music(slug)
         if track and not dance.audio:
             from .. import audio as audio_mod
@@ -686,3 +736,69 @@ def _find_music(slug: str) -> Path | None:
         if p.is_file():
             return p
     return None
+
+
+def _trim_audio(src: Path, start_s: float, duration_s: float, out: Path) -> Path:
+    """Trim `src` audio to [start_s, start_s+duration_s] and write `out` as WAV.
+
+    Reuses audio.py's atrim approach (see mux_audio_onto_video) and matches
+    extract_audio's WAV format (pcm_s16le / 44.1 kHz / stereo) so the windowed
+    music lines up with the danced span; the export attach then adds the lead-in.
+    """
+    out.parent.mkdir(parents=True, exist_ok=True)
+    afilter = f"atrim=start={start_s}:duration={duration_s},asetpts=PTS-STARTPTS"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(src), "-af", afilter,
+         "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", str(out)],
+        check=True, capture_output=True, text=True, timeout=600)
+    return out
+
+
+def _prepare_windowed_music(job: Job, slug: str) -> Path | None:
+    """Trim the source video's captured soundtrack to the danced window and write
+    it to data/audio/<slug>/music.wav (the path ExportStage's _find_music reads).
+
+    The extract stage captured the video's own audio to the job dir; the retarget
+    stage recorded which frame window was actually danced (a tutorial's talking
+    intro is trimmed away — a real, load-bearing offset). Here we cut the audio to
+    that window so what reaches attach_audio_for_dance is ALREADY the danced span,
+    and export only adds the prep lead-in.
+
+    No-op — the dance stays silent — for CSV inputs and silent videos (no captured
+    source audio). Never fabricates a placeholder click track: only real captured
+    audio becomes music.wav, and a real music file already dropped in by the
+    operator is left untouched. Returns the music path, or None when nothing was
+    produced.
+    """
+    src = job.stages["extract"].meta.get("source_audio")
+    if not src or not Path(src).exists():
+        return None                      # CSV input or silent source: stay silent
+    existing = _find_music(slug)
+    if existing is not None:
+        return existing                  # a real music file is already in place
+    window = job.stages["retarget"].meta.get("window") or {}
+    start_frame = window.get("start_frame")
+    if start_frame is None:
+        return None
+    from .. import audio as audio_mod
+    from ..find_window import CSV_FPS
+    window_start_s = float(start_frame) / CSV_FPS
+    # danced-span length: prefer the recorded window seconds (what dance.duration_s
+    # and the attach/mux use) so music.wav length matches the span exactly.
+    dance_s = float(window.get("seconds") or 0.0)
+    if dance_s <= 0:
+        end_frame = window.get("end_frame")
+        if end_frame is None:
+            return None
+        dance_s = (int(end_frame) - int(start_frame) + 1) / CSV_FPS
+    align = audio_mod.compute_alignment(dance_s, window_start_s=window_start_s)
+    out = AUDIO_DIR / slug / "music.wav"
+    try:
+        _trim_audio(Path(src), align.trim_start_s, align.trim_duration_s, out)
+    except Exception as e:  # noqa: BLE001 — audio is presentation-only
+        job.log(f"export: windowing source audio failed (non-fatal): {e}")
+        return None
+    job.log(f"export: windowed source audio -> data/audio/{slug}/music.wav "
+            f"(source {align.trim_start_s:.2f}s +{align.trim_duration_s:.2f}s "
+            "= the danced span; export adds the 1.5 s lead-in)")
+    return out
