@@ -2032,3 +2032,24 @@ human-supervised session (NOT autonomous — no ground motion has run):
   ('a G1 performs a full choreographed dance, balanced, plug-and-play') is DEMONSTRATED on hardware.
 - REMAINING to a paying customer: push-robustness tests; promote the standtail+1.5x config to a SIGNED
   show-ready (needs the box to re-exam the standtail motion); operator-console polish; endurance/2-3min.
+
+## 2026-07-07 (eve) — SHOW-PRODUCT SOFTWARE landed + committed; ONBOARD wireless deploy set up on PC2, blocked on a characterized DDS issue (debug runbook written).
+- SOFTWARE (workflow, 527 tests green, committed): (a) app one-button FREE show — RUN SHOW opt-in
+  'free' runs the hardware-validated untethered config (standtail + GROUND_LEG_KP_SCALE=1.5 + EXIT_MODE
+  =stand + MAX_SECS=57 + music), guards unchanged, honest 'not-signed' provenance; (b) side-by-side
+  video ON PLAY full-screen on the EXTERNAL display (tools/show_display.py + show_run.sh SHOW_VIDEO
+  hook, tick0-anchored so video+music+robot start together); (c) tools/wireless_preflight.py (RTT +
+  DDS-staleness GO/NO-GO); (d) docs/LONG_DANCE_PLAN.md + docs/WIRELESS_SHOW.md.
+- ONBOARD WIRELESS (user's Unitree-style idea = the RIGHT design; laptop-over-wifi control is a fall
+  risk and will NOT be done): SET UP on PC2 — teleimager env (py3.10 + SDK + cyclonedds), onnxruntime
+  1.23.2 installed, code+policy bundled to ~/g1-dance, run on eth1 (local control, real-time-safe),
+  trigger over wifi/tailscale. BLOCKER: onboard subscriber -> DDS PRECONDITION_NOT_MET on rt/lowstate
+  (conflicts with the live master_service). DIAGNOSED: the laptop's ~/robot SDK reads lowstate fine
+  (type-compatible with master_service) but PC2's kc_ws SDK (sha 58c3f62) does not; matching the robot
+  DDS XML didn't fix it. LEADING FIX: use the laptop's working SDK on PC2. Full debug runbook +
+  on-robot session plan: docs/ONBOARD_DEPLOY.md. NOT resolved autonomously (delicate live-control-net
+  debugging — needs the operator present).
+- EXPLICITLY NOT DONE (told the user): 2-3 min dance (no source video + box deleted); JUMPS (aerial
+  R&D, backflip infeasible at true limits, separate policy + hardware-risk decision); wireless show
+  (onboard DDS blocker; laptop-wifi control refused as unsafe); autonomous robot MOTION; sign the
+  standtail+boost config show-ready (needs box). Side-by-side video is the ~50s Thriller, not 2-3 min.
