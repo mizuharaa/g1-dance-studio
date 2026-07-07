@@ -2018,3 +2018,17 @@ human-supervised session (NOT autonomous — no ground motion has run):
   demonstrated. Remaining to paid-show: music-synced free run, push-robustness tests, then make the
   standtail+1.5x-boost config the signed show (needs the box to re-exam the standtail motion). Robot on
   onboard 'ai'.
+
+## 2026-07-07 — 🏆🏆🏆 COMPLETE SHOW: MUSIC-SYNCED FREE THRILLER. Untethered dance + real music on-beat + standing finish. The paid-service performance, demonstrated.
+- Full show via tools/show_run.sh (MAX_SECS now configurable): AUDIO_MODE=laptop (aux), real Thriller
+  track auto-cued at tick0+4.0s (dance start) with 0.08 ms scheduling error, EXIT_MODE=stand,
+  GROUND_LEG_KP_SCALE=1.5, full safety spine + start-pose guard. Standtail candidate (v3e + tail).
+- Result (telemetry 20260707-174428): 2709/2709 ticks, NO fall trip, clean stand handoff, dance-peak
+  14.3 deg (consistent with the 3 silent free runs 13.9/14.3/13.5), onset 4.8 deg (smooth, guard-clean),
+  57C. USER CONFIRMED: full dance FREE, ON-BEAT with the music, ENDED STANDING. Music didn't perturb
+  balance (separate process, as designed). Logged as a live clean show (outcome-capture path exercised).
+- WHAT'S DEMONSTRATED END-TO-END TODAY: video->policy (prior) -> hardware sim2real -> tethered ->
+  slack-tether -> leg-gain tuning -> UNTETHERED -> 3x repeatable -> MUSIC-SYNCED FREE SHOW. The mission
+  ('a G1 performs a full choreographed dance, balanced, plug-and-play') is DEMONSTRATED on hardware.
+- REMAINING to a paying customer: push-robustness tests; promote the standtail+1.5x config to a SIGNED
+  show-ready (needs the box to re-exam the standtail motion); operator-console polish; endurance/2-3min.

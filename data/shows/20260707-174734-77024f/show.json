@@ -1,0 +1,17 @@
+{
+  "id": "20260707-174734-77024f",
+  "dance_id": "20260704-18f65bbd",
+  "dance_name": "Thriller",
+  "operator": "alois",
+  "created_at": 1783421254.0695155,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "clean",
+    "notes": "FIRST MUSIC-SYNCED FREE (untethered) Thriller: standtail + GROUND_LEG_KP_SCALE=1.5, real music via aux auto-cued at dance start (0.08ms cue error), ended standing. Dance-peak 14.3deg. Telemetry 20260707-174428.",
+    "at": 1783421254.0717716
+  },
+  "closed": true,
+  "mode": "live",
+  "setlist_id": null
+}

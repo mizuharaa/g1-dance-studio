@@ -70,7 +70,7 @@ while IFS= read -r line; do
       ;;
   esac
 done < <("$PY" -u -m pipeline.deploy_runtime \
-           --mode ground-run-legodom --max-secs 52 --exit "$EXIT_MODE" \
+           --mode ground-run-legodom --max-secs "${MAX_SECS:-52}" --exit "$EXIT_MODE" \
            --i-will-watch-the-robot "$@" 2>&1)
 
 # Runtime finished (clean end or abort): music must never outlive the motion by more

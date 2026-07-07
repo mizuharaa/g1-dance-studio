@@ -1,0 +1,2 @@
+[2026-07-07 17:47:34] live show created for dance 'Thriller' by operator 'alois'
+[2026-07-07 17:47:34] outcome recorded: clean (live) — show closed
