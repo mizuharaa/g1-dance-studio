@@ -1738,3 +1738,28 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - v3e held-out exams (3 seeds) + fluidity launched — land mid-session (~35 min).
 - Session doc stands: run v3c stages as planned (sim-verified NOW); if v3e's exams come
   back 100% + render preferred, ONE extra full tethered run with v3e while rigged.
+
+## 2026-07-07 (session, user present) — 🏆 v3e PROMOTED TO SHOW POLICY after live tethered A/B; audio validated both paths (aux = show default).
+- Staged v3c runs: 5s ✓, 15s ✓, full = benign STOP at tick 903 (left_wrist_yaw 16.02 vs
+  cap 16 — v3c's sim envelope max is 17.1; cap was tuned to s2r-b). Data-derived fix
+  ARM_ACTION_CAP_SCALE=2.2 (arm cap 22, legs untouched at 10) → full dance 2589/2589 ✓.
+- HARDWARE A/B (tools/hw_ab_compare.py, committed, same math as forensics):
+  v3c arms 9.32 vs s2r-b 14.29 deg RMS (-35%), legs -2.13, waist -1.31, wobble par.
+  v3e (vs SHARP ref, harder target): arms 9.08 vs 14.55 (-38%), legs -2.85, wobble par.
+  Sim->hardware transfer of the improvement nearly exact (sim predicted 8.75/8.82).
+- **USER ORDERED: PROMOTE v3e** (watched both full runs live). Guarded chain ran clean:
+  s2r-b archived to thriller_s2rb_fallback/; v3e staged canonical at data/policies/
+  thriller/ (SHARP motion now the canonical thriller_deploy.csv/.npz — sha changed,
+  names kept for runtime defaults); 3x verdicts signed against the new bytes; attach ->
+  draft (guard) -> 3x record (streak 3) -> show-ready, policy sha pinned e68335aa...;
+  deploy bundle rebuilt [authorized (show-ready)]. Deploy note: ARM_ACTION_CAP_SCALE=2.2.
+- AUDIO validated with user present: robot chest speaker WORKS (440Hz tone heard; the
+  "silent" smoke test was the sparse click track being inaudible — API code 0 all along);
+  aux/laptop path works. **SHOW DEFAULT = aux speaker (user choice), AUDIO_LATENCY_COMP
+  0.0** (music fires from the same laptop that runs the show script; chat-latency
+  confusion explained — show cue is script-anchored, no human timing). LED cue fired 2x.
+  Robot-speaker latency unmeasured (backlog; only matters if robot mode is ever default).
+- STILL MISSING: THE REAL SONG (user now understands the flow — will upload mp3;
+  attach via tools/attach_music.py, then optional dress rehearsal).
+- Retention checkpoints pulling from box (v3e 9999, s2r-b 4999, v3c 9000) -> box
+  DELETE-ready once complete.
