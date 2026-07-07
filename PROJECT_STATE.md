@@ -1965,3 +1965,19 @@ human-supervised session (NOT autonomous — no ground motion has run):
   legs reject the arm-accent disturbance (needs the GPU box); and/or (b) tune deploy (leg-gain boost
   / arm cap) to stiffen leg support during accents; and/or (c) soften the accents (trades the crispness
   the user wanted). NOT free-ready until the accent lean is reduced. Robot left on onboard 'ai'.
+
+## 2026-07-07 (eve) — OPTION 2 (leg-gain tuning) WORKED: GROUND_LEG_KP_SCALE=1.5 made Thriller free-standing-capable. 3x clean slack-tether, tether never loaded.
+- Diagnosis: the accent lean (t~15-25s) was ~equal pitch(13.3)/roll(15.4) deg. Code history warned
+  boosting the ROLL joints backfires (sideways fall, 2026-07-04) — so only the SAGITTAL boost
+  (GROUND_LEG_KP_SCALE, hip_pitch/knee/ankle_pitch) is safe.
+- Surprise (measured, not predicted): the 1.5x SAGITTAL boost reduced BOTH components — accent lean
+  18.7->~14 deg peak, and the ROLL component 15.4->9-13 deg (a firmer sagittal base steadies the whole
+  stance). No oscillation once the robot is PLANTED (the earlier 'oscillation' at 1.5x was the tether
+  FLOATING the robot, not the gains — re-run planted was calm: gyro 0.017, tilt 2.9 deg).
+- **3x clean boosted slack-tether full dances** (170846/171242/171920): dance-peak tilt 14.0/14.5/14.2
+  deg, p99 ~12 deg (baseline 18.7), no fall trips, clean stand handoffs, temps 55-57C (ankles cool),
+  and USER CONFIRMED THE TETHER STAYED OFF ALL 3 RUNS. The robot self-balances the full Thriller free.
+- DEPLOY CONTRACT UPDATE: this dance requires GROUND_LEG_KP_SCALE=1.5 on the ground (add to the show
+  run env / deploy bundle). Arms unchanged (trained gains).
+- NEXT: free (tether-OFF) run is now evidence-supported (3x clean slack, tether not loading). User's
+  conscious call — highest-risk step (no catch if it falls). If taken: 1.5x boost + full safety spine.
