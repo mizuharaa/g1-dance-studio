@@ -1,15 +1,15 @@
 {
  "schema": "deploy_bundle/v1",
  "dance": "thriller",
- "created_at": "2026-07-06T05:05:58+00:00",
+ "created_at": "2026-07-07T03:05:10+00:00",
  "scope": "full",
  "policy": {
   "file": "policy.onnx",
-  "sha256": "b3511dd31fe96e406b6693170f849c1b05dc6526d0cc5f6a27d91780d6a0eb35"
+  "sha256": "e68335aa2c82f94063469f6c0cf40d5d5873aea275c6e49515f42510c64140e4"
  },
  "motion": {
   "file": "motion.csv",
-  "sha256": "8ffd1a17639ee93bfa1e5cb164afd59cccc8193f7985329cf3b5cd6ae962db27",
+  "sha256": "24b22fbc1587684ab8c2a905708d5e38df68a496dbe234e68b78050ec76cae1c",
   "duration_s": 51.77
  },
  "exam": {
@@ -19,10 +19,10 @@
  },
  "rehearsal": false,
  "files_sha256": {
-  "policy.onnx": "b3511dd31fe96e406b6693170f849c1b05dc6526d0cc5f6a27d91780d6a0eb35",
-  "motion.csv": "8ffd1a17639ee93bfa1e5cb164afd59cccc8193f7985329cf3b5cd6ae962db27",
+  "policy.onnx": "e68335aa2c82f94063469f6c0cf40d5d5873aea275c6e49515f42510c64140e4",
+  "motion.csv": "24b22fbc1587684ab8c2a905708d5e38df68a496dbe234e68b78050ec76cae1c",
   "policy_meta.json": "46830d388c42b34c656eb0e257c6367aadea8cc1779187e441b699575b2b8920",
-  "exam_verdict.json": "e272ff67466ae0aea796bd09680863d0bd488831a0a9fe4b4000d969836a12b3",
+  "exam_verdict.json": "323f43e65534ba9533477035933d7327fb231e7e8e1eb0f181f3be3e52b49eac",
   "controller.env": "abae620d1f7908e89db1777d6dab5b74377fdd7f950c390292794066981a130f",
   "start_controller_damping_hold.sh": "4871e284434e308e6c1103403e78a600ad97c2b5a0befae8a4c4f33ad57c6a85"
  },

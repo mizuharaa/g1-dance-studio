@@ -3,18 +3,18 @@
   "method": "mjlab_heldout_v1",
   "dance": "thriller_deploy",
   "policy": "data/policies/thriller/policy.onnx",
-  "policy_sha256": "b3511dd31fe96e406b6693170f849c1b05dc6526d0cc5f6a27d91780d6a0eb35",
-  "motion_sha256": "8ffd1a17639ee93bfa1e5cb164afd59cccc8193f7985329cf3b5cd6ae962db27",
-  "motion_npz_sha256": "e455418a8a8e79930f83624ee16dfa26d584581488eb5d197ac8053ed745c403",
+  "policy_sha256": "e68335aa2c82f94063469f6c0cf40d5d5873aea275c6e49515f42510c64140e4",
+  "motion_sha256": "24b22fbc1587684ab8c2a905708d5e38df68a496dbe234e68b78050ec76cae1c",
+  "motion_npz_sha256": null,
   "venue_max_excursion_m": 1.5,
   "nominal": {
     "pass": true,
     "success_rate": 1.0,
     "n_success": 256,
     "num_episodes": 256,
-    "mpkpe_m": 0.17914289236068726,
-    "ee_pos_error_m": 0.10318762063980103,
-    "held_out_seed": 90021
+    "mpkpe_m": 0.16626235842704773,
+    "ee_pos_error_m": 0.08510065078735352,
+    "held_out_seed": 90001
   },
   "push": {
     "pass": true,
@@ -23,8 +23,8 @@
     "num_episodes": 256,
     "force_n": 875.0,
     "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
-    "mpkpe_m": 0.18304438889026642,
-    "held_out_seed": 90022
+    "mpkpe_m": 0.18328532576560974,
+    "held_out_seed": 90002
   },
   "repeatability": {
     "pass": true,
@@ -32,5 +32,5 @@
     "clean": 256
   },
   "verdict": "pass",
-  "signature": "298373e93aa2b66051173776a307e3454b5d0089aedc4863ae5985b26b573e5a"
+  "signature": "09d887686492c03b42f4ab13e37ad998519286f959e8a23341466fba4bc0c4c8"
 }
