@@ -121,3 +121,31 @@ REMAINING (needs the operator at the robot — first onboard control run):
 4. Full tethered staircase (same as the laptop path we already validated), THEN the trigger goes wireless
    (ros2 action/topic over wifi/tailscale — control loop stays 100% onboard on eth1).
 This is the CORRECT wireless answer: the 50 Hz loop is onboard (never on wifi); wifi carries only the trigger.
+
+## VERIFIED (2026-07-07): our policy is a DROP-IN for the onboard controller (metadata was the only gap)
+Read the controller's loader (`MotionOnnxPolicy.cpp`, `OnnxPolicy.h`) + a reference g1 policy in
+the container. Findings:
+- The controller's `MotionOnnxPolicy::forward` feeds `time_step` and reads outputs
+  `joint_pos, joint_vel, body_pos_w, body_quat_w` — the REFERENCE MOTION IS BAKED INTO THE ONNX.
+  OUR mjlab export ALREADY has exactly these (input obs[160]+time_step; those 4 outputs + actions).
+  Smoke-tested: t0 starts at default pose, motion advances 0.680 rad by t167 (== the clip's known
+  0.68 rad range), actions finite |max|=1.75. So the motion is NOT a separate-file problem.
+- Every obs term in our layout has a handler: `command`(=MotionCommandTerm joint_pos+joint_vel),
+  `base_lin_vel/base_ang_vel/joint_pos/joint_vel/actions` (base `RlController::parserObservation`),
+  `motion_anchor_pos_b/ori_b` (MotionTracking). Our order matches training.
+- THE ONLY GAP: our ONNX had EMPTY metadata; the controller reads policy config from ONNX metadata
+  (`joint_names, joint_stiffness, joint_damping, default_joint_pos, action_scale, observation_names,
+  command_names` + `anchor_body_name, body_names`). FIXED on the laptop: `tools/make_onboard_onnx.py`
+  injects them from policy_meta (gains 40/99/28, per-joint action_scale, obs order, torso_link anchor,
+  14 body_names). Verified read-back. => `policy_onboard.onnx` (staged PC2 `~/onboard_deploy/`).
+REMAINING to actually run it (operator-present, first onboard control run):
+1. Point `config/g1/controllers.yaml` policy_path at policy_onboard.onnx (gains now travel IN the onnx,
+   but confirm the yaml doesn't override with the 350/300 defaults — set yaml gains to ours too / or
+   confirm metadata wins).
+2. `colcon build` is NOT needed (config + onnx only). `ros2 launch motion_tracking_controller
+   real.launch.py robot_type:=g1 policy_path:=~/onboard_deploy/policy_onboard.onnx motion.start_step:=0`.
+3. Gantry/feet-off first -> tethered staircase (same as the laptop path we validated) -> then wireless
+   trigger (ros2 topic/action over wlan0/tailscale; the 50 Hz loop stays onboard on eth1). ACTIVATION
+   HAZARD: start_step must begin at the 2.5s default->dance ramp (our thriller_deploy motion has it), or
+   interpolate standby->frame0 for 2-3s before activating, else a 0.68 rad lurch.
+This is the wireless answer AND the onboard bundle: verified-compatible policy, injected, staged.
