@@ -1,0 +1,17 @@
+{
+  "id": "20260707-103607-524998",
+  "dance_id": "20260704-18f65bbd",
+  "dance_name": "Thriller",
+  "operator": "alois",
+  "created_at": 1783395367.430948,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "clean",
+    "notes": "First full show run: v3e promoted policy + real Thriller track via laptop/aux, music auto-cued tick0+4.0s, 2589/2589 ticks, tethered, arms 9.13 deg RMS vs ref. Telemetry 20260707-103403.",
+    "at": 1783395367.4334984
+  },
+  "closed": true,
+  "mode": "rehearsal",
+  "setlist_id": null
+}

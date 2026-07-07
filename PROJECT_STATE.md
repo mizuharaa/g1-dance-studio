@@ -1763,3 +1763,13 @@ human-supervised session (NOT autonomous — no ground motion has run):
   attach via tools/attach_music.py, then optional dress rehearsal).
 - Retention checkpoints pulling from box (v3e 9999, s2r-b 4999, v3c 9000) -> box
   DELETE-ready once complete.
+
+## 2026-07-07 (10:34 ICT) — 🎭 FIRST COMPLETE SHOW: v3e + REAL Thriller track, auto-synced via aux, 2589/2589, outcome recorded CLEAN.
+- tools/show_run.sh end-to-end: promoted defaults (v3e canonical), music cue fired at
+  tick0+4.0s (0.08ms scheduling error), full dance no aborts, temps 56C, caps clear
+  (arms max 15.7/22, legs 4.98/10). Tracking repeatable: arms 9.13 deg RMS (A/B run was
+  9.08). Rehearsal show recorded via shows API, outcome=clean (outcome loop exercised).
+- Real song attached earlier this session (data/audio/thriller/music.wav = Thriller
+  Audio.mp3, 48.6s, align 1.5s lead-in). Show default AUDIO_MODE=laptop (aux speaker).
+- Box: all evidence archived (data/reports/box_final/), checkpoints pulled, delete
+  green-lit to user (their console click).

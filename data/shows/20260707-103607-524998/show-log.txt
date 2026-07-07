@@ -1,0 +1,2 @@
+[2026-07-07 10:36:07] rehearsal show created for dance 'Thriller' by operator 'alois'
+[2026-07-07 10:36:07] outcome recorded: clean (rehearsal) — show closed
