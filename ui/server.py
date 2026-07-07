@@ -31,7 +31,8 @@ from fastapi.staticfiles import StaticFiles
 
 from pipeline.config import DATA_DIR, STAGE_ORDER
 from pipeline import audio as audio_mod
-from pipeline import body_models, cloud, monitor, setlist, show_runner, shows, store
+from pipeline import (body_models, cloud, monitor, policy_store, preshow, setlist,
+                      show_runner, shows, store, venue)
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -800,6 +801,111 @@ def current_run() -> dict:
     """Live run status for the app's status panel: running flag, show id, mode,
     coarse phase, and the last ~15 run.log lines. Cheap to poll."""
     return show_runner.current_status()
+
+
+# ---- venues (dance-area registry; drives the vet excursion limit) ----------------
+
+@app.get("/api/venues")
+def venues() -> dict:
+    return {"venues": [v.to_public() for v in venue.list_venues()],
+            "active": venue.get_active_venue().to_public()}
+
+
+@app.post("/api/venues")
+def upsert_venue(payload: dict = Body(...)) -> dict:
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "venue needs a name")
+    try:
+        v = venue.add_or_update_venue(
+            name, radius_m=float(payload["radius_m"]),
+            margin_m=float(payload.get("margin_m", venue.DEFAULT_MARGIN_M)),
+            notes=payload.get("notes", ""),
+            make_active=bool(payload.get("make_active", False)))
+    except (KeyError, ValueError, TypeError) as e:
+        raise HTTPException(400, f"bad venue: {e}")
+    return v.to_public()
+
+
+@app.post("/api/venues/active")
+def choose_active_venue(payload: dict = Body(...)) -> dict:
+    key = payload.get("key") or payload.get("name")
+    if not key:
+        raise HTTPException(400, "need a venue key or name")
+    try:
+        return venue.set_active_venue(key).to_public()
+    except (ValueError, KeyError) as e:
+        raise HTTPException(404, str(e))
+
+
+# ---- pre-show checklist + show-phase ownership model -----------------------------
+
+@app.post("/api/dances/{dance_id}/checklist")
+def dance_checklist(dance_id: str, payload: dict = Body(default={})) -> dict:
+    """Evaluate the pre-show checklist for a dance. Body: {acks: [confirm keys the
+    operator ticked]}. Robot reachability is a live ping; the active venue feeds the
+    venue-selected item. ready == all blocker items satisfied."""
+    dance = _load_dance_or_404(dance_id)
+    acks = set(payload.get("acks") or [])
+    report = preshow.evaluate_checklist(
+        dance, robot_ping=lambda: show_runner.robot_reachable(),
+        venue_active=venue.get_active_venue(), acks=acks)
+    report["confirm_keys"] = list(preshow.CONFIRM_KEYS)
+    return report
+
+
+@app.get("/api/show-phases")
+def show_phases() -> dict:
+    """Who controls the robot at each show phase (walk-on -> dance -> walk-off)."""
+    return {"phases": preshow.make_show_phases()}
+
+
+# ---- policy version store + rollback ---------------------------------------------
+
+@app.get("/api/dances/{dance_id}/versions")
+def policy_versions(dance_id: str) -> dict:
+    _load_dance_or_404(dance_id)
+    return {"versions": policy_store.list_versions(dance_id)}
+
+
+@app.post("/api/dances/{dance_id}/rollback")
+def rollback_policy(dance_id: str, payload: dict = Body(...)) -> dict:
+    """Restore a stored policy version's files into the dance's policy dir. This RESETS
+    verification (attach_policy demotes to draft) — the operator re-runs the sim exam to
+    re-promote, so a rollback can never silently reinstate show-ready without the gate."""
+    version_id = payload.get("version_id")
+    if not version_id:
+        raise HTTPException(400, "need version_id")
+    dance = _load_dance_or_404(dance_id)
+    if not dance.policy_path:
+        raise HTTPException(400, "dance has no policy directory to roll back into")
+    try:
+        files = policy_store.rollback_files(dance_id, version_id)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(404, f"no such version {version_id}: {e}")
+    import shutil
+    pol_dir = shows._abs(dance.policy_path).parent
+    for fname, src in files.items():
+        shutil.copyfile(src, pol_dir / fname)
+    dance = shows.attach_policy(dance_id, dance.policy_path,
+                                notes=f"rolled back to policy version {version_id[:12]}")
+    return {"dance": _dance_dict(dance), "restored": list(files),
+            "note": "files restored; status reset to draft — re-run the sim exam to re-promote"}
+
+
+# ---- set-list run plan (show-time audio cues + all-show-ready gating) -------------
+
+@app.get("/api/setlists/{setlist_id}/run-plan")
+def setlist_run_plan(setlist_id: str) -> dict:
+    try:
+        sl = setlist.load_setlist(setlist_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such set-list: {setlist_id}")
+    run = setlist.get_or_create_run(sl)
+    plan = setlist.setlist_run_plan(sl, _dance_lookup, run)
+    return {"plan": plan, "runnable": setlist.plan_runnable(plan),
+            "blockers": setlist.plan_blockers(plan),
+            "next_index": setlist.next_index(run)}
 
 
 @app.get("/")

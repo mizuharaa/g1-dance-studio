@@ -26,10 +26,24 @@ ROOT = Path(__file__).resolve().parent.parent
 MODEL_XML = ROOT / "third_party/mujoco_menagerie/unitree_g1/scene.xml"
 CSV_FPS = 30.0
 
-# Max root excursion (footprint radius) the venue allows. Defaults to 1.5 m (the
-# 2 m-radius home area minus a 0.5 m margin); the app parameterises it per venue
-# via the G1_MAX_EXCURSION_M env var when running this as a subprocess.
+# Max root excursion (footprint radius) the venue allows. Fallback 1.5 m (the
+# 2 m-radius home area minus a 0.5 m margin). Resolution order (see _excursion_limit):
+# G1_MAX_EXCURSION_M env override (subprocess one-offs) > the ACTIVE venue's limit
+# (pipeline.venue registry, app-selectable) > this fallback.
 MAX_ROOT_EXCURSION_M = float(os.environ.get("G1_MAX_EXCURSION_M", 1.5))
+
+
+def _excursion_limit() -> float:
+    """The excursion limit to enforce NOW: env override wins; else the active venue's
+    limit; else the 1.5 m fallback. Resolved per-vet so a venue switch takes effect
+    without a reimport, and a bad venue registry never breaks the safety gate."""
+    if "G1_MAX_EXCURSION_M" in os.environ:
+        return float(os.environ["G1_MAX_EXCURSION_M"])
+    try:
+        from pipeline.venue import active_max_excursion_m
+        return float(active_max_excursion_m())
+    except Exception:  # noqa: BLE001 — registry issue must not disable the gate
+        return MAX_ROOT_EXCURSION_M
 MIN_PELVIS_HEIGHT_M = 0.35
 FOOT_SKATE_SPEED = 0.30      # m/s tolerated horizontal foot speed during stance
 FOOT_CONTACT_HEIGHT = 0.045  # ankle_roll_link origin: grounded sole ~0.023-0.04 m
@@ -79,13 +93,14 @@ def main():
     # over-counted an off-centre-but-compact dance. Placement note: the guarantee
     # holds only if the robot is positioned at footprint_center_xy at deploy time.
     fcenter, fradius = footprint(m[:, 0:2])
+    excursion_limit = _excursion_limit()
     hard["root_excursion"] = {
         "max_m": round(float(fradius), 3),          # footprint radius (kept key)
         "footprint_radius_m": round(float(fradius), 3),
         "footprint_center_xy": [round(float(fcenter[0]), 3),
                                 round(float(fcenter[1]), 3)],
-        "limit": round(MAX_ROOT_EXCURSION_M, 3),
-        "pass": bool(fradius <= MAX_ROOT_EXCURSION_M + 1e-6)}
+        "limit": round(excursion_limit, 3),
+        "pass": bool(fradius <= excursion_limit + 1e-6)}
 
     # HARD 2: joint position limits (model ranges, joints are qpos 7..35 = jnt 1..29)
     lo = model.jnt_range[1:, 0]

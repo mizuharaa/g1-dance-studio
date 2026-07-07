@@ -371,6 +371,18 @@ def promote(dance: Dance, to_status: str) -> Dance:
                     "(sha mismatch) — re-run the sim exam on the current policy")
         dance.status = to_status
         dance.save()
+        if to_status == "show-ready" and dance.policy_path:
+            # Snapshot the promoted policy into the version store so a later bad retrain
+            # can roll back to this known-good one (presentation/safety-net; never blocks
+            # the promotion — a store error must not un-promote a verified dance).
+            try:
+                from . import policy_store
+                policy_store.snapshot_policy(
+                    dance.id, _abs(dance.policy_path).parent,
+                    note=f"promoted show-ready (sha {(dance.policy_sha256 or '')[:12]})",
+                    at_epoch=time.time())
+            except Exception:  # noqa: BLE001
+                pass
         return dance
 
 
