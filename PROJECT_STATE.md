@@ -1723,3 +1723,18 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - Remaining on box: train-thriller-v3e (~4h) -> autopilot verdict decides the per-joint
   clamp/prep_motion standard. After that: pull s2r/s2r-b model_4999 checkpoints, then BOX
   DELETE (user console click) — nothing else queued.
+
+## 2026-07-07 (09:15 ICT) — v3e = WIN: the sharp reference is VALIDATED with the converge-longer recipe. Session now has TWO gate-passing candidates.
+- v3e (v3c recipe x sharp ref, 10k iters): gate PASS — drift 0.66m (best of program),
+  survival 1.000, rr_mpkpe 0.080, ankle 4.80/6.70Nm, arm RMS 8.82 vs sharp baseline 15.18.
+  The drift failures that sank sharp-trained v3d/v4 are FIXED by converge-longer.
+- CONSEQUENCE 1 (pipeline): per-joint clamp / sharp-reference standard is now EVIDENCED —
+  land in prep_motion as default after the session (accents: 96% vs 41% preservation).
+- CONSEQUENCE 2 (promotion choice): v3c tracks the BLUNTED reference crisply; v3e tracks
+  the TRUE-dynamics reference equally crisply (8.82 vs 8.75, different baselines) with
+  better drift. v3e costs a motion-sha change on the dance record (sharp deploy CSV must
+  be staged; ramp regenerated for sharp) — v3c is the drop-in. RENDERS side by side:
+  data/previews/rollout_v3c.mp4 vs rollout_v3e.mp4 — user judges which LOOKS like the dance.
+- v3e held-out exams (3 seeds) + fluidity launched — land mid-session (~35 min).
+- Session doc stands: run v3c stages as planned (sim-verified NOW); if v3e's exams come
+  back 100% + render preferred, ONE extra full tethered run with v3e while rigged.

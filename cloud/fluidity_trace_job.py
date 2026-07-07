@@ -61,7 +61,7 @@ def main():
     dir_tail = {"v4": "v34"}.get(TAIL, TAIL)
     out_dir = f"{NB}/exports/thriller_{dir_tail}"
     result = f"{out_dir}/RESULT.txt"
-    motion = SHARP_MOTION if TAIL in ("v3d", "v4") else OLD_MOTION
+    motion = SHARP_MOTION if TAIL in ("v3d", "v3e", "v4") else OLD_MOTION
 
     log(f"waiting for {result} ...")
     while not os.path.exists(result):
