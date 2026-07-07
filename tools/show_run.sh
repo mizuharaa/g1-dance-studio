@@ -29,6 +29,12 @@ AUDIO_MODE=${AUDIO_MODE:-banner}
 DANCE_ID=${DANCE_ID:-20260704-18f65bbd}
 AUDIO_LATENCY_COMP=${AUDIO_LATENCY_COMP:-0.0}
 CUE_LEAD=${CUE_LEAD:-0.4}
+# End-of-run handoff, passed through to deploy_runtime --exit. DEFAULT "damp" reproduces
+# the frozen proven ramp-to-damping — demo.sh does NOT set EXIT_MODE, so the demo path is
+# byte-for-byte unchanged. Set EXIT_MODE=stand to opt into the stand-and-hand-back handoff
+# (only honored if the dance motion ends standing; UNVALIDATED on hardware — tethered test
+# with the user present required for first live use).
+EXIT_MODE=${EXIT_MODE:-damp}
 PY=${PY:-"$HOME/miniconda3/envs/tv/bin/python"}
 
 case "$AUDIO_MODE" in robot|led|laptop|banner) ;; *)
@@ -64,7 +70,8 @@ while IFS= read -r line; do
       ;;
   esac
 done < <("$PY" -u -m pipeline.deploy_runtime \
-           --mode ground-run-legodom --max-secs 52 --i-will-watch-the-robot "$@" 2>&1)
+           --mode ground-run-legodom --max-secs 52 --exit "$EXIT_MODE" \
+           --i-will-watch-the-robot "$@" 2>&1)
 
 # Runtime finished (clean end or abort): music must never outlive the motion by more
 # than the show tail; in robot/laptop modes the helper exits on its own after the

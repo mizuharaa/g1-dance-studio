@@ -31,7 +31,7 @@ from fastapi.staticfiles import StaticFiles
 
 from pipeline.config import DATA_DIR, STAGE_ORDER
 from pipeline import audio as audio_mod
-from pipeline import body_models, cloud, monitor, setlist, shows, store
+from pipeline import body_models, cloud, monitor, setlist, show_runner, shows, store
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -738,6 +738,68 @@ def record_outcome(show_id: str, payload: dict = Body(...)) -> dict:
     except ValueError as e:
         raise HTTPException(400, str(e))
     return _show_dict(show)
+
+
+# ---- one-button live show: spawn the proven show_run.sh path --------------------
+# Unlike the record-only deploy gate above, THIS actually launches the robot show
+# (tools/show_run.sh -> deploy_runtime ground-run-legodom + music). All robot safety
+# rests on the operator's hand-held damping remote — this G1 has no hardware e-stop.
+
+# The operator must type this EXACT phrase to start a run. Typing it while physically
+# holding the damping remote (surfaced in the UI as the big red "REMOTE = ONLY STOP")
+# IS the explicit human confirmation CLAUDE.md requires before any deploy.
+RUN_CONFIRMATION_PHRASE = "I AM PRESENT WITH THE DAMPING REMOTE"
+
+
+@app.post("/api/shows/{dance_id}/run")
+def run_show(dance_id: str, payload: dict = Body(...)) -> dict:
+    """Launch a live show for a show-ready dance. Ordered guards, distinct codes."""
+    # 1) dance exists AND is show-ready. A genuinely missing dance is a 404 (house
+    #    style, _load_dance_or_404); a wrong-status dance is the 409 operational guard.
+    dance = _load_dance_or_404(dance_id)
+    if dance.status != "show-ready":
+        raise HTTPException(409, f"dance '{dance.name}' is not show-ready "
+                                 f"(status: {dance.status}) — it cannot be run")
+    # 2) audio attached — a show plays music; refuse a silent dance.
+    if not (dance.audio and dance.audio.get("track")):
+        raise HTTPException(409, "dance has no music attached — attach a track first")
+    # 3) robot reachable: PC2 must answer a single 1 s ping on the control net.
+    if not show_runner.robot_reachable():
+        raise HTTPException(409, f"robot PC2 ({show_runner.ROBOT_HOST}) is not "
+                                 "reachable — check the control-net cable and power")
+    # 4) single-run lock / unresolved open show (reuses shows.record_outcome's
+    #    show.closed state via show_runner.why_blocked).
+    busy = show_runner.why_blocked()
+    if busy:
+        raise HTTPException(409, busy)
+    # 5) exact confirmation phrase — this + the physical remote is the deploy consent.
+    if payload.get("confirmation") != RUN_CONFIRMATION_PHRASE:
+        raise HTTPException(403, "confirmation phrase does not match — type it "
+                                 "EXACTLY, with the damping remote in your hand")
+    operator = (payload.get("operator") or "").strip()
+    if not operator:
+        raise HTTPException(400, "operator name is required")
+    mode = payload.get("mode", "rehearsal")
+    if mode not in ("rehearsal", "live"):
+        raise HTTPException(400, "mode must be 'rehearsal' or 'live'")
+    # stand-at-end is experimental + rehearsal-only; begin_run enforces the mode gate.
+    exit_stand = bool(payload.get("exit_stand"))
+    try:
+        show = show_runner.begin_run(
+            dance, operator=operator, mode=mode, exit_stand=exit_stand,
+            audio_mode=payload.get("audio_mode") or "laptop",
+            body=payload.get("body"))
+    except show_runner.RunBusy as e:  # lost the check-and-spawn race
+        raise HTTPException(409, str(e))
+    return {"started": True, "show": _show_dict(show),
+            "run": show_runner.current_status()}
+
+
+@app.get("/api/shows/runs/current")
+def current_run() -> dict:
+    """Live run status for the app's status panel: running flag, show id, mode,
+    coarse phase, and the last ~15 run.log lines. Cheap to poll."""
+    return show_runner.current_status()
 
 
 @app.get("/")

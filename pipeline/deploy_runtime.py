@@ -67,6 +67,21 @@ MAX_ACTION = float(os.environ.get("MAX_ACTION", "12.0"))
 # to onboard control and the REMOTE/app can pair again. Leaving it released strands the
 # robot (remote can't reconnect — learned the hard way 2026-07-04). "" disables.
 RESTORE_MOTION_MODE = os.environ.get("RESTORE_MOTION_MODE", "ai")
+# END-OF-RUN EXIT behaviour (OPT-IN, clean full-completion ONLY — see --exit).
+#   --exit damp  (DEFAULT): the proven smooth ramp-to-damping handoff. Byte-for-byte the
+#                current behaviour; the frozen demo path never sets --exit so it is untouched.
+#   --exit stand: after the LAST dance tick, keep actively commanding the motion's FINAL
+#                (standing) reference pose at the SAME holding gains the policy just used for
+#                HANDOFF_HOLD_S, THEN restore the onboard motion service (SelectMode) and only
+#                AFTER that returns stop publishing lowcmd — the vendor controller takes over a
+#                still-balanced STANDING robot instead of catching a damped collapse (removes
+#                the end-of-run catch-step). This is UNVALIDATED on hardware (see the runtime
+#                docstring); every ABORT/FAULT path still damps immediately regardless of --exit.
+HANDOFF_HOLD_S = float(os.environ.get("HANDOFF_HOLD_S", "2.0"))
+# GUARD for --exit stand: the motion's final frame must be within this many rad of the
+# default (standing) pose on EVERY joint, else the handoff would start from a non-standing
+# pose and could topple the robot -> refuse --exit stand and fall back to damp.
+STAND_GUARD_TOL_RAD = 0.15
 # Policy-phase LEG gain boost. The trained gains stand/balance the robot in SIM, but are
 # too soft to bear its weight on the real hardware — it sags into a crouch and dances from
 # there instead of standing (observed 2026-07-04). Scale ONLY the leg joints (hips/knees/
@@ -155,7 +170,10 @@ GROUND_MAX_ACTION = float(os.environ.get("GROUND_MAX_ACTION", "10.0"))
 # |a| 3.4 on hardware (2026-07-06 runs). A uniform cap conflates the two — so ARM
 # joints (shoulder/elbow/wrist) get cap*ARM_ACTION_CAP_SCALE, legs/waist keep the
 # tight tripwire that actually protects balance.
-ARM_ACTION_CAP_SCALE = float(os.environ.get("ARM_ACTION_CAP_SCALE", "1.6"))
+# Default 2.2 (was 1.6): the v3-family arm actions ride up to ~17.1 in the sim envelope,
+# so 1.6 (arm cap = 10.0*1.6 = 16) tripped a BENIGN wrist cap on hardware 2026-07-07; 2.2
+# clears the sim envelope max while legs/waist keep the tight balance tripwire. Env override.
+ARM_ACTION_CAP_SCALE = float(os.environ.get("ARM_ACTION_CAP_SCALE", "2.2"))
 _ARM_NAME_TOKENS = ("shoulder", "elbow", "wrist")
 
 
@@ -798,6 +816,75 @@ def _finalize_and_exit(code=0):
     os._exit(code)
 
 
+# ---- OPT-IN clean-completion "stand" exit (removes the end-of-run catch-step) ----
+# SAFETY: this replaces ONLY the smooth ramp-to-damping on a CLEAN full completion. Every
+# abort/fault path (bad action, NaN, comms loss, signal, exception) still damps immediately
+# via the motion modes' except/finally -> _finalize_and_exit, regardless of --exit.
+def _final_pose_is_standing(meta: "Meta", ref: "Reference", tol: float = STAND_GUARD_TOL_RAD):
+    """True iff the motion's FINAL reference joint pose is within `tol` rad of the default
+    (standing) pose on EVERY joint. --exit stand hands the robot back to the onboard
+    controller from this pose, so it MUST end standing or the handoff could topple it."""
+    dev = np.abs(np.asarray(ref.jp[-1], float) - meta.default)
+    return bool(np.all(dev <= tol))
+
+
+def _resolve_exit_mode(requested: str, meta: "Meta", ref: "Reference"):
+    """Return the EFFECTIVE end-of-run exit mode. --exit stand is honored ONLY when the
+    loaded motion ends standing (the guard); otherwise it prints a clear refusal and falls
+    back to the proven 'damp'. Anything other than 'stand' -> 'damp' (the safe default)."""
+    if requested != "stand":
+        return "damp"
+    if _final_pose_is_standing(meta, ref):
+        print(f"--exit stand: motion ends within {STAND_GUARD_TOL_RAD:.2f} rad of the default "
+              f"standing pose on all joints -> on a CLEAN finish the robot will HOLD that "
+              f"standing pose {HANDOFF_HOLD_S:.1f}s, then hand back to onboard balance "
+              f"(no end-of-run damping). ABORTS still damp.")
+        return "stand"
+    dev = np.abs(np.asarray(ref.jp[-1], float) - meta.default)
+    j = int(dev.argmax())
+    print(f"REFUSED --exit stand: motion final frame is NOT a standing pose — joint "
+          f"'{meta.joint_order[j]}' sits {np.degrees(dev[j]):.1f} deg ({dev[j]:.3f} rad > "
+          f"{STAND_GUARD_TOL_RAD:.2f} rad) from default. Handing off from a non-standing "
+          f"pose could topple the robot -> FALLING BACK to --exit damp (proven "
+          f"ramp-to-damping).")
+    return "damp"
+
+
+def _stand_handoff_and_exit(pub, low_cmd, crc, mode_machine, meta, ref, kp=None, kd=None):
+    """CLEAN-COMPLETION 'stand' exit (OPT-IN; the guard in _resolve_exit_mode has already
+    confirmed the motion ends standing). Keep actively commanding the motion's FINAL
+    reference pose at the SAME holding gains the policy just used (kp/kd; default meta's
+    trained gains) for HANDOFF_HOLD_S, THEN restore the onboard motion service, and ONLY
+    AFTER restore returns stop publishing lowcmd — so the robot is held the whole time and
+    the vendor controller takes over a still-balanced STANDING robot (no damping, no
+    catch-step). Ends via os._exit so the caller's `finally: _damp(...)` does NOT run; any
+    signal arriving mid-handoff still routes through _finalize_and_exit -> damping."""
+    kp = meta.kp if kp is None else kp
+    kd = meta.kd if kd is None else kd
+    final_pose = np.asarray(ref.jp[-1], float)
+    print(f"dance complete — STAND handoff: holding the final standing pose "
+          f"{HANDOFF_HOLD_S:.1f}s at holding gains, then restoring onboard balance "
+          f"(NO damping).", flush=True)
+    for _ in range(max(1, int(HANDOFF_HOLD_S * CONTROL_HZ))):
+        _send_cmd(pub, low_cmd, crc, mode_machine, final_pose, kp, kd, meta)
+        time.sleep(1.0 / CONTROL_HZ)
+    # Robot is standing, actively held. Hand back to onboard control BEFORE we stop
+    # publishing, so it is never left unheld between us and the vendor controller.
+    _restore_motion_service()
+    print("   onboard balance restored while STANDING — handoff complete (no catch-step).",
+          flush=True)
+    try:
+        if _TELEM is not None:
+            _TELEM.save()
+    except Exception:
+        pass
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
+    os._exit(0)
+
+
 def _install_damp_on_signals():
     """SIGTERM (external kill, e.g. `timeout`) and SIGINT (Ctrl-C): damp then exit.
     Default SIGTERM would terminate WITHOUT damping -> robot left energized. Not allowed."""
@@ -860,9 +947,10 @@ def mode_move_to_default(meta, session, ref, iface, secs, watch):
     _finalize_and_exit(0)   # guarantee soft + exit promptly (DDS teardown can hang)
 
 
-def mode_run(meta, session, ref, iface, watch, max_secs=None):
+def mode_run(meta, session, ref, iface, watch, max_secs=None, exit_mode="damp"):
     """Stage 1: firm move-to-default (no damping gap). Stage 2: policy loop from default.
-    Mirrors the h1_2 example's posture->behavior pattern."""
+    Mirrors the h1_2 example's posture->behavior pattern. exit_mode: 'damp' (default,
+    proven ramp-to-damping) or 'stand' (opt-in clean-completion handoff, guarded upstream)."""
     if not watch:
         raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
     _require_human("run")
@@ -916,6 +1004,9 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None):
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
             time.sleep(max(0.0, dt - elapsed))
+        # CLEAN full completion. OPT-IN: hand off STANDING instead of damping (guarded).
+        if exit_mode == "stand":
+            _stand_handoff_and_exit(pub, low_cmd, crc, mode_machine, meta, ref)
         # NORMAL end (or --max-secs reached): smooth ramp-down — fade kp->0 holding pose.
         print("policy segment done — smooth ramp to damping.")
         steps = int(0.6 * CONTROL_HZ)
@@ -991,11 +1082,12 @@ def mode_stand_hold(meta, iface, watch, secs):
     _finalize_and_exit(0)
 
 
-def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order):
+def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_mode="damp"):
     """GROUND stage B: firm move-to-default, then run the ESTIMATOR-FREE ground policy
     for a short capped segment. Same safety spine as mode_run but with build_obs_ground
     (no fabricated estimator terms) and the conservative GROUND_MAX_ACTION cap.
-    Requires --max-secs (no unbounded ground runs while bringing this up)."""
+    Requires --max-secs (no unbounded ground runs while bringing this up). exit_mode:
+    'damp' (default) or 'stand' (opt-in clean-completion handoff, guarded upstream)."""
     if not watch:
         raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
     if not max_secs or max_secs <= 0:
@@ -1050,6 +1142,9 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order):
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
             time.sleep(max(0.0, dt - elapsed))
+        # CLEAN full completion. OPT-IN: hand off STANDING instead of damping (guarded).
+        if exit_mode == "stand":
+            _stand_handoff_and_exit(pub, low_cmd, crc, mode_machine, meta, ref)
         print("ground segment done — smooth ramp to damping.")
         steps = int(0.6 * CONTROL_HZ)
         for s in range(steps + 1):
@@ -1063,7 +1158,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order):
     _finalize_and_exit(0)
 
 
-def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
+def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="damp"):
     """GROUND stage B (ODOMETRY-FED): run the PROVEN full-obs gantry policy on the
     ground, building the two estimator-dependent obs terms HONESTLY from the onboard
     estimate (rt/odommodestate) instead of faking them. Same safety spine + conservative
@@ -1163,6 +1258,9 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs):
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
             time.sleep(max(0.0, dt - elapsed))
+        # CLEAN full completion. OPT-IN: hand off STANDING instead of damping (guarded).
+        if exit_mode == "stand":
+            _stand_handoff_and_exit(pub, low_cmd, crc, mode_machine, meta, ref)
         print("ground segment done — smooth ramp to damping.")
         steps = int(0.6 * CONTROL_HZ)
         for s in range(steps + 1):
@@ -1208,7 +1306,7 @@ def _arm_boost_gains(meta, kp, kd, scale=None):
     return kp, kd, idx
 
 
-def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
+def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mode="damp"):
     """GROUND stage B (KINEMATIC ODOMETRY): run the PROVEN gantry policy on the ground with
     base_lin_vel + torso-height feedback estimated from the LEGS (joint q/dq + IMU), which
     is fully under our control — unlike rt/odommodestate, which FREEZES when the motion
@@ -1305,6 +1403,11 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
             if elapsed > 2 * dt:
                 raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
             time.sleep(max(0.0, dt - elapsed))
+        # CLEAN full completion. OPT-IN: hand off STANDING instead of damping. Hold at the
+        # SAME boosted policy-phase gains (kp_pol/kd_pol) just used so there is no gain
+        # discontinuity/sag during the handoff. Guarded upstream (motion ends standing).
+        if exit_mode == "stand":
+            _stand_handoff_and_exit(pub, low_cmd, crc, mode_machine, meta, ref, kp_pol, kd_pol)
         print("ground segment done — smooth ramp to damping.")
         steps = int(0.6 * CONTROL_HZ)
         for s in range(steps + 1):
@@ -1318,7 +1421,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs):
     _finalize_and_exit(0)
 
 
-def main():
+def _build_parser():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode",
                     choices=["read", "move-to-default", "run", "stand-hold", "ground-run",
@@ -1333,12 +1436,22 @@ def main():
     ap.add_argument("--max-secs", type=float, default=None,
                     help="run/ground-run: cap the policy segment to this many seconds "
                          "(cautious test), then smooth-ramp to damping. Required for ground-run.")
+    ap.add_argument("--exit", dest="exit_mode", choices=["damp", "stand"], default="damp",
+                    help="end-of-run handoff on a CLEAN full completion: 'damp' (DEFAULT, "
+                         "proven smooth ramp-to-damping) or 'stand' (OPT-IN: hold the final "
+                         "standing pose, hand back to onboard balance while balanced — removes "
+                         "the catch-step; guarded to standing motions; UNVALIDATED on hardware). "
+                         "Every abort/fault still damps immediately regardless of this flag.")
     ap.add_argument("--ground-meta", default=str(GROUND_META))
     ap.add_argument("--ground-policy", default=str(GROUND_POLICY))
     ap.add_argument("--ground-motion", default=str(GROUND_MOTION))
     ap.add_argument("--i-will-watch-the-robot", action="store_true",
                     help="required for any motion mode; you are watching, remote in hand")
-    a = ap.parse_args()
+    return ap
+
+
+def main():
+    a = _build_parser().parse_args()
 
     import onnxruntime as ort
 
@@ -1363,8 +1476,10 @@ def main():
         obs_order = _ground_obs_order(gmeta)   # raises if not estimator-free
         gref = Reference(gmot)
         gsession = ort.InferenceSession(str(gp), providers=["CPUExecutionProvider"])
+        # --exit stand honored only if this ground motion ends standing (else -> damp).
+        gexit = _resolve_exit_mode(a.exit_mode, gmeta, gref)
         return mode_ground_run(gmeta, gsession, gref, a.iface, a.i_will_watch_the_robot,
-                               a.max_secs, obs_order) or 0
+                               a.max_secs, obs_order, gexit) or 0
 
     meta = Meta(Path(a.meta))
     ref = Reference(Path(a.motion_npz))
@@ -1374,16 +1489,20 @@ def main():
         return mode_read(meta, ref, session, a.iface, a.timeout_s)
     if a.mode == "move-to-default":
         return mode_move_to_default(meta, session, ref, a.iface, a.secs, a.i_will_watch_the_robot) or 0
+    # Resolve --exit ONCE for the policy motion modes: 'stand' is honored only when the
+    # loaded motion ends standing (the guard), otherwise it falls back to 'damp'.
+    exit_mode = _resolve_exit_mode(a.exit_mode, meta, ref)
     if a.mode == "run":
-        return mode_run(meta, session, ref, a.iface, a.i_will_watch_the_robot, a.max_secs) or 0
+        return mode_run(meta, session, ref, a.iface, a.i_will_watch_the_robot, a.max_secs,
+                        exit_mode) or 0
     if a.mode == "ground-run-odom":
         # PROVEN gantry policy (meta/ref/session above) + honest odometry-fed obs.
         return mode_ground_run_odom(meta, session, ref, a.iface, a.i_will_watch_the_robot,
-                                    a.max_secs) or 0
+                                    a.max_secs, exit_mode) or 0
     if a.mode == "ground-run-legodom":
         # PROVEN gantry policy + base_lin_vel/height from LEG kinematics (service-independent).
         return mode_ground_run_legodom(meta, session, ref, a.iface, a.i_will_watch_the_robot,
-                                       a.max_secs) or 0
+                                       a.max_secs, exit_mode) or 0
 
 
 if __name__ == "__main__":

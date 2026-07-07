@@ -331,7 +331,7 @@ function showPerform() {
     <div class="grid g-2" style="align-items:start">
       <div>
         <div class="section-title" style="margin-top:0">Show-ready dances</div>
-        ${ready.length ? ready.map(d => `<div class="dcard" style="cursor:pointer" data-start-show="${esc(d.id)}"><div class="dthumb ${thumbFor(d.id)}" style="height:120px"><div class="play">${ICON.play}</div>${d.duration_s ? `<span class="dur">${fmtDur(d.duration_s)}</span>` : ""}${d.audio ? '<span class="aud-badge" title="has music">♪</span>' : ""}</div><div class="dbody"><div class="dn">${esc(d.name)} ${STATUS_BADGE[d.status]}</div><div class="dm">${(d.repeatability && d.repeatability.consecutive_clean) || 0}/${d.repeatability_target} clean runs · tap to ${S.showMode === "rehearsal" ? "rehearse" : "start a show"}</div></div></div>`).join("")
+        ${ready.length ? ready.map(d => `<div class="dcard" style="cursor:pointer" data-start-show="${esc(d.id)}"><div class="dthumb ${thumbFor(d.id)}" style="height:120px"><div class="play">${ICON.play}</div>${d.duration_s ? `<span class="dur">${fmtDur(d.duration_s)}</span>` : ""}${d.audio ? '<span class="aud-badge" title="has music">♪</span>' : ""}</div><div class="dbody"><div class="dn">${esc(d.name)} ${STATUS_BADGE[d.status]}</div><div class="dm">${(d.repeatability && d.repeatability.consecutive_clean) || 0}/${d.repeatability_target} clean runs · tap for the pre-show checklist</div><div class="row" style="margin-top:9px">${d.audio ? `<button class="btn btn-danger btn-sm" data-run-show="${esc(d.id)}">▶ RUN SHOW</button>` : `<button class="btn btn-ghost btn-sm" disabled title="attach music before running a show">▶ RUN SHOW</button>`}</div></div></div>`).join("")
       : `<div class="empty"><div class="ei">${svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>')}</div><h3>No show-ready dances yet</h3><p>A dance becomes show-ready after it passes the signed sim-exam and ${target} clean runs.</p></div>`}
       </div>
       <div>
@@ -416,6 +416,9 @@ document.addEventListener("click", async (e) => {
   if (e.target.id === "renameSetlist") { const n = await modal({ title: "Rename set-list", input: "New name" }); if (n) { try { await api("/api/setlists/" + S.selSetlist, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: n }) }); await refreshSetlists(); showSetlists(); } catch (err) { toast(err.message, "err"); } } return; }
   if (e.target.id === "deleteSetlist") { const ok = await modal({ title: "Delete set-list?", body: "This removes the set-list (the dances themselves are untouched).", confirmLabel: "Delete", danger: true }); if (ok) { try { await api("/api/setlists/" + S.selSetlist, { method: "DELETE" }); S.selSetlist = null; await refreshSetlists(); showSetlists(); } catch (err) { toast(err.message, "err"); } } return; }
   const rs = e.target.closest("[data-run-setlist]"); if (rs) return runSetlist(rs.dataset.runSetlist);
+  // RUN SHOW is the REAL live run (spawns show_run.sh); it sits inside the show-ready
+  // card, so handle + return before the card's data-start-show checklist branch.
+  const rsw = e.target.closest("[data-run-show]"); if (rsw) { openRunShow(rsw.dataset.runShow); return; }
   const ss = e.target.closest("[data-start-show]");
   if (ss) {
     const operator = await modal({ title: `Start ${S.showMode === "rehearsal" ? "a rehearsal" : "a show"}`, body: "Enter the operator name.", input: "Operator name", confirmLabel: "Begin checklist" });
@@ -514,6 +517,108 @@ function runChecklist(show, onDone) {
 function deployBlock(sh) {
   if (!sh.checklist_complete) return `<div class="deploy-lock locked"><div class="dl-ic">${svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>', "var(--warn)")}</div><b style="font-size:14px">Complete the checklist to unlock</b><p style="font-size:12px;color:var(--text-faint);margin:6px 0 0">Next: ${esc(sh.next_step || "")} · deploy requires typing DEPLOY</p></div>`;
   return `<div class="deploy-lock"><div class="dl-ic" style="background:var(--ok-dim)">${svg('<path d="m5 12 4 4L19 6"/>', "var(--ok)")}</div><b style="font-size:14px">Checklist complete</b><p style="font-size:12px;color:var(--text-faint);margin:6px 0 12px">Type DEPLOY to record the performance authorization</p><button class="btn btn-danger" id="deployBtn">Deploy ${esc(sh.dance_name)} →</button></div>`;
+}
+
+// ---- one-button LIVE show (POST /api/shows/{id}/run spawns tools/show_run.sh) ----
+// This is distinct from the record-only checklist deploy above: it actually launches
+// the robot. The typed phrase below + the operator's hand-held damping remote are the
+// deploy human-confirmation; the remote is the ONLY stop (no hardware e-stop).
+const RUN_PHRASE = "I AM PRESENT WITH THE DAMPING REMOTE";
+
+function openRunShow(danceId) {
+  const d = S.dances.find(x => x.id === danceId);
+  if (!d) return toast("Dance not found — refresh", "err");
+  const lbl = "display:block;font-size:12px;color:var(--text-dim);margin:12px 0 4px";
+  const bg = el(`<div class="modal-bg"><div class="modal" style="max-width:520px">
+    <h3>Run show — ${esc(d.name)}</h3>
+    <p style="font-size:12.5px;color:var(--text-faint);margin-top:4px">This launches the real robot show (full dance + music). Keep the damping remote in your hand — it is the ONLY stop.</p>
+    <label style="${lbl}">Mode</label>
+    <div class="mode-toggle rehearsal" id="runModeTog">
+      <button class="mt-btn on" data-runmode="rehearsal" type="button">▷ Rehearsal</button>
+      <button class="mt-btn" data-runmode="live" type="button">● Live</button>
+    </div>
+    <label style="${lbl}">Operator</label>
+    <input class="field" id="runOp" value="alois" autocomplete="off">
+    <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-dim);margin-top:12px" id="runStandWrap"><input type="checkbox" id="runStand"> Stand at end <span class="muted" style="font-size:11.5px">(experimental · unvalidated on hardware · rehearsal only)</span></label>
+    <label style="${lbl}">Confirm you are present with the damping remote</label>
+    <input class="field" id="runPhrase" placeholder="${esc(RUN_PHRASE)}" autocomplete="off">
+    <div class="hint" style="color:var(--danger);margin-top:6px">Type exactly, character for character: <b>${esc(RUN_PHRASE)}</b></div>
+    <div id="runErr" class="hint" style="color:var(--danger);margin-top:8px;display:none"></div>
+    <div class="row" style="margin-top:14px"><button class="btn btn-ghost" id="runCancel">Cancel</button><button class="btn btn-danger" id="runStart" disabled>▶ Start show</button></div>
+  </div></div>`);
+  $("#modalRoot").appendChild(bg);
+  let mode = "rehearsal";
+  const startBtn = $("#runStart", bg), phraseInp = $("#runPhrase", bg),
+    standCb = $("#runStand", bg), standWrap = $("#runStandWrap", bg);
+  // Start unlocks ONLY on an exact phrase match (mirrors the server's 403 guard).
+  const sync = () => { startBtn.disabled = phraseInp.value !== RUN_PHRASE; };
+  phraseInp.oninput = sync;
+  $$("[data-runmode]", bg).forEach(b => b.onclick = () => {
+    mode = b.dataset.runmode;
+    $$("[data-runmode]", bg).forEach(x => x.classList.toggle("on", x === b));
+    $("#runModeTog", bg).className = "mode-toggle " + mode;
+    const live = mode === "live";                 // stand-at-end is rehearsal-only
+    standCb.disabled = live; if (live) standCb.checked = false;
+    standWrap.style.opacity = live ? "0.45" : "";
+  });
+  $("#runCancel", bg).onclick = () => bg.remove();
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+  startBtn.onclick = async () => {
+    startBtn.disabled = true;
+    const body = {
+      operator: ($("#runOp", bg).value || "").trim() || "alois",
+      mode, confirmation: phraseInp.value,
+      exit_stand: standCb.checked && mode === "rehearsal",
+    };
+    try {
+      const r = await api(`/api/shows/${esc(danceId)}/run`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      bg.remove();
+      openRunMonitor(r.show, r.run);
+    } catch (e) {
+      const errEl = $("#runErr", bg); errEl.textContent = e.message; errEl.style.display = "block"; sync();
+    }
+  };
+  phraseInp.focus();
+}
+
+// Live status panel: poll /api/shows/runs/current for phase + last lines; when the
+// process exits, surface the outcome capture (reuses the /outcome endpoint).
+function openRunMonitor(show, initialRun) {
+  const bg = el(`<div class="modal-bg"><div class="modal" style="max-width:620px">
+    <h3>${esc(show.dance_name)} — <span id="runPhase">${esc((initialRun && initialRun.phase) || "launching")}</span></h3>
+    <div style="background:var(--danger);color:#fff;font-weight:800;text-align:center;padding:12px;border-radius:var(--r);letter-spacing:.5px;margin:10px 0;font-size:14px">⏹ REMOTE = ONLY STOP</div>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Operator ${esc(show.operator)} · ${show.mode === "rehearsal" ? "rehearsal (never demotes the dance)" : "LIVE performance"} · <span id="runState">${initialRun && initialRun.running ? "running" : "starting…"}</span></div>
+    <pre id="runLog" class="mono" style="background:var(--bg-1);border:1px solid var(--border);border-radius:var(--r);padding:10px;max-height:240px;overflow:auto;font-size:11.5px;white-space:pre-wrap;margin:0"></pre>
+    <div id="runOutcome"></div>
+  </div></div>`);
+  $("#modalRoot").appendChild(bg);
+  const phaseEl = $("#runPhase", bg), stateEl = $("#runState", bg),
+    logEl = $("#runLog", bg), outEl = $("#runOutcome", bg);
+  let timer = null, ended = false;
+  const drawOutcome = () => {
+    ended = true;
+    // Reuse the existing outcome machinery (POST /api/shows/{id}/outcome ->
+    // shows.record_outcome). An unresolved show blocks the next run.
+    outEl.innerHTML = `<div class="deploy-lock" style="margin-top:14px"><b style="font-size:14px">Show ended — record how it went</b><p style="font-size:12px;color:var(--text-faint);margin:6px 0 12px">Required before the next run: an unresolved show is blocked.</p><div class="row"><button class="btn btn-ghost" data-run-outcome="clean">Clean ✓</button><button class="btn btn-ghost" data-run-outcome="aborted">Aborted</button><button class="btn btn-danger" data-run-outcome="incident">Incident</button></div></div>`;
+    $$("[data-run-outcome]", bg).forEach(b => b.onclick = async () => {
+      const result = b.dataset.runOutcome;
+      try {
+        await api(`/api/shows/${show.id}/outcome`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ result }) });
+        toast(`Outcome recorded: ${result}${show.mode === "rehearsal" ? " (rehearsal)" : ""}`, result === "clean" ? "ok" : "info");
+        bg.remove(); await refreshDances(); if (S.cur === "show") RENDER.show();
+      } catch (err) { toast(err.message, "err"); }
+    });
+  };
+  const poll = async () => {
+    let st; try { st = await api("/api/shows/runs/current"); } catch { return; }
+    phaseEl.textContent = st.phase || "";
+    stateEl.textContent = st.running ? "running" : "exited";
+    logEl.textContent = (st.last_lines || []).join("\n") || "(waiting for output…)";
+    logEl.scrollTop = logEl.scrollHeight;
+    if (!st.running && !ended) { if (timer) { clearInterval(timer); timer = null; } drawOutcome(); }
+  };
+  timer = setInterval(poll, 1000);
+  poll();
 }
 
 RENDER.system = function () {
