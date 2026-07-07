@@ -2071,3 +2071,20 @@ human-supervised session (NOT autonomous — no ground motion has run):
   trains/exams it. JUMPS: analyzable once retargeted (feasibility like check_acro_reference) — a small
   Thriller hop may be feasible where the backflip was not; but it's a dynamic-skill track (own profile +
   validation), NOT a drop-in. HARD GATE remains box + video (neither exists yet); cannot execute here.
+
+## 2026-07-07 (eve) — ONBOARD BREAKTHROUGH + GPU wall + job triage (5-directive turn).
+- ONBOARD/WIRELESS (#3/#4): the robot's g1-siu-deploy:jazzy container (docker group, no sudo) HAS
+  /ws/src/motion_tracking_controller = the BeyondMimic onboard controller (architecture's original target).
+  Running OUR policy in IT sidesteps the DDS type conflict (it's the framework that owns the type).
+  HIGH compat: identical joints, matching default pose, torso_link anchor, motion_anchor_pos_b obs. MUST
+  override its 350/300 gains with OUR trained 40/99/28 (staged ~/onboard_deploy on PC2 + config values).
+  Remaining (operator-present, first onboard run): verify motion format + obs byte-match, patch gains,
+  gantry->tethered staircase, then wireless trigger. Control loop stays onboard (eth1); wifi = trigger only.
+  This is the correct wireless path. docs/ONBOARD_DEPLOY.md has the full plan.
+- GPU (#2): FULL AUTONOMY GRANTED but GreenNode has NO API/CLI (console-only, confirmed) — I CANNOT
+  create a box programmatically. Autonomy can't overcome a missing mechanism. Options: (a) you do the
+  console clicks (docs/BOX_RECREATE_RUNBOOK fast path), or (b) give me API creds for an API-driven GPU
+  provider (RunPod/Lambda/Vast) and I'll fully automate create/train/delete. Until then training is gated.
+- 2-MIN VIDEO (#1/#5): uploaded ('Thriller dance FULL 2min'), blocked at EXTRACT because it scp's the
+  video to the deleted box (GVHMR runs on the box). => gated on #2 (a box). Pipeline itself is working.
+  Other Create jobs are stale (dance1-e2e verify-failed known; old thriller train-blocked).

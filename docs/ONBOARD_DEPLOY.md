@@ -94,3 +94,30 @@ Unitree's onboard policy demos do NOT stand up a competing participant. Options,
 - Onboard motion is a first-of-its-kind run for this project — tether-first, operator-present, and
   the comms path in the loop is now LOCAL (eth1), which is the whole point (no wifi jitter in control).
 - Do the SDK/DDS debugging near the live control service ONLY with the operator aware.
+
+## BREAKTHROUGH (2026-07-07): the robot ALREADY has the onboard controller — use it, don't fight DDS
+The `g1-siu-deploy:jazzy` docker image (unitree is in the docker group — no sudo) contains
+`/ws/src/motion_tracking_controller` — the **BeyondMimic MotionTrackingController** (the architecture's
+original onboard target). It runs the tracking policy onboard inside the ROS2 control framework that
+OWNS the compatible DDS types — so it sidesteps the type-registration conflict entirely (that conflict
+was from a *competing* Python participant; this is the *right* participant).
+COMPATIBILITY with our mjlab policy is HIGH:
+- joint_names: IDENTICAL 29-dof order.
+- default_position: MATCHES (hip_pitch -0.312, knee 0.669, ...; ours -0.363 vs its -0.33 ankle — trivial).
+- obs terms present incl. `motion_anchor_pos_b`; anchor = torso_link (== ours).
+- GAINS DIFFER and MUST be overridden: controller default kp/kd = 350/300 (BeyondMimic); OUR policy
+  trained at kp 40/99/28, kd 2.6/6.3/1.8 — deploying at 350 would be wildly out-of-distribution -> fall.
+  Config values generated from policy_meta and staged at PC2 `~/onboard_deploy/onboard_controller_cfg.txt`.
+STAGED on PC2 `~/onboard_deploy/`: policy.onnx (standtail), thriller_deploy.npz, controller config values.
+LAUNCH shape (config-only, no build): `ros2 launch motion_tracking_controller real.launch.py
+robot_type:=g1 policy_path:=~/onboard_deploy/policy.onnx start_step:=...` after patching
+config/g1/controllers.yaml walking_controller.{kp,kd,action_scale,default} to OUR values.
+REMAINING (needs the operator at the robot — first onboard control run):
+1. VERIFY the controller's motion format: does it ingest our thriller_deploy.npz (body_pos_w/quat/joint_*)
+   or a different BeyondMimic motion? Check MotionCommand.h / how the motion is loaded. Adapt if needed.
+2. VERIFY the obs construction byte-matches ours (velocimeter lever-arm at imu_in_pelvis, no
+   projected-gravity, action_scale per-joint) — subtle diffs false-fail a good policy.
+3. Patch controllers.yaml gains -> our values; run `real.launch.py` with feet OFF / on the gantry first.
+4. Full tethered staircase (same as the laptop path we already validated), THEN the trigger goes wireless
+   (ros2 action/topic over wifi/tailscale — control loop stays 100% onboard on eth1).
+This is the CORRECT wireless answer: the 50 Hz loop is onboard (never on wifi); wifi carries only the trigger.
