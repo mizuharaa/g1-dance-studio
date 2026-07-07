@@ -1,0 +1,24 @@
+{
+ "ref": "data/policies/thriller_v3e_candidate/thriller_deploy_v2_sharp.npz",
+ "n_base_runs": 4,
+ "n_cand_runs": 1,
+ "track_rms_deg": {
+  "candidate": {
+   "legs": 10.565434544412112,
+   "waist": 5.781788228740643,
+   "arms": 9.082295465856692
+  },
+  "s2rb_baseline": {
+   "legs": 13.418090013696267,
+   "waist": 7.310222364594655,
+   "arms": 14.55123019216059
+  }
+ },
+ "gyro_wobble_2_10Hz_rad_s": {
+  "candidate_mean": 0.1650615152197129,
+  "candidate_each": [
+   0.1650615152197129
+  ],
+  "s2rb_baseline_mean": 0.1578161860405724
+ }
+}
