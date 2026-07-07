@@ -187,12 +187,15 @@ async function openDance(id) {
     ${prev ? `<video class="preview" src="${esc(prev)}" controls ${muxed ? "" : "muted"} onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'empty',innerHTML:'preview unavailable'}))"></video>` : `<div class="empty" style="padding:24px">No preview rendered yet</div>`}
     ${audioRow}
     ${vetRows ? `<div class="section-title">Vetting</div><table>${vetRows}</table>` : ""}
+    ${d.policy_path ? `<div class="section-title">Policy versions</div><div id="dVersions" class="muted" style="font-size:12px">loading…</div>` : ""}
     <div class="row"><button class="btn btn-ghost" id="dClose">Close</button>${d.status === "draft" && !d.policy_path ? `<button class="btn btn-ghost" id="dAttach">Attach policy…</button>` : ""}${d.status === "sim-verified" ? `<button class="btn btn-primary" id="dPromote">Promote to Show-Ready</button>` : ""}</div>
     <div id="dPromoteErr" class="hint" style="color:var(--danger);margin-top:8px;display:none"></div>
   </div></div>`);
   $("#modalRoot").appendChild(bg);
   $("#dClose", bg).onclick = () => bg.remove();
   bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+  // policy version history + rollback (populated async)
+  if (d.policy_path) loadVersions(d.id, bg);
   const pBtn = $("#dPromote", bg);
   if (pBtn) pBtn.onclick = async () => {
     const errEl = $("#dPromoteErr", bg);
@@ -225,6 +228,25 @@ async function openDance(id) {
     try { await api("/api/dances/" + id + "/policy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ policy_path: p }) }); toast("Policy attached — re-run the sim-exam", "ok"); bg.remove(); await refreshDances(); RENDER[S.cur](); }
     catch (e) { toast(e.message, "err"); }
   };
+}
+// policy version history + rollback (safety net across retrains)
+async function loadVersions(id, bg) {
+  const box = $("#dVersions", bg); if (!box) return;
+  let vs; try { vs = (await api("/api/dances/" + id + "/versions")).versions || []; }
+  catch { box.textContent = "unavailable"; return; }
+  if (!vs.length) { box.textContent = "no snapshots yet — a version is saved each time this dance is promoted to show-ready."; return; }
+  box.innerHTML = vs.map(v => {
+    const when = v.at_epoch ? new Date(v.at_epoch * 1000).toLocaleString() : "";
+    return `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><div style="min-width:0"><b style="font-family:monospace">${esc((v.version_id || "").slice(0, 10))}</b> <span class="muted" style="font-size:11.5px">${esc(v.note || "")}${when ? " · " + esc(when) : ""}</span></div><button class="btn btn-ghost btn-sm" data-rollback="${esc(v.version_id)}">Roll back</button></div>`;
+  }).join("");
+  box.querySelectorAll("[data-rollback]").forEach(btn => {
+    btn.onclick = async () => {
+      const ok = await modal({ title: "Roll back policy?", body: "Restores this version's files and RESETS the dance to draft — you re-run the sim exam to re-promote. The show-ready gate is never bypassed.", confirmLabel: "Roll back", danger: true });
+      if (!ok) return;
+      try { await api("/api/dances/" + id + "/rollback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version_id: btn.dataset.rollback }) }); toast("Rolled back — re-run the sim exam to re-promote", "ok"); bg.remove(); await refreshDances(); if (RENDER[S.cur]) RENDER[S.cur](); openDance(id); }
+      catch (e) { toast(e.message, "err"); }
+    };
+  });
 }
 document.addEventListener("click", (e) => {
   const dc = e.target.closest("[data-open-dance]"); if (dc) openDance(dc.dataset.openDance);
@@ -328,6 +350,7 @@ function showPerform() {
   const hist = (S.showsCache || []).filter(s => s.closed).slice(0, 10);
   const target = (S.dances[0] && S.dances[0].repeatability_target) || 3;
   $("#showBody").innerHTML = `
+    <div id="venueBar" class="muted" style="font-size:12px;margin-bottom:12px">loading venue…</div>
     <div class="grid g-2" style="align-items:start">
       <div>
         <div class="section-title" style="margin-top:0">Show-ready dances</div>
@@ -340,6 +363,34 @@ function showPerform() {
         ${esE_STOP_HINT}
       </div>
     </div>`;
+  loadVenueBar();
+}
+// venue selector (drives the vet excursion limit) + the who-controls-when show-phase strip
+async function loadVenueBar() {
+  const bar = $("#venueBar"); if (!bar) return;
+  let vdata, phases;
+  try { vdata = await api("/api/venues"); } catch { bar.textContent = "venue unavailable"; return; }
+  try { phases = (await api("/api/show-phases")).phases || []; } catch { phases = []; }
+  const a = vdata.active || {};
+  const opts = (vdata.venues || []).map(v => `<option value="${esc(v.id)}" ${v.id === a.id ? "selected" : ""}>${esc(v.name)} — ${v.max_excursion_m}m</option>`).join("");
+  const strip = phases.length ? `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">` + phases.map((p, i) =>
+    `<span class="badge ${p.owner.includes("policy") ? "b-verified" : "b-draft"}" title="${esc(p.note)}">${esc(p.phase)} · ${esc(p.owner)}</span>${i < phases.length - 1 ? '<span style="color:var(--text-faint)">→</span>' : ""}`).join("") + `</div>` : "";
+  bar.innerHTML = `<div class="row" style="align-items:center;gap:10px"><b>Venue:</b>
+      <select id="venueSel" class="field" style="width:auto;padding:5px 8px">${opts}</select>
+      <span class="muted">excursion limit <b>${a.max_excursion_m}m</b> (radius ${a.radius_m} − margin ${a.margin_m})</span>
+      <button class="btn btn-ghost btn-sm" id="venueAdd">+ Add venue</button></div>${strip}`;
+  $("#venueSel", bar).onchange = async (e) => {
+    try { await api("/api/venues/active", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: e.target.value }) }); toast("Active venue set — the vet gate now uses its limit", "ok"); loadVenueBar(); }
+    catch (err) { toast(err.message, "err"); }
+  };
+  $("#venueAdd", bar).onclick = async () => {
+    const name = await modal({ title: "Add venue", body: "Name this venue (e.g. 'Client stage 3×3m').", input: "Venue name", confirmLabel: "Next" });
+    if (!name) return;
+    const radius = await modal({ title: "Dance-area radius (m)", body: "Half the smallest floor dimension the robot can use. Excursion limit = radius − 0.5m margin.", input: "e.g. 2.0", confirmLabel: "Add venue" });
+    if (!radius) return;
+    try { await api("/api/venues", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, radius_m: parseFloat(radius), make_active: true }) }); toast("Venue added + set active", "ok"); loadVenueBar(); }
+    catch (err) { toast(err.message, "err"); }
+  };
 }
 
 function showSetlists() {

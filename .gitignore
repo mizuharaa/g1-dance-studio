@@ -19,3 +19,6 @@ node_modules/
 data/audio/*
 data/body_models/
 data/jobs/*
+data/venues/
+data/policy_store/
+data/setlists/*/run.json
