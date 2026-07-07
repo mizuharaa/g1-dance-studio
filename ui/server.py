@@ -785,11 +785,17 @@ def run_show(dance_id: str, payload: dict = Body(...)) -> dict:
         raise HTTPException(400, "mode must be 'rehearsal' or 'live'")
     # stand-at-end is experimental + rehearsal-only; begin_run enforces the mode gate.
     exit_stand = bool(payload.get("exit_stand"))
+    # OPT-IN untethered ("free") config: the HARDWARE-VALIDATED standtail policy + leg-gain
+    # boost + stand-at-end (see show_runner.FREE_POLICY_DIR). All guards above still apply;
+    # free only changes what config show_run.sh launches. Off by default so the proven
+    # tethered path stays the default. NOTE: the standtail motion is validated but not yet
+    # a SIGNED show-ready artifact — free is a trial/live show, not a re-signed policy.
+    free = bool(payload.get("free"))
     try:
         show = show_runner.begin_run(
             dance, operator=operator, mode=mode, exit_stand=exit_stand,
             audio_mode=payload.get("audio_mode") or "laptop",
-            body=payload.get("body"))
+            body=payload.get("body"), free=free)
     except show_runner.RunBusy as e:  # lost the check-and-spawn race
         raise HTTPException(409, str(e))
     return {"started": True, "show": _show_dict(show),

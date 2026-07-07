@@ -588,6 +588,7 @@ function openRunShow(danceId) {
       <button class="mt-btn on" data-runmode="rehearsal" type="button">▷ Rehearsal</button>
       <button class="mt-btn" data-runmode="live" type="button">● Live</button>
     </div>
+    <label style="display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:var(--text-dim);margin-top:14px;padding:11px 12px;border-radius:var(--r);background:var(--bg-2);border:1px solid var(--border)" id="runFreeWrap"><input type="checkbox" id="runFree" style="margin-top:2px"><span><b style="color:var(--text)">Untethered (free) show</b> — hardware-validated free config: standtail policy + leg-gain boost. The robot dances <b>fully untethered</b>, returns to standing, and hands back to onboard. <span class="muted" style="font-size:11px">Validated 2026-07-07; the standtail motion is not yet a signed show-ready artifact — this is a trial/live run, the signed policy is unchanged.</span></span></label>
     <label style="${lbl}">Operator</label>
     <input class="field" id="runOp" value="alois" autocomplete="off">
     <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-dim);margin-top:12px" id="runStandWrap"><input type="checkbox" id="runStand"> Stand at end <span class="muted" style="font-size:11.5px">(experimental · unvalidated on hardware · rehearsal only)</span></label>
@@ -600,31 +601,40 @@ function openRunShow(danceId) {
   $("#modalRoot").appendChild(bg);
   let mode = "rehearsal";
   const startBtn = $("#runStart", bg), phraseInp = $("#runPhrase", bg),
-    standCb = $("#runStand", bg), standWrap = $("#runStandWrap", bg);
+    standCb = $("#runStand", bg), standWrap = $("#runStandWrap", bg),
+    freeCb = $("#runFree", bg);
   // Start unlocks ONLY on an exact phrase match (mirrors the server's 403 guard).
   const sync = () => { startBtn.disabled = phraseInp.value !== RUN_PHRASE; };
   phraseInp.oninput = sync;
+  // The manual stand-at-end toggle is rehearsal-only AND redundant when free (the
+  // free/standtail config always ends standing) — grey it out in both cases.
+  const syncStand = () => {
+    const off = mode === "live" || freeCb.checked;
+    standCb.disabled = off; if (off) standCb.checked = false;
+    standWrap.style.opacity = off ? "0.45" : "";
+  };
+  freeCb.onchange = syncStand;
   $$("[data-runmode]", bg).forEach(b => b.onclick = () => {
     mode = b.dataset.runmode;
     $$("[data-runmode]", bg).forEach(x => x.classList.toggle("on", x === b));
     $("#runModeTog", bg).className = "mode-toggle " + mode;
-    const live = mode === "live";                 // stand-at-end is rehearsal-only
-    standCb.disabled = live; if (live) standCb.checked = false;
-    standWrap.style.opacity = live ? "0.45" : "";
+    syncStand();
   });
   $("#runCancel", bg).onclick = () => bg.remove();
   bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
   startBtn.onclick = async () => {
     startBtn.disabled = true;
+    const free = freeCb.checked;
     const body = {
       operator: ($("#runOp", bg).value || "").trim() || "alois",
       mode, confirmation: phraseInp.value,
-      exit_stand: standCb.checked && mode === "rehearsal",
+      exit_stand: standCb.checked && mode === "rehearsal" && !free,
+      free,
     };
     try {
       const r = await api(`/api/shows/${esc(danceId)}/run`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       bg.remove();
-      openRunMonitor(r.show, r.run);
+      openRunMonitor(r.show, r.run, free);
     } catch (e) {
       const errEl = $("#runErr", bg); errEl.textContent = e.message; errEl.style.display = "block"; sync();
     }
@@ -634,10 +644,11 @@ function openRunShow(danceId) {
 
 // Live status panel: poll /api/shows/runs/current for phase + last lines; when the
 // process exits, surface the outcome capture (reuses the /outcome endpoint).
-function openRunMonitor(show, initialRun) {
+function openRunMonitor(show, initialRun, free = false) {
   const bg = el(`<div class="modal-bg"><div class="modal" style="max-width:620px">
-    <h3>${esc(show.dance_name)} — <span id="runPhase">${esc((initialRun && initialRun.phase) || "launching")}</span></h3>
+    <h3>${esc(show.dance_name)} — <span id="runPhase">${esc((initialRun && initialRun.phase) || "launching")}</span>${free ? ' <span class="badge b-verified">Untethered</span>' : ""}</h3>
     <div style="background:var(--danger);color:#fff;font-weight:800;text-align:center;padding:12px;border-radius:var(--r);letter-spacing:.5px;margin:10px 0;font-size:14px">⏹ REMOTE = ONLY STOP</div>
+    <div id="runPhases" class="row" style="gap:5px;flex-wrap:wrap;margin:0 0 10px"></div>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Operator ${esc(show.operator)} · ${show.mode === "rehearsal" ? "rehearsal (never demotes the dance)" : "LIVE performance"} · <span id="runState">${initialRun && initialRun.running ? "running" : "starting…"}</span></div>
     <div id="runFall"></div>
     <pre id="runLog" class="mono" style="background:var(--bg-1);border:1px solid var(--border);border-radius:var(--r);padding:10px;max-height:240px;overflow:auto;font-size:11.5px;white-space:pre-wrap;margin:0"></pre>
@@ -647,6 +658,25 @@ function openRunMonitor(show, initialRun) {
   const phaseEl = $("#runPhase", bg), stateEl = $("#runState", bg),
     logEl = $("#runLog", bg), outEl = $("#runOutcome", bg), fallEl = $("#runFall", bg);
   let timer = null, ended = false, fallDetected = false;
+  // Operator-facing phase strip: walk-on → dance → stand → walk-off. walk-on/walk-off
+  // are the operator's own remote phases bracketing the app run (arm-to-default → dance
+  // → return-to-standing). The free/standtail config ends STANDING; the proven default
+  // tail is a ramp-to-damping instead.
+  const phaseLabels = ["walk-on", "dance", free ? "stand" : "ramp-to-damp", "walk-off"];
+  const activePhase = (runPhase, running) => {
+    if (runPhase === "performing") return 1;
+    if (runPhase === "ramp-to-damping") return 2;
+    if (["stopped", "fall", "ended"].includes(runPhase)) return 3;
+    if (runPhase === "arming" || runPhase === "launching") return 0;
+    return running ? 0 : 3;
+  };
+  const renderPhases = (runPhase, running) => {
+    const active = activePhase(runPhase, running);
+    $("#runPhases", bg).innerHTML = phaseLabels.map((lbl, i) =>
+      `<span class="badge ${i === active ? "b-verified" : "b-draft"}"${i === active ? "" : ' style="opacity:.5"'}>${i + 1}. ${esc(lbl)}</span>${i < phaseLabels.length - 1 ? '<span style="color:var(--text-faint)">→</span>' : ""}`
+    ).join("");
+  };
+  renderPhases((initialRun && initialRun.phase) || "launching", initialRun && initialRun.running);
   // Red banner shown the moment the runtime's fall detector trips: the damp + onboard
   // handoff already happened on the robot; the operator should record this as an Incident.
   const showFall = () => {
@@ -680,6 +710,7 @@ function openRunMonitor(show, initialRun) {
   const poll = async () => {
     let st; try { st = await api("/api/shows/runs/current"); } catch { return; }
     phaseEl.textContent = st.phase || "";
+    renderPhases(st.phase, st.running);
     stateEl.textContent = st.running ? "running" : "exited";
     logEl.textContent = (st.last_lines || []).join("\n") || "(waiting for output…)";
     logEl.scrollTop = logEl.scrollHeight;

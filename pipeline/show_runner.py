@@ -32,6 +32,38 @@ from .config import PROJECT_ROOT, ROBOT_PC2_IP
 # The proven live path (see the context handover + tools/show_run.sh header).
 SHOW_RUN_SH = PROJECT_ROOT / "tools" / "show_run.sh"
 
+# ---- untethered ("free") show config ---------------------------------------------
+# HARDWARE-VALIDATED on 2026-07-07: the G1 dances Thriller FULLY UNTETHERED, ends
+# standing, music on-beat, repeated 3x clean (see PROJECT_STATE.md 2026-07-07). The
+# free config swaps the SHOW policy for the standtail candidate (v3e dance + a
+# return-to-standing tail) and adds the sagittal leg-gain boost that fixed the
+# arm-accent lean, plus a stand-at-end handoff.
+#
+# PROVENANCE — READ BEFORE TRUSTING THIS AS "SIGNED": the free config is validated on
+# the robot but the standtail motion is NOT yet a SIGNED show-ready artifact (the mjlab
+# box must re-exam it). Requesting `free` therefore deploys the validated free config
+# for a TRIAL/LIVE show; it does NOT touch, replace, or re-sign the sha-pinned signed
+# policy the proven tethered path uses. Free is OPT-IN only (payload {"free": true}) so
+# the proven tethered path stays the default.
+FREE_POLICY_DIR = "data/policies/thriller_standtail_candidate"   # project-relative
+# Side-by-side reference video (Lane B's show_run.sh reads SHOW_VIDEO/SHOW_DISPLAY to
+# launch it; here we only set the env contract — the launch itself is Lane B's).
+FREE_SHOW_VIDEO = "data/previews/thriller_side_by_side_v3e.mp4"
+
+
+def _free_show_args() -> list[str]:
+    """Extra ``show_run.sh "$@"`` args that select the untethered standtail policy.
+
+    These flow through show_run.sh's ``"$@"`` into ``pipeline.deploy_runtime``
+    (--policy/--meta/--motion-npz). Project-relative paths: show_run.sh cds to the repo
+    root and spawn_show_process runs with cwd=PROJECT_ROOT, so they resolve there."""
+    d = FREE_POLICY_DIR
+    return [
+        "--policy", f"{d}/policy.onnx",
+        "--meta", f"{d}/policy_meta.json",
+        "--motion-npz", f"{d}/thriller_deploy.npz",
+    ]
+
 # PC2 (Jetson Orin) on the robot control net. A single 1 s ping is the reachability
 # probe the run guard uses; it is the only "does the robot answer" check we can make
 # without contacting the robot's control interface.
@@ -85,7 +117,7 @@ def spawn_show_process(cmd: list[str], env: dict, log_path: Path):
 
 
 def _build_env(operator: str, mode: str, exit_stand: bool, audio_mode: str,
-               dance_id: str, body: str | None) -> dict:
+               dance_id: str, body: str | None, free: bool = False) -> dict:
     env = dict(os.environ)
     # The operator name doubles as the runtime's CONFIRMED_BY_HUMAN gate; combined
     # with the typed API phrase + the physical remote, this is the deploy human-
@@ -99,10 +131,23 @@ def _build_env(operator: str, mode: str, exit_stand: bool, audio_mode: str,
     env["DANCE_ID"] = dance_id                      # cue the THIS dance's music track
     if body:
         env["BODY"] = str(body)
-    if exit_stand and mode == "rehearsal":
-        # EXPERIMENTAL, UNVALIDATED ON HARDWARE: a separate runtime lane implements
-        # the stand-at-end exit. Only ever permitted in rehearsal; leaving EXIT_MODE
-        # unset keeps the proven smooth ramp-to-damping exit.
+    if free:
+        # HARDWARE-VALIDATED UNTETHERED ("free") SHOW CONFIG (see the module note at
+        # FREE_POLICY_DIR). This runs the validated free config for a TRIAL/LIVE show;
+        # the sha-pinned signed policy the proven tethered path uses is UNCHANGED —
+        # `free` only adds the standtail --policy args (via begin_run) + these knobs.
+        env["GROUND_LEG_KP_SCALE"] = "1.5"     # sagittal leg boost that fixed the arm-accent lean
+        env["EXIT_MODE"] = "stand"             # standtail motion ends standing + hands to onboard
+        env["MAX_SECS"] = "57"                 # the standtail motion is 54.2s
+        env["ARM_ACTION_CAP_SCALE"] = "2.2"    # (already default) arm-accent cap validated on hardware
+        env["AUDIO_MODE"] = audio_mode or "laptop"   # aux; music auto-cued at tick0+4.0s
+        # Env contract for Lane B's side-by-side video launch (set only, not launched here).
+        env["SHOW_VIDEO"] = FREE_SHOW_VIDEO
+        env.setdefault("SHOW_DISPLAY", "")     # default empty; an operator/env may set a display
+    elif exit_stand and mode == "rehearsal":
+        # EXPERIMENTAL, UNVALIDATED ON HARDWARE (non-free path): a separate runtime lane
+        # implements the stand-at-end exit. Only ever permitted in rehearsal; leaving
+        # EXIT_MODE unset keeps the proven smooth ramp-to-damping exit.
         env["EXIT_MODE"] = "stand"
     return env
 
@@ -135,26 +180,34 @@ def why_blocked() -> str | None:
 
 def begin_run(dance: "shows.Dance", *, operator: str, mode: str,
               exit_stand: bool = False, audio_mode: str = "laptop",
-              body: str | None = None) -> "shows.Show":
+              body: str | None = None, free: bool = False) -> "shows.Show":
     """Atomically re-check the lock, create the Show, and spawn show_run.sh.
 
     Creating the Show INSIDE the lock (after the re-check) means a lost race never
     leaves an orphan open show. Raises RunBusy if a run is active / outcome pending.
+
+    ``free=True`` runs the HARDWARE-VALIDATED untethered config (standtail policy +
+    leg-gain boost + stand-at-end); see FREE_POLICY_DIR. It is a trial/live show and
+    does not alter the sha-pinned signed policy of the proven default path.
     """
     with _lock:
         reason = _why_blocked_locked()
         if reason:
             raise RunBusy(reason)
         show = shows.new_show(dance, operator, mode=mode)
-        env = _build_env(operator, mode, exit_stand, audio_mode, dance.id, body)
+        env = _build_env(operator, mode, exit_stand, audio_mode, dance.id, body, free)
         log_path = show.dir / "run.log"
-        proc = spawn_show_process([str(SHOW_RUN_SH)], env, log_path)
+        # Free adds the standtail --policy/--meta/--motion-npz args through show_run.sh's
+        # "$@"; the proven default spawns show_run.sh with no policy override.
+        cmd = [str(SHOW_RUN_SH)] + (_free_show_args() if free else [])
+        proc = spawn_show_process(cmd, env, log_path)
         global _current
         _current = {"show_id": show.id, "dance_id": dance.id, "mode": mode,
                     "proc": proc, "log_path": str(log_path),
                     "started_at": time.time()}
         show.log(f"RUN SHOW spawned (mode={mode}, audio={env['AUDIO_MODE']}, "
-                 f"exit_mode={env.get('EXIT_MODE', 'ramp-to-damping')}) — "
+                 f"exit_mode={env.get('EXIT_MODE', 'ramp-to-damping')}, "
+                 f"config={'FREE/untethered (standtail)' if free else 'proven default'}) — "
                  "operator holds the damping remote")
         return show
 
