@@ -161,15 +161,29 @@ ANKLE_TRIM_DEG = float(os.environ.get("ANKLE_TRIM_DEG", "0"))
 ANKLE_TRIM_MAX_DEG = 6.0
 ANKLE_PITCH_IDX = [4, 10]  # left/right ankle_pitch in the 29-joint order
 
-# FALL DETECTOR: a PHYSICAL-state trigger alongside the action-based ones. R_base[2,2] is the
-# torso z-axis' world-vertical component (+1 fully upright, 0 horizontal, <0 inverted); a fall
-# is the torso toppling past this. Catches a fall where the policy's ACTIONS still look bounded
-# (the robot is going down but the outputs are finite/in-cap). On trip the mode's except/finally
-# damps immediately and hands control back to onboard 'ai' (vendor recovery / operator remote) —
-# the interim recovery; a TRAINED get-up policy is future work (needs the GPU box). Default 0.35
-# (~70 deg tilt) is conservative so deep crouches/leans in a dance never false-trigger; a genuine
-# topple blows well past it. Set FALL_UPRIGHT_MIN=0 to disable.
+# FALL DETECTOR: PHYSICAL-state triggers alongside the action-based ones (bad-action, NaN,
+# cycle-overrun, comms-loss). Two signals, both DEBOUNCED over FALL_CONFIRM_TICKS consecutive
+# ticks so one spurious IMU/odom sample can NEVER damp a healthy robot (a single-tick trip that
+# damped-to-limp would itself induce the fall it claims to catch — adversarial review 2026-07-07):
+#   (1) TOPPLE: pelvis uprightness R_pelvis[2,2] (the IMU sits at the pelvis; +1 upright, 0
+#       horizontal, <0 inverted) falls below FALL_UPRIGHT_MIN (~70 deg tilt). The absolute
+#       threshold is valid because the vet gate forbids floorwork / requires pelvis height
+#       >=0.35 m (upright in-place dances only) — no supported choreography tilts the pelvis
+#       past 70 deg. Cross-checked vs ALL 26 legodom hardware runs (38.6k ticks): worst real
+#       lean 35.7 deg / uprightness 0.812 — a 0.46 margin to the 0.35 trip.
+#   (2) HEIGHT COLLAPSE: the torso sits FALL_HEIGHT_DROP_M below where the CHOREOGRAPHY expects
+#       it — (h_est - h0) minus the reference height change. Catches a leg-buckle / vertical sag
+#       that keeps the pelvis upright (which the topple signal MISSES) — the likely real ground
+#       fall. Choreography-relative so an intentional squat doesn't trip. Cross-checked: clean
+#       dances never sink >2.5 cm below the choreographed height, so 0.15 m has ~6x margin.
+# On a CONFIRMED trip the mode's except/finally damps immediately and hands the SOFT motors back
+# to onboard 'ai' so the operator's remote / vendor controller take over for recovery. Damp
+# softens the impact; it does NOT arrest a committed fall, and autonomous get-up is UNVERIFIED
+# future work (needs the GPU box; see docs/FALL_RECOVERY.md). Scope: the ground policy loop only.
+# Env knobs: FALL_UPRIGHT_MIN=0 disables topple; FALL_HEIGHT_DROP_M=0 disables the height signal.
 FALL_UPRIGHT_MIN = float(os.environ.get("FALL_UPRIGHT_MIN", "0.35"))
+FALL_HEIGHT_DROP_M = float(os.environ.get("FALL_HEIGHT_DROP_M", "0.15"))
+FALL_CONFIRM_TICKS = int(os.environ.get("FALL_CONFIRM_TICKS", "3"))  # 3 ticks @50Hz = 60 ms
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
@@ -955,18 +969,36 @@ def _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0):
         time.sleep(1.0 / CONTROL_HZ)
 
 
-def _check_fall(R_base, tick):
-    """Raise if the torso has toppled past FALL_UPRIGHT_MIN (a fall), so the caller's
-    except/finally damps immediately and hands back to onboard. R_base is the body->world
-    rotation; R_base[2,2] is torso uprightness (+1 up, 0 horizontal). No-op if disabled."""
-    if FALL_UPRIGHT_MIN <= 0:
-        return
-    upright = float(R_base[2, 2])
-    if upright < FALL_UPRIGHT_MIN:
-        tilt = float(np.degrees(np.arccos(np.clip(upright, -1.0, 1.0))))
+def _fall_signal(R_base, h_est, h0, ref_dz):
+    """(is_fall_this_tick, reason) — the raw per-tick fall condition, NOT yet debounced.
+    Topple: pelvis uprightness R_base[2,2] < FALL_UPRIGHT_MIN. Height collapse: the torso sits
+    FALL_HEIGHT_DROP_M below the choreographed height ((h_est-h0) vs the reference change ref_dz).
+    Either fires the condition; the caller confirms it over FALL_CONFIRM_TICKS before damping."""
+    if FALL_UPRIGHT_MIN > 0:
+        upright = float(R_base[2, 2])
+        if upright < FALL_UPRIGHT_MIN:
+            tilt = float(np.degrees(np.arccos(np.clip(upright, -1.0, 1.0))))
+            return True, (f"pelvis {tilt:.0f} deg from vertical "
+                          f"(uprightness {upright:.2f} < {FALL_UPRIGHT_MIN})")
+    if FALL_HEIGHT_DROP_M > 0 and h_est is not None:
+        height_err = (float(h_est) - float(h0)) - float(ref_dz)   # actual minus choreographed
+        if height_err < -FALL_HEIGHT_DROP_M:
+            return True, (f"torso {-height_err:.2f} m below the choreographed height "
+                          f"(drop > {FALL_HEIGHT_DROP_M} m)")
+    return False, ""
+
+
+def _check_fall(run_ticks, R_base, h_est, h0, ref_dz, tick):
+    """DEBOUNCED fall check: returns the updated consecutive-fall-tick counter, and RAISES only
+    after the condition holds FALL_CONFIRM_TICKS ticks in a row (so one spurious sample can't
+    damp a healthy robot). On raise, the mode's except/finally damps + hands back to onboard."""
+    fall, reason = _fall_signal(R_base, h_est, h0, ref_dz)
+    run_ticks = run_ticks + 1 if fall else 0
+    if run_ticks >= FALL_CONFIRM_TICKS:
         raise RuntimeError(
-            f"FALL DETECTED at tick {tick}: torso {tilt:.0f} deg from vertical "
-            f"(uprightness {upright:.2f} < {FALL_UPRIGHT_MIN}) -> damping + onboard handoff")
+            f"FALL DETECTED at tick {tick}: {reason} for {run_ticks} ticks "
+            f"-> damping + soft handoff to onboard")
+    return run_ticks
 
 
 def mode_move_to_default(meta, session, ref, iface, secs, watch):
@@ -1405,6 +1437,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
           f"action cap {GROUND_MAX_ACTION:.1f}. Tethered. Ctrl-C / remote-damp to stop.")
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
+    fall_ticks = 0                     # consecutive-tick fall-condition counter (debounce)
     # Policy-phase gains: boost the LEGS so they can bear weight and hold standing while the
     # arms dance at their trained gains. GROUND_LEG_KP_SCALE=1.0 -> unchanged (old behaviour).
     kp_pol, kd_pol = meta.kp.astype(float).copy(), meta.kd.astype(float).copy()
@@ -1438,10 +1471,12 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
             t0 = time.time()
             q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             R_base = quat_wxyz_to_mat(imu_quat)
-            _check_fall(R_base, tick)   # physical-state fall trigger -> damp + onboard handoff
             v_body, h_est, _ = legodom.estimate(q, dq, R_base, gyro)
             v_world = R_base @ v_body
             ref_disp = ref.at(tick)[2] - ref.apos[0]
+            # debounced physical-state fall trigger (topple OR choreography-relative height
+            # collapse) -> on a confirmed trip, damp + soft handoff to onboard
+            fall_ticks = _check_fall(fall_ticks, R_base, h_est, h0, ref_disp[2], tick)
             # XY: tracking assumption (in-place dance) -> anchor XY ~0, drift-free.
             # Z: real height change from leg odom (bias cancels in the displacement).
             robot_disp = np.array([ref_disp[0], ref_disp[1], h_est - h0])

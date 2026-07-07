@@ -799,7 +799,9 @@ def run_show(dance_id: str, payload: dict = Body(...)) -> dict:
 @app.get("/api/shows/runs/current")
 def current_run() -> dict:
     """Live run status for the app's status panel: running flag, show id, mode,
-    coarse phase, and the last ~15 run.log lines. Cheap to poll."""
+    coarse phase, whether the runtime tripped its fall detector (fall_detected), and
+    the last ~15 run.log lines. Passes show_runner.current_status() through verbatim.
+    Cheap to poll."""
     return show_runner.current_status()
 
 

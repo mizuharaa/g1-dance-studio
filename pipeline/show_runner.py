@@ -166,14 +166,31 @@ def _tail(path: Path, n: int) -> list[str]:
         return []
 
 
+def _log_shows_fall(text: str) -> bool:
+    """True iff the run log shows the runtime tripped its fall detector.
+
+    deploy_runtime's _check_fall raises RuntimeError("FALL DETECTED ...") the moment
+    torso uprightness drops below FALL_UPRIGHT_MIN; the mode's abort path then prints
+    that as "STOP: FALL DETECTED ... -> damping" (which damps + hands back to onboard
+    'ai'). Either marker means a fall. A cheap substring scan over the log text we have
+    already read (no extra I/O); robust to where in the tail the marker landed."""
+    return "FALL DETECTED" in text or ("STOP:" in text and "FALL" in text)
+
+
 def _derive_phase(text: str, running: bool) -> str:
     """Map the run.log markers (from deploy_runtime / show_run.sh) to a coarse phase.
 
-    Later stages win over earlier ones; an abort ("STOP:") is the highest-priority
-    terminal state. Markers: 'starting leg-odometry policy' = the dance began;
+    Later stages win over earlier ones; a fall is the highest-priority terminal state,
+    above a generic abort ("STOP:"). Markers: 'FALL DETECTED' = the fall detector tripped
+    (damp + onboard handoff); 'starting leg-odometry policy' = the dance began;
     'ramp to damping' / 'segment done' = clean end; 'STOP:' = aborted."""
     if not text.strip():
         return "launching" if running else "ended"
+    # A fall trips deploy_runtime's detector -> immediate damp + onboard handoff. It is
+    # terminal and outranks a plain STOP abort, so the app can steer the operator to
+    # record an Incident.
+    if _log_shows_fall(text):
+        return "fall"
     if "STOP:" in text:
         phase = "stopped"
     elif "ramp to damping" in text or "segment done" in text:
@@ -213,6 +230,9 @@ def current_status() -> dict:
         "dance_id": run.get("dance_id"),
         "mode": run.get("mode"),
         "phase": _derive_phase(full_text, running),
+        # Surface a tripped fall detector so the app can flag it + steer the operator
+        # to record an Incident (which demotes the dance via record_outcome).
+        "fall_detected": _log_shows_fall(full_text),
         "last_lines": full_text.splitlines()[-TAIL_LINES:],
         "started_at": run.get("started_at"),
     }

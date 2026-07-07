@@ -639,18 +639,32 @@ function openRunMonitor(show, initialRun) {
     <h3>${esc(show.dance_name)} — <span id="runPhase">${esc((initialRun && initialRun.phase) || "launching")}</span></h3>
     <div style="background:var(--danger);color:#fff;font-weight:800;text-align:center;padding:12px;border-radius:var(--r);letter-spacing:.5px;margin:10px 0;font-size:14px">⏹ REMOTE = ONLY STOP</div>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Operator ${esc(show.operator)} · ${show.mode === "rehearsal" ? "rehearsal (never demotes the dance)" : "LIVE performance"} · <span id="runState">${initialRun && initialRun.running ? "running" : "starting…"}</span></div>
+    <div id="runFall"></div>
     <pre id="runLog" class="mono" style="background:var(--bg-1);border:1px solid var(--border);border-radius:var(--r);padding:10px;max-height:240px;overflow:auto;font-size:11.5px;white-space:pre-wrap;margin:0"></pre>
     <div id="runOutcome"></div>
   </div></div>`);
   $("#modalRoot").appendChild(bg);
   const phaseEl = $("#runPhase", bg), stateEl = $("#runState", bg),
-    logEl = $("#runLog", bg), outEl = $("#runOutcome", bg);
-  let timer = null, ended = false;
+    logEl = $("#runLog", bg), outEl = $("#runOutcome", bg), fallEl = $("#runFall", bg);
+  let timer = null, ended = false, fallDetected = false;
+  // Red banner shown the moment the runtime's fall detector trips: the damp + onboard
+  // handoff already happened on the robot; the operator should record this as an Incident.
+  const showFall = () => {
+    if (!fallEl || fallEl.innerHTML) return;  // inject once
+    fallEl.innerHTML = `<div style="background:var(--danger);color:#fff;font-weight:700;border-radius:var(--r);padding:11px 14px;margin:0 0 10px;display:flex;align-items:center;gap:9px">${svg('<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>', "#fff")}<div>FALL DETECTED — damped + handed to onboard</div></div>`;
+  };
   const drawOutcome = () => {
     ended = true;
+    if (fallDetected) showFall();
     // Reuse the existing outcome machinery (POST /api/shows/{id}/outcome ->
-    // shows.record_outcome). An unresolved show blocks the next run.
-    outEl.innerHTML = `<div class="deploy-lock" style="margin-top:14px"><b style="font-size:14px">Show ended — record how it went</b><p style="font-size:12px;color:var(--text-faint);margin:6px 0 12px">Required before the next run: an unresolved show is blocked.</p><div class="row"><button class="btn btn-ghost" data-run-outcome="clean">Clean ✓</button><button class="btn btn-ghost" data-run-outcome="aborted">Aborted</button><button class="btn btn-danger" data-run-outcome="incident">Incident</button></div></div>`;
+    // shows.record_outcome). An unresolved show blocks the next run. On a fall we
+    // PRE-SELECT Incident (which demotes the dance) but never auto-submit — the
+    // operator still confirms by clicking. record_outcome's logic is untouched.
+    const fall = fallDetected;
+    const lede = fall
+      ? `A fall was detected — <b style="color:var(--danger)">Incident</b> is pre-selected. Confirm to record it (this demotes the dance). You may still override.`
+      : `Required before the next run: an unresolved show is blocked.`;
+    outEl.innerHTML = `<div class="deploy-lock" style="margin-top:14px"><b style="font-size:14px">Show ended — record how it went</b><p style="font-size:12px;color:var(--text-faint);margin:6px 0 12px">${lede}</p><div class="row"><button class="btn btn-ghost" data-run-outcome="clean">Clean ✓</button><button class="btn btn-ghost" data-run-outcome="aborted">Aborted</button><button class="btn btn-danger" data-run-outcome="incident"${fall ? ' data-preselected="1" style="box-shadow:0 0 0 2px var(--bg-2),0 0 0 4px var(--danger)"' : ""}>Incident${fall ? " ●" : ""}</button></div></div>`;
     $$("[data-run-outcome]", bg).forEach(b => b.onclick = async () => {
       const result = b.dataset.runOutcome;
       try {
@@ -659,6 +673,9 @@ function openRunMonitor(show, initialRun) {
         bg.remove(); await refreshDances(); if (S.cur === "show") RENDER.show();
       } catch (err) { toast(err.message, "err"); }
     });
+    // Pre-select (focus) Incident so the operator's confirm is a single click — but the
+    // click is theirs to make; we do NOT submit for them.
+    if (fall) { const inc = $('[data-run-outcome="incident"]', bg); if (inc) inc.focus(); }
   };
   const poll = async () => {
     let st; try { st = await api("/api/shows/runs/current"); } catch { return; }
@@ -666,6 +683,7 @@ function openRunMonitor(show, initialRun) {
     stateEl.textContent = st.running ? "running" : "exited";
     logEl.textContent = (st.last_lines || []).join("\n") || "(waiting for output…)";
     logEl.scrollTop = logEl.scrollHeight;
+    if (st.fall_detected) { fallDetected = true; showFall(); }  // latch: surface a fall as soon as seen
     if (!st.running && !ended) { if (timer) { clearInterval(timer); timer = null; } drawOutcome(); }
   };
   timer = setInterval(poll, 1000);

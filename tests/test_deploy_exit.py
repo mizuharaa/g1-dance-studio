@@ -323,27 +323,43 @@ def _pitch_R(deg):
     return np.array([[np.cos(t), 0, np.sin(t)], [0, 1.0, 0], [-np.sin(t), 0, np.cos(t)]])
 
 
-def test_fall_detector_trips_on_topple_not_on_dance_tilt(monkeypatch):
+def test_fall_signal_topple_and_choreography_relative_height(monkeypatch):
     monkeypatch.setattr(dr, "FALL_UPRIGHT_MIN", 0.35)
-    # upright and a dance-scale lean do NOT trip (real Thriller max tilt was 26.6 deg)
-    dr._check_fall(np.eye(3), 0)
-    dr._check_fall(_pitch_R(26), 10)
-    dr._check_fall(_pitch_R(60), 20)          # 0.50 uprightness — still clear of 0.35
-    # a genuine topple trips with a clear, greppable FALL message (app surfaces it)
-    with pytest.raises(RuntimeError, match="FALL DETECTED"):
-        dr._check_fall(_pitch_R(80), 99)
-    with pytest.raises(RuntimeError, match="FALL DETECTED"):
-        dr._check_fall(_pitch_R(120), 5)      # inverted
-    # disabled -> never trips, even inverted
-    monkeypatch.setattr(dr, "FALL_UPRIGHT_MIN", 0.0)
-    dr._check_fall(_pitch_R(179), 1)
+    monkeypatch.setattr(dr, "FALL_HEIGHT_DROP_M", 0.15)
+    # upright + dance-scale lean + on-height -> no signal (real Thriller max tilt 35.7 deg)
+    assert dr._fall_signal(np.eye(3), 0.7, 0.7, 0.0)[0] is False
+    assert dr._fall_signal(_pitch_R(26), 0.7, 0.7, 0.0)[0] is False
+    assert dr._fall_signal(_pitch_R(60), 0.7, 0.7, 0.0)[0] is False    # 0.50 uprightness, clear
+    # topple -> signal
+    assert dr._fall_signal(_pitch_R(80), 0.7, 0.7, 0.0)[0] is True
+    # height collapse: upright but sunk 0.2 m below the choreographed height -> signal
+    assert dr._fall_signal(np.eye(3), 0.5, 0.7, 0.0)[0] is True
+    # an INTENTIONAL squat that matches the choreography (ref_dz also -0.2) -> NO signal
+    assert dr._fall_signal(np.eye(3), 0.5, 0.7, -0.2)[0] is False
 
 
-def test_fall_detector_default_threshold_is_conservative():
+def test_fall_detector_debounces_single_tick(monkeypatch):
+    monkeypatch.setattr(dr, "FALL_UPRIGHT_MIN", 0.35)
+    monkeypatch.setattr(dr, "FALL_HEIGHT_DROP_M", 0.15)
+    monkeypatch.setattr(dr, "FALL_CONFIRM_TICKS", 3)
+    # a SINGLE toppled tick must NOT raise (else it would damp a healthy robot on one glitch)
+    rt = dr._check_fall(0, _pitch_R(80), 0.7, 0.7, 0.0, 0); assert rt == 1
+    rt = dr._check_fall(rt, _pitch_R(80), 0.7, 0.7, 0.0, 1); assert rt == 2
+    # one good tick RESETS the counter (transient glitch cleared)
+    assert dr._check_fall(rt, np.eye(3), 0.7, 0.7, 0.0, 2) == 0
+    # only FALL_CONFIRM_TICKS in a row raise
+    rt = dr._check_fall(0, _pitch_R(80), 0.7, 0.7, 0.0, 10)
+    rt = dr._check_fall(rt, _pitch_R(80), 0.7, 0.7, 0.0, 11)
+    with pytest.raises(RuntimeError, match="FALL DETECTED"):
+        dr._check_fall(rt, _pitch_R(80), 0.7, 0.7, 0.0, 12)
+
+
+def test_fall_detector_default_thresholds():
     if "FALL_UPRIGHT_MIN" in os.environ:
         pytest.skip("FALL_UPRIGHT_MIN overridden in env")
-    # ~70 deg tilt: well past any dance lean, well before flat-on-the-floor
     assert dr.FALL_UPRIGHT_MIN == pytest.approx(0.35)
+    assert dr.FALL_HEIGHT_DROP_M == pytest.approx(0.15)
+    assert dr.FALL_CONFIRM_TICKS >= 2                       # debounce is on
     assert float(np.degrees(np.arccos(dr.FALL_UPRIGHT_MIN))) > 60.0
 
 
