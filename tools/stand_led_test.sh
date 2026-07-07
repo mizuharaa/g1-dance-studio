@@ -15,7 +15,10 @@ set -u
 cd "$(dirname "$0")/.." || exit 1
 PY="$HOME/miniconda3/envs/tv/bin/python"
 IFACE=enp0s31f6
-ISO=data/policies/thriller_standhold_iso
+# Motion dir + run length are overridable so the same LED-cued rig validates the isolated
+# stand hold (default) OR the full dance+tail candidate (POLICY_DIR=... MAX_SECS=57).
+ISO="${POLICY_DIR:-data/policies/thriller_standhold_iso}"
+MAX_SECS="${MAX_SECS:-13}"
 
 led() { # r g b  — set the head LED and exit (own short-lived DDS participant)
   "$PY" - "$IFACE" "$1" "$2" "$3" <<'PYEOF' 2>/dev/null
@@ -32,7 +35,7 @@ PYEOF
 echo ">> LED BLUE (our controller will hold the robot)"
 led 0 0 255
 
-echo ">> running stand-handoff test (10s settle + 3s deliberate hold, then handoff)"
+echo ">> running stand-handoff test on $ISO (max ${MAX_SECS}s, then handoff)"
 while IFS= read -r line; do
   printf '%s\n' "$line"
   case "$line" in
@@ -45,7 +48,7 @@ while IFS= read -r line; do
       ;;
   esac
 done < <(HANDOFF_HOLD_S=3.0 CONFIRMED_BY_HUMAN=alois "$PY" -u -m pipeline.deploy_runtime \
-           --mode ground-run-legodom --exit stand --max-secs 13 --i-will-watch-the-robot \
+           --mode ground-run-legodom --exit stand --max-secs "$MAX_SECS" --i-will-watch-the-robot \
            --policy "$ISO/policy.onnx" --meta "$ISO/policy_meta.json" \
            --motion-npz "$ISO/thriller_deploy.npz" 2>&1)
 

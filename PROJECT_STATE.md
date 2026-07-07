@@ -1860,3 +1860,21 @@ human-supervised session (NOT autonomous — no ground motion has run):
   re-verify (needs the GPU box back). The pose-match (deeper) option was NOT needed.
 - Robot left on onboard 'ai' balance (handoff restores it). LED test tool + iso motion are the
   reusable validation rig.
+
+## 2026-07-07 — FULL DANCE+TAIL STAND-TO-STAND VALIDATED ON HARDWARE (tether). "Stand after the dance" DELIVERED (capability).
+- Ran thriller_standtail_candidate (v3e sharp dance + 2.5s return-to-default + 1.5s hold, 2709
+  frames/54.2s) on the tether, --exit stand with the 0.5s overlap default, LED-cued.
+- 2 clean full runs (telemetry 20260707-134428, -135541): 2709/2709 ticks, no aborts/cap trips,
+  arms max 16.0/16.1 (< cap 22), dance gyro p95 0.89/0.91, temp 55-56C. Return-to-standing tail
+  settled calm (2.3 deg drift). **User verdict: dance clean AND handoff PLANTED (no catch-step)**
+  after a real dance — same clean result as the isolated handoff. Full stand-to-stand works.
+- So the complete flow is hardware-proven: stand (onboard) -> dance on command -> ease to
+  standing -> hand back to onboard balance PLANTED. The overlap fix (0.5s) is what makes the
+  handoff clean; the return-to-standing tail is what lets --exit stand engage.
+- tools/stand_led_test.sh parameterized (POLICY_DIR / MAX_SECS) as the reusable LED-cued rig.
+- REMAINING for a SHOW-READY standing-end Thriller (capability is proven; this is process):
+  the candidate's dance == the promoted v3e motion, but the candidate (with tail) has NOT been
+  through the signed held-out sim exam (mjlab box deleted). To make the standing-end the
+  official show motion: author the return tail into the show motion + re-run the 3x held-out
+  exam (needs the GPU box recreated) + re-promote. Hardware behavior is already validated.
+- Robot left on onboard 'ai' balance.
