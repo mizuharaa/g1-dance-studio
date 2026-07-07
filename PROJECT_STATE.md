@@ -1707,3 +1707,19 @@ human-supervised session (NOT autonomous — no ground motion has run):
   per-dance knob.
 - Box after these: nothing queued -> pull model_4999 checkpoints (s2r, s2r-b) + user
   deletes box in console.
+
+## 2026-07-07 (07:50 ICT) — BACKFLIP LANE CLOSED (2 attempts, conclusive): the human-mocap flip is beyond the G1's actuator envelope at true effort limits.
+- Attempt 2 (anti-skip fix) failed EXACTLY as diagnostically hoped: skip optimum gone
+  (0/64 "survive upright" vs 64/64 in a1), policy genuinely launches — knee saturates at
+  its exact 139/139 Nm rating (p95 134), ankle 50/50, waist 50/50, impact 199 m/s² — but
+  achieves 0.165 rad mean rotation of 7.34 required (~2%) before the apex check kills it.
+- Cross-check (measurement discipline): intake gate had already flagged reference peak
+  joint velocities 40.6 rad/s with 6 joints over the 20-37 rad/s motor ratings. Two
+  attempts bracketing the termination-design space + actuator saturation + intake
+  velocity audit = converging evidence, verdict labeled DECISIVE.
+- Deliverables: docs/DYNAMIC_SKILLS.md §6 finalized (lane verdict + path forward = author/
+  source a G1-feasible lower-amplitude reference — USER decision, not attempt-3);
+  evidence data/reports/acro/attempt{1,2}/; renders data/previews/rollout_acro{1,2}.mp4.
+- Remaining on box: train-thriller-v3e (~4h) -> autopilot verdict decides the per-joint
+  clamp/prep_motion standard. After that: pull s2r/s2r-b model_4999 checkpoints, then BOX
+  DELETE (user console click) — nothing else queued.

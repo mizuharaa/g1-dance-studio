@@ -122,9 +122,29 @@ render `data/previews/rollout_acro1.mp4`. Peak torques even without flipping:
 knee 114–123/139 Nm, ankle saturated 50/50 Nm — supports §3's landing-load
 concern.
 
-**Attempt 2 (train-acro-2, running): single delta — in-grace flip-skip
-detector.** Inside the grace window a loose anchor_ori check
-(`IN_GRACE_ORI_THRESHOLD = 1.7`, metric max 2.0) terminates an upright robot
-while the reference is inverted (a flipper with ≤~130° phase lag stays under
-~1.4). Skipping now dies at reference apex; the adaptive sampler refocuses on
-the flight bins. Verdict lands in `exports/acro2/RESULT.txt`.
+**Attempt 2 (train-acro-2, 10k iters, 2026-07-07): FAILED — and the failure
+mode changed exactly as the fix predicted, which is what makes the finding
+conclusive.** The in-grace flip-skip detector (`IN_GRACE_ORI_THRESHOLD = 1.7`)
+removed the skip optimum: nobody "survives upright" anymore (0/64 survived).
+The policy now genuinely attempts the launch — knee torque saturates at its
+exact rating (139/139 Nm, p95 134), ankle 50/50, waist 50/50, impact 199 m/s²
+— but achieves only **0.165 rad mean rotation of the 7.34 rad required (~2%)**
+before dying at the apex check. Evidence: `data/reports/acro/attempt2/`,
+render `data/previews/rollout_acro2.mp4`.
+
+**LANE VERDICT (2 attempts, cross-checked): this reference is beyond the G1's
+actuator envelope at TRUE effort limits.** Independent corroboration from
+intake (§2): the reference's own peak joint velocities (40.6 rad/s, 6 joints
+over the 20–37 rad/s ratings) already said the maneuver lives outside the
+hardware envelope. A1 (skip-friendly terminations) and A2 (skip-punishing)
+bracket the recipe space: with tracking-RL and honest limits, the G1 cannot
+produce the launch impulse + angular momentum this human flip demands.
+Publicly demonstrated G1 flips use maneuver-specific trajectories with much
+lower amplitude, not human-mocap tracking.
+
+**Path forward (USER decision, not auto-continued):** a backflip requires a
+G1-FEASIBLE reference — authored or sourced at lower amplitude (smaller foot
+rise, longer wind-up, per-joint torque-aware retiming) — which is a
+choreography/R&D investment, not an attempt-3 knob. Until then the backflip
+is closed as: sim evidence says no, hardware question never opens (§5's
+recommendation stands, now with data).
