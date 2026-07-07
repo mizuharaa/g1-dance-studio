@@ -161,6 +161,16 @@ ANKLE_TRIM_DEG = float(os.environ.get("ANKLE_TRIM_DEG", "0"))
 ANKLE_TRIM_MAX_DEG = 6.0
 ANKLE_PITCH_IDX = [4, 10]  # left/right ankle_pitch in the 29-joint order
 
+# FALL DETECTOR: a PHYSICAL-state trigger alongside the action-based ones. R_base[2,2] is the
+# torso z-axis' world-vertical component (+1 fully upright, 0 horizontal, <0 inverted); a fall
+# is the torso toppling past this. Catches a fall where the policy's ACTIONS still look bounded
+# (the robot is going down but the outputs are finite/in-cap). On trip the mode's except/finally
+# damps immediately and hands control back to onboard 'ai' (vendor recovery / operator remote) —
+# the interim recovery; a TRAINED get-up policy is future work (needs the GPU box). Default 0.35
+# (~70 deg tilt) is conservative so deep crouches/leans in a dance never false-trigger; a genuine
+# topple blows well past it. Set FALL_UPRIGHT_MIN=0 to disable.
+FALL_UPRIGHT_MIN = float(os.environ.get("FALL_UPRIGHT_MIN", "0.35"))
+
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
     ("command", 58), ("motion_anchor_pos_b", 3), ("motion_anchor_ori_b", 6),
@@ -945,6 +955,20 @@ def _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0):
         time.sleep(1.0 / CONTROL_HZ)
 
 
+def _check_fall(R_base, tick):
+    """Raise if the torso has toppled past FALL_UPRIGHT_MIN (a fall), so the caller's
+    except/finally damps immediately and hands back to onboard. R_base is the body->world
+    rotation; R_base[2,2] is torso uprightness (+1 up, 0 horizontal). No-op if disabled."""
+    if FALL_UPRIGHT_MIN <= 0:
+        return
+    upright = float(R_base[2, 2])
+    if upright < FALL_UPRIGHT_MIN:
+        tilt = float(np.degrees(np.arccos(np.clip(upright, -1.0, 1.0))))
+        raise RuntimeError(
+            f"FALL DETECTED at tick {tick}: torso {tilt:.0f} deg from vertical "
+            f"(uprightness {upright:.2f} < {FALL_UPRIGHT_MIN}) -> damping + onboard handoff")
+
+
 def mode_move_to_default(meta, session, ref, iface, secs, watch):
     if not watch:
         raise SystemExit("REFUSED: pass --i-will-watch-the-robot")
@@ -1414,6 +1438,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
             t0 = time.time()
             q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             R_base = quat_wxyz_to_mat(imu_quat)
+            _check_fall(R_base, tick)   # physical-state fall trigger -> damp + onboard handoff
             v_body, h_est, _ = legodom.estimate(q, dq, R_base, gyro)
             v_world = R_base @ v_body
             ref_disp = ref.at(tick)[2] - ref.apos[0]

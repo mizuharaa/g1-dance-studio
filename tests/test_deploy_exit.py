@@ -315,6 +315,39 @@ def test_arm_action_cap_scale_default_is_2_2():
 
 
 # ======================================================================================
+# FALL DETECTOR: physical-state trigger (torso topple) -> damp + onboard handoff
+# ======================================================================================
+def _pitch_R(deg):
+    """Body->world rotation for a `deg` forward pitch; R[2,2]=cos(deg)=torso uprightness."""
+    t = np.radians(deg)
+    return np.array([[np.cos(t), 0, np.sin(t)], [0, 1.0, 0], [-np.sin(t), 0, np.cos(t)]])
+
+
+def test_fall_detector_trips_on_topple_not_on_dance_tilt(monkeypatch):
+    monkeypatch.setattr(dr, "FALL_UPRIGHT_MIN", 0.35)
+    # upright and a dance-scale lean do NOT trip (real Thriller max tilt was 26.6 deg)
+    dr._check_fall(np.eye(3), 0)
+    dr._check_fall(_pitch_R(26), 10)
+    dr._check_fall(_pitch_R(60), 20)          # 0.50 uprightness — still clear of 0.35
+    # a genuine topple trips with a clear, greppable FALL message (app surfaces it)
+    with pytest.raises(RuntimeError, match="FALL DETECTED"):
+        dr._check_fall(_pitch_R(80), 99)
+    with pytest.raises(RuntimeError, match="FALL DETECTED"):
+        dr._check_fall(_pitch_R(120), 5)      # inverted
+    # disabled -> never trips, even inverted
+    monkeypatch.setattr(dr, "FALL_UPRIGHT_MIN", 0.0)
+    dr._check_fall(_pitch_R(179), 1)
+
+
+def test_fall_detector_default_threshold_is_conservative():
+    if "FALL_UPRIGHT_MIN" in os.environ:
+        pytest.skip("FALL_UPRIGHT_MIN overridden in env")
+    # ~70 deg tilt: well past any dance lean, well before flat-on-the-floor
+    assert dr.FALL_UPRIGHT_MIN == pytest.approx(0.35)
+    assert float(np.degrees(np.arccos(dr.FALL_UPRIGHT_MIN))) > 60.0
+
+
+# ======================================================================================
 # ENTRY handoff (onboard -> policy): pre-arm before release + catch the current pose
 # ======================================================================================
 @needs_artifacts
