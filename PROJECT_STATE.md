@@ -1904,3 +1904,29 @@ human-supervised session (NOT autonomous — no ground motion has run):
   policy needs box), operator-console UI wiring of the above, pipeline shakeout on real videos
   (needs box), adversarial safety re-review. Robot-facing: tether-validate the entry handoff, then
   slack-tether->free untethered runs.
+
+## 2026-07-07 (eve) — Backlog modules BUILT + WIRED into the app. Suite green throughout.
+- 4 modules (4-lane workflow; venue lane's structured-output summary failed but code+tests landed):
+  pipeline/venue.py (multi-venue registry + active excursion limit), pipeline/policy_store.py
+  (content-addressed version store + rollback), pipeline/preshow.py (checklist evaluator +
+  show-phase ownership model), pipeline/setlist.py (run-plan w/ audio cues + resume-safe run
+  state machine). 56 new tests.
+- WIRED into the engine + app:
+  - venue -> vet gate: vet_motion._excursion_limit() resolves env-override > ACTIVE venue >
+    1.5 fallback (registry error never disables the gate). App: Perform tab VENUE selector
+    (switch/add) updates the limit live.
+  - policy_store -> shows.promote snapshots every show-ready promotion (non-blocking). App:
+    dance detail POLICY VERSIONS list + rollback (rollback restores files + resets to draft;
+    the show-ready gate is never bypassed). Backfilled Thriller's current version (e68335aa).
+  - preshow -> /api/dances/{id}/checklist (live robot ping + active venue + acks) and
+    /api/show-phases. App: show-phase strip (walk-on/dance/walk-off ownership) on Perform.
+    (The app's existing per-show checklist wizard was left intact; the richer evaluator is
+    available via API for the operator-console polish phase.)
+  - setlist -> /api/setlists/{id}/run-plan (audio offsets + all-show-ready blockers).
+    (Existing set-list runner UI left intact; endpoint available.)
+- Endpoints TestClient-verified; desktop app restarted on :8735 with the new code. Runtime data
+  (data/venues, data/policy_store, data/setlists/*/run.json) gitignored.
+- SOFTWARE STILL LEFT: fall detection+recovery (deploy_runtime-coupled + recovery policy needs
+  box); operator-console polish (wire the preshow evaluator + setlist run-plan into richer UI);
+  pipeline shakeout on real videos (needs box); adversarial safety re-review. Robot: tether-
+  validate the ENTRY handoff, then untethered.
