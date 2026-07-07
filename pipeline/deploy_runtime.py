@@ -54,7 +54,11 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_META = ROOT / "data/policies/thriller/policy_meta.json"
 DEFAULT_MOTION = ROOT / "data/policies/thriller/thriller_deploy.npz"
 DEFAULT_POLICY = ROOT / "data/policies/thriller/policy.onnx"
-IFACE = "enp0s31f6"
+# Robot control interface (CycloneDDS). Default = the wired ethernet the teleop uses. Override
+# with ROBOT_IFACE (env) or --iface for a WIRELESS show — but note real-time control over wifi
+# risks jitter/dropout on the 50 Hz balance loop (the read_state comms-loss deadman damps on a
+# stale read; validate wifi latency/jitter first — see docs/WIRELESS_SHOW.md).
+IFACE = os.environ.get("ROBOT_IFACE", "enp0s31f6")
 TORSO_NPZ_IDX = 15          # torso_link: mjlab body 16 minus the dropped world body
 CONTROL_HZ = 50.0
 # Firm approach gains for reaching the ready pose (verified on hardware 2026-07-05):
