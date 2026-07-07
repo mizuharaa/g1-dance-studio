@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 import numpy as np
@@ -143,6 +143,7 @@ class Venue:
     width_m: float = 0.0           # rectangle
     depth_m: float = 0.0           # rectangle
     margin_m: float = DEFAULT_MARGIN_M
+    notes: str = ""                # free text, e.g. "living room, hardwood"
     created_at: float = 0.0
 
     @property
@@ -175,52 +176,200 @@ def _slug(name: str) -> str:
     return keep or "venue"
 
 
-def save_venue(v: Venue) -> Venue:
+def default_venue() -> Venue:
+    """The default venue object (1.5 m max excursion), not necessarily saved."""
+    return Venue(id="home-2m", name=DEFAULT_VENUE["name"], shape="circle",
+                 radius_m=DEFAULT_VENUE["radius_m"], margin_m=DEFAULT_MARGIN_M)
+
+
+# --------------------------------------------------------------------------- #
+# Registry: ONE data/venues/venues.json holding the named venues plus which one
+# is ACTIVE. There is no per-file store — this single document is the source of
+# truth, so the active pointer and the venue list can never drift apart. Absent,
+# empty or corrupt => re-seeded from the default "Home (2 m)" (behaviour never
+# regresses to "no venue"). Every write is atomic (tmp + fsync + os.replace) and
+# goes through VENUES_DIR, which tests monkeypatch to an isolated tmp dir.
+# --------------------------------------------------------------------------- #
+REGISTRY_FILENAME = "venues.json"
+
+
+def _registry_path() -> Path:
+    # Read VENUES_DIR at call time (not import) so tests can monkeypatch it.
+    return VENUES_DIR / REGISTRY_FILENAME
+
+
+def _venue_from_dict(d: dict) -> Venue:
+    """Tolerant reader: keep only known Venue fields, ignore any extras."""
+    known = {f.name for f in fields(Venue)}
+    return Venue(**{k: d[k] for k in known if k in d})
+
+
+def _seed_registry() -> dict:
+    v = default_venue()
+    return {"active": v.id, "venues": [asdict(v)]}
+
+
+def _save_registry(reg: dict) -> None:
     VENUES_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = VENUES_DIR / f"{v.id}.json.tmp"
-    _durable_write(tmp, json.dumps(asdict(v), indent=2))
-    os.replace(tmp, VENUES_DIR / f"{v.id}.json")
+    path = _registry_path()
+    tmp = path.with_name(path.name + ".tmp")
+    _durable_write(tmp, json.dumps(reg, indent=2))
+    os.replace(tmp, path)
+
+
+def _load_registry() -> dict:
+    """Return {'active': id, 'venues': [venue-dict, ...]} — never empty.
+
+    A missing/corrupt/empty file is (re)seeded from the default and persisted; a
+    dangling active pointer is repaired to the first venue; individually corrupt
+    entries are dropped rather than made fatal."""
+    path = _registry_path()
+    if path.is_file():
+        try:
+            raw = json.loads(path.read_text())
+            venues = []
+            for d in raw.get("venues", []):
+                try:
+                    venues.append(asdict(_venue_from_dict(d)))
+                except (TypeError, ValueError):
+                    continue  # skip a corrupt entry rather than break the list
+            if venues:
+                active = raw.get("active")
+                if not any(v["id"] == active for v in venues):
+                    active = venues[0]["id"]
+                return {"active": active, "venues": venues}
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+    reg = _seed_registry()
+    _save_registry(reg)
+    return reg
+
+
+def _upsert(reg: dict, v: Venue) -> None:
+    d = asdict(v)
+    for i, e in enumerate(reg["venues"]):
+        if e.get("id") == v.id:
+            reg["venues"][i] = d
+            return
+    reg["venues"].append(d)
+
+
+def _unique_id(base: str, taken) -> str:
+    if base not in taken:
+        return base
+    i = 2
+    while f"{base}-{i}" in taken:
+        i += 1
+    return f"{base}-{i}"
+
+
+def _validate_circle(radius_m, margin_m):
+    """Enforce radius > margin >= 0 (=> usable excursion = radius - margin > 0)."""
+    try:
+        r, mg = float(radius_m), float(margin_m)
+    except (TypeError, ValueError):
+        raise ValueError("radius_m and margin_m must be numbers")
+    if mg < 0:
+        raise ValueError(f"margin_m must be >= 0 (got {mg})")
+    if not r > mg:
+        raise ValueError(
+            f"radius_m ({r}) must exceed margin_m ({mg}); the usable excursion "
+            f"radius - margin must be > 0")
+    return r, mg
+
+
+def save_venue(v: Venue) -> Venue:
+    """Upsert a fully-formed Venue into the registry (keyed by id)."""
+    reg = _load_registry()
+    _upsert(reg, v)
+    _save_registry(reg)
     return v
 
 
 def create_venue(name: str, shape: str = "circle", *, radius_m: float = 2.0,
                  width_m: float = 0.0, depth_m: float = 0.0,
-                 margin_m: float = DEFAULT_MARGIN_M) -> Venue:
+                 margin_m: float = DEFAULT_MARGIN_M, notes: str = "") -> Venue:
+    """Add a new venue (unique timestamped id) and persist it. Kept permissive
+    (rectangles, any size) for programmatic callers; the UI drives the validated,
+    name-keyed add_or_update_venue instead."""
+    reg = _load_registry()
     v = Venue(id=_slug(name) + "-" + time.strftime("%H%M%S"), name=name,
               shape=shape, radius_m=radius_m, width_m=width_m, depth_m=depth_m,
-              margin_m=margin_m, created_at=time.time())
-    return save_venue(v)
+              margin_m=margin_m, notes=notes, created_at=time.time())
+    _upsert(reg, v)
+    _save_registry(reg)
+    return v
+
+
+def add_or_update_venue(name: str, *, radius_m: float,
+                        margin_m: float = DEFAULT_MARGIN_M,
+                        shape: str = "circle", notes: str = "",
+                        make_active: bool = False) -> Venue:
+    """Create a circular venue, or update the existing one with the same name.
+
+    Validates radius > margin >= 0. Reuses the id (and created_at) of an existing
+    same-name entry so an update never spawns a duplicate. Persists atomically and,
+    when make_active is set, points the active selector at it."""
+    if not str(name).strip():
+        raise ValueError("venue name must be non-empty")
+    r, mg = _validate_circle(radius_m, margin_m)
+    reg = _load_registry()
+    existing = next((e for e in reg["venues"] if e.get("name") == name), None)
+    if existing is not None:
+        vid = existing["id"]
+        created = existing.get("created_at", 0.0) or time.time()
+    else:
+        vid = _unique_id(_slug(name), {e["id"] for e in reg["venues"]})
+        created = time.time()
+    v = Venue(id=vid, name=name, shape=shape, radius_m=r, margin_m=mg,
+              notes=notes, created_at=created)
+    _upsert(reg, v)
+    if make_active:
+        reg["active"] = v.id
+    _save_registry(reg)
+    return v
 
 
 def list_venues() -> list[Venue]:
-    """All venues; ensures the default 'Home (2 m)' exists so behaviour never
-    regresses to an empty set."""
-    VENUES_DIR.mkdir(parents=True, exist_ok=True)
-    out = []
-    for p in sorted(VENUES_DIR.glob("*.json")):
-        try:
-            out.append(Venue(**json.loads(p.read_text())))
-        except (json.JSONDecodeError, TypeError, ValueError):
-            continue  # skip a corrupt venue file rather than break the list
-    if not out:
-        out.append(create_venue(**DEFAULT_VENUE))
-    return out
+    """Every registered venue (default 'Home (2 m)' guaranteed present)."""
+    return [_venue_from_dict(d) for d in _load_registry()["venues"]]
 
 
-def get_venue(venue_id: str) -> Venue | None:
-    p = VENUES_DIR / f"{venue_id}.json"
-    if not p.is_file():
-        return None
-    try:
-        return Venue(**json.loads(p.read_text()))
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return None
+def get_venue(key: str) -> Venue | None:
+    """Look up a venue by id or by name; None if neither matches."""
+    for d in _load_registry()["venues"]:
+        if d.get("id") == key or d.get("name") == key:
+            return _venue_from_dict(d)
+    return None
 
 
-def default_venue() -> Venue:
-    """The default venue object (1.5 m max excursion), not necessarily saved."""
-    return Venue(id="home-2m", name=DEFAULT_VENUE["name"], shape="circle",
-                 radius_m=DEFAULT_VENUE["radius_m"], margin_m=DEFAULT_MARGIN_M)
+def set_active_venue(key: str) -> Venue:
+    """Point the active selector at the venue with this id or name (the vet gate
+    then reads its excursion). Raises ValueError for an unknown venue."""
+    reg = _load_registry()
+    match = next((e for e in reg["venues"]
+                  if e.get("id") == key or e.get("name") == key), None)
+    if match is None:
+        raise ValueError(f"no venue with id or name {key!r}")
+    reg["active"] = match["id"]
+    _save_registry(reg)
+    return _venue_from_dict(match)
+
+
+def get_active_venue() -> Venue:
+    """The currently selected venue (seeds/repairs to the default as needed)."""
+    reg = _load_registry()
+    for d in reg["venues"]:
+        if d.get("id") == reg["active"]:
+            return _venue_from_dict(d)
+    # _load_registry keeps active valid; this is belt-and-braces.
+    return _venue_from_dict(reg["venues"][0]) if reg["venues"] else default_venue()
+
+
+def active_max_excursion_m() -> float:
+    """Max root excursion (m) the vet gate should enforce for the active venue —
+    the per-venue replacement for the historical hardcoded 1.5 m."""
+    return get_active_venue().max_excursion_m
 
 
 # --------------------------------------------------------------------------- #
