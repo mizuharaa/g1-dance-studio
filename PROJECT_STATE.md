@@ -1773,3 +1773,5 @@ human-supervised session (NOT autonomous — no ground motion has run):
   Audio.mp3, 48.6s, align 1.5s lead-in). Show default AUDIO_MODE=laptop (aux speaker).
 - Box: all evidence archived (data/reports/box_final/), checkpoints pulled, delete
   green-lit to user (their console click).
+
+## 2026-07-07 — GREENNODE BOX DELETED (user console click; verified: SSH refused + monitor unreachable). Meter stopped. All artifacts were local first.
