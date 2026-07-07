@@ -1878,3 +1878,29 @@ human-supervised session (NOT autonomous — no ground motion has run):
   official show motion: author the return tail into the show motion + re-run the 3x held-out
   exam (needs the GPU box recreated) + re-promote. Hardware behavior is already validated.
 - Robot left on onboard 'ai' balance.
+
+## 2026-07-07 (afternoon/eve) — Pipeline generalized (audio+stand-end), box-recreate runbook, ENTRY handoff built, software backlog in flight.
+- PIPELINE AUDIO + STAND-END (committed): a video's soundtrack now flows through — ExtractStage
+  captures it, ExportStage trims it to the danced WINDOW (the intro-trim, same offset as the
+  side-by-side) -> data/audio/<slug>/music.wav -> attach (1.5s lead-in). TrainStage rebuilds the
+  deployable with deploy_ramp stand_end=True so trained dances END STANDING. Verified for REAL on
+  the laptop (ffmpeg present). deploy_ramp got add_landing_ramp/make_deploy_csv(stand_end=). 2
+  stale golden tests un-staled (v3e sharp). Suite 402 passed.
+- BOX RECREATE RUNBOOK (docs/BOX_RECREATE_RUNBOOK.md): fast path if Network Volume g1dance-data
+  survived vs full re-provision; exact create-form fields, laptop reconnect (cloud.json+hostkey),
+  idempotent 00/10/20, + the two goals. TRAINING IS BLOCKED until the user recreates the box
+  (laptop has no GPU; console-only, no API).
+- ENTRY HANDOFF (committed, deploy_runtime): mirror of the exit overlap. Pre-arm publisher +
+  damp-ctx + signal-handler BEFORE releasing onboard (zero setup latency), then CATCH the current
+  pose ENTRY_CATCH_S=0.5s the instant onboard lets go, before easing to the ready pose. Closes the
+  release-window sag = FALL RISK untethered. Both ground modes. **NEEDS TETHER VALIDATION** before
+  untethered use (LED-cue the onboard->policy transition, watch the feet), exactly like the exit did.
+  With entry+exit both smooth, the full show flow works with NO damp: remote walks on (onboard 'ai')
+  -> button -> [entry handoff] -> dance -> [exit stand handoff] -> onboard 'ai' -> remote walks off.
+- SOFTWARE BACKLOG (4-lane workflow in flight): venue registry (multi-venue, active excursion limit),
+  policy version store + rollback, pre-show checklist + show-phase ownership model, set-list runner
+  robustness + show-time audio. New/owned modules; main wires shows.py/ui/vet after.
+- REMAINING SOFTWARE (post-backlog): fall detection+recovery (deploy_runtime-coupled + recovery
+  policy needs box), operator-console UI wiring of the above, pipeline shakeout on real videos
+  (needs box), adversarial safety re-review. Robot-facing: tether-validate the entry handoff, then
+  slack-tether->free untethered runs.
