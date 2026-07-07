@@ -1981,3 +1981,22 @@ human-supervised session (NOT autonomous — no ground motion has run):
   run env / deploy bundle). Arms unchanged (trained gains).
 - NEXT: free (tether-OFF) run is now evidence-supported (3x clean slack, tether not loading). User's
   conscious call — highest-risk step (no catch if it falls). If taken: 1.5x boost + full safety spine.
+
+## 2026-07-07 — 🏆🏆 FIRST FULLY UNTETHERED FULL DANCE. Thriller, tether OFF, complete routine, no fall, ended standing. THE MISSION MILESTONE.
+- Config: standtail candidate (v3e policy + dance + return-to-standing tail) + GROUND_LEG_KP_SCALE=1.5
+  (sagittal leg boost) + full safety spine (entry catch, fall detector @0.35/3-tick, exit stand
+  handoff) + ARM_ACTION_CAP_SCALE=2.2. ground-run-legodom, leg-odom estimator.
+- Result (telemetry 20260707-172354): 2709/2709 ticks, NO fall trip, clean stand handoff, dance-peak
+  torso tilt 13.9 deg (56 deg margin to the 70 deg fall trigger), p99 11.5, arms 15.8/22, legs 5.0/10,
+  gyro p95 0.93, temp 57C. **INDISTINGUISHABLE from the 3 slack-tether runs (14.0/14.5/14.2 deg)** —
+  proving the tether was never assisting; the robot was already free-balancing. USER CONFIRMED: full
+  dance free, ended standing, no fall.
+- Path to here this session: slack-tether stand PASS -> slack full dance LOADED THE TETHER at the
+  arm-accent section (roll-dominated lean 18.7 deg) -> option-2 leg-gain tuning: sagittal boost 1.5x
+  (roll boost is documented to backfire) cut the lean to ~14 deg (a firmer base steadied roll too) ->
+  3x clean slack -> 1 clean FREE. All handoffs + fall detector were tether-validated earlier today.
+- **DEPLOY CONTRACT for free Thriller: GROUND_LEG_KP_SCALE=1.5** (record on the deploy bundle / show
+  run env). Arms trained gains. The standtail motion (ends standing) is the free-capable artifact.
+- REMAINING to paid-show grade: free-run REPEATABILITY (3x clean free per the exam standard; got 1),
+  music-synced free run, then push tests. Make the standtail+boost config the official show (needs the
+  box to re-exam the standtail motion for a signed show-ready). Robot left on onboard 'ai'.
