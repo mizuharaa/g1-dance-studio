@@ -2053,3 +2053,21 @@ human-supervised session (NOT autonomous — no ground motion has run):
   R&D, backflip infeasible at true limits, separate policy + hardware-risk decision); wireless show
   (onboard DDS blocker; laptop-wifi control refused as unsafe); autonomous robot MOTION; sign the
   standtail+boost config show-ready (needs box). Side-by-side video is the ~50s Thriller, not 2-3 min.
+
+## 2026-07-07 (eve) — ONBOARD DDS: ROOT CAUSE FOUND (not fixable from a parallel subscriber). Upload path answered. 2-3min/jumps gated on box+video.
+- DDS (user: "do the DDS"): thorough attempt, 6 approaches, ALL fail PRECONDITION_NOT_MET. Confirmed via
+  a BENIGN-topic probe that it's a DOMAIN-LEVEL TYPE-registration conflict: master_service (C++) owns the
+  unitree_hg LowState_ type in the domain; our co-located Python participant can't re-register it (any
+  topic). Laptop works only because it's a separate-host wire participant. => A parallel Python DDS
+  subscriber co-located with master_service is the WRONG shape. RIGHT path = Unitree's onboard method:
+  run the policy INSIDE the control framework/container (qiayuanl/unitree:jazzy) that owns the type, OR
+  vendor guidance on XTypes/type-coexistence. Needs sudo/docker + Unitree docs + operator. Fully
+  characterized in docs/ONBOARD_DEPLOY.md. NOT solvable by config from our side; stopped guessing at the
+  live control net. Onboard setup (env+onnxruntime+code on PC2) stays staged for that path.
+- UPLOAD (user: "where do i upload"): the desktop app (:8735) Create/Studio tab -> "Choose file..." or
+  drag-drop the 2-3 min video -> POST /api/jobs/upload -> pipeline job. (The app + pipeline are wired.)
+- 2-3 MIN + JUMPS ("find a way + do it"): the WAY = upload the in-place 2-3min video (user) + recreate
+  the GPU box (user console clicks; docs/BOX_RECREATE_RUNBOOK) -> the app pipeline extracts/retargets/
+  trains/exams it. JUMPS: analyzable once retargeted (feasibility like check_acro_reference) — a small
+  Thriller hop may be feasible where the backflip was not; but it's a dynamic-skill track (own profile +
+  validation), NOT a drop-in. HARD GATE remains box + video (neither exists yet); cannot execute here.

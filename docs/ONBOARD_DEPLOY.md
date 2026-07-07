@@ -36,7 +36,37 @@ type from ITS SDK build. Our Python subscriber uses PC2's **`kc_ws` SDK (sha 58c
   (and that XML even names `eth0` while the control net is `eth1` — likely not master_service's actual
   config anyway).
 
-## Debug plan for the on-robot session (in order, each read-only until the last)
+## ROOT CAUSE FOUND (2026-07-07, six approaches tried)
+It is **not** the SDK version and **not** the `rt/lowstate` type specifically. A minimal probe
+subscribing to a **benign topic name** (`rt/PROBE_benign_xyz`) with the `LowState_` type **also**
+fails `PRECONDITION_NOT_MET`. `ChannelFactoryInitialize` succeeds; the FIRST `ChannelSubscriber.Init()`
+(topic/type creation) fails. So it is a **domain-level TYPE-registration conflict**: `master_service`
+(C++) has already registered the `unitree_hg` `LowState_` type in the DDS domain, and our co-located
+Python participant registering the same fully-qualified type name with a different sertype is rejected —
+for ANY topic name. The laptop avoids this because it is a separate host whose own domain instance
+negotiates the type over the wire (XTypes), never re-registering into `master_service`'s registry.
+
+Tried and FAILED (all same PRECONDITION_NOT_MET): default DDS config; `/home/kc_ws/cyclonedds.xml`;
+the laptop's working `~/robot` SDK on PC2; an explicit eth1 + SharedMemory-off config; benign topic
+name; both SDKs. => A **parallel Python DDS subscriber co-located with `master_service` cannot register
+the type.** This is the wrong integration shape, not a tuning problem.
+
+## THE RIGHT PATH (needs Unitree's onboard method + operator; this is how their demos work)
+Unitree's onboard policy demos do NOT stand up a competing participant. Options, best first:
+1. **Run the policy inside the robot's control framework/container** (the motion_tracking_controller /
+   `qiayuanl/unitree:jazzy` image referenced in docs/architecture.md), which already owns the compatible
+   `LowState_` type and the control loop — deploy the ONNX + our obs/action glue there. Needs `sudo`
+   docker access + Unitree's onboard-deploy docs.
+2. **Ask Unitree** for the supported way to read `rt/lowstate` from a second onboard process (a
+   CycloneDDS XTypes / type-discovery config that permits type coexistence, or a shared type library).
+3. **Fallback if wireless is required sooner:** laptop-in-the-loop but WIRELESS — see docs/WIRELESS_SHOW.md
+   + tools/wireless_preflight.py. HARD constraint: the control net (192.168.123.x) is physically the
+   ethernet/eth1; wifi does not reach it without a bridge, and tailscale adds VPN latency unfit for 50 Hz.
+   So this needs the robot to BRIDGE the control net onto wifi (or a wifi AP on the control subnet) AND
+   the preflight (RTT + DDS staleness p99 < ~10 ms, 0 loss, sustained) to PASS first. Higher risk than
+   onboard; the comms-loss deadman is the only backstop.
+
+## Superseded debug plan (kept for history — the SDK-swap hypothesis, now DISPROVEN)
 1. **Align the SDK.** Put the laptop's WORKING SDK (`~/robot/unitree_sdk2_python`, the one whose
    `LowState_` matches `master_service`) onto PC2 and import IT instead of `kc_ws`'s (PYTHONPATH or a
    venv install). Re-run `--mode read --iface eth1`. This is the leading hypothesis: same SDK the
