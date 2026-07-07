@@ -140,6 +140,7 @@ def test_stand_handoff_holds_then_restores_then_exits_and_never_damps(monkeypatc
 
     monkeypatch.setattr(dr, "_TELEM", None)
     monkeypatch.setattr(dr, "HANDOFF_HOLD_S", 0.2)                  # 0.2s * 50Hz = 10 holds
+    monkeypatch.setattr(dr, "HANDOFF_OVERLAP_S", 0.1)              # 0.1s * 50Hz = 5 overlap holds
     monkeypatch.setattr(dr, "_send_cmd", _fake_send)
     monkeypatch.setattr(dr.time, "sleep", lambda *a, **k: None)
     monkeypatch.setattr(dr, "_restore_motion_service", lambda *a, **k: order.append("restore"))
@@ -156,11 +157,14 @@ def test_stand_handoff_holds_then_restores_then_exits_and_never_damps(monkeypatc
     with pytest.raises(_ModeExit):
         dr._stand_handoff_and_exit(None, None, None, 5, meta, ref, kp_boost, kd_boost)
 
-    # exactly HANDOFF_HOLD_S worth of holding commands were sent
-    assert order.count("send") == 10
-    # ORDER: every hold send happens, THEN restore, THEN exit (stop publishing last)
-    last_send = max(i for i, x in enumerate(order) if x == "send")
-    assert last_send < order.index("restore") < order.index("exit")
+    # HANDOFF_HOLD_S (10) holds BEFORE restore, then HANDOFF_OVERLAP_S (5) overlap holds AFTER
+    assert order.count("send") == 15
+    ri = order.index("restore")
+    assert order[:ri].count("send") == 10          # 10 hold sends before handing off
+    assert order[ri:].count("send") == 5           # 5 overlap sends bridge the takeover
+    # ORDER: restore happens after the hold, overlap sends after restore, exit last
+    assert ri < order.index("exit")
+    assert max(i for i, x in enumerate(order) if x == "send") < order.index("exit")
     # NEVER damped on the stand path
     assert "damp" not in order and "damp_burst" not in order
     # every command held the FINAL standing pose at the PASSED holding gains (not damping)

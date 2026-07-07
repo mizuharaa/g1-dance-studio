@@ -1839,3 +1839,24 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - Full dance+tail candidate (thriller_standtail_candidate) NOT yet run on hardware — the isolated
   handoff is the same mechanism; running the full candidate adds the dance before an identical
   handoff. Do that next tether session if a standing show-end is wanted.
+
+## 2026-07-07 — STAND HANDOFF STEP SHRUNK TO NEGLIGIBLE (validated + replicated on tether). Root cause was a GAP, not just pose.
+- Diagnosis (measurement-first, tick-cross-checked): onboard 'ai' neutral pose is ~18 deg RMS
+  (max 42, elbows/hip-yaw/ankles) off the policy default we hand off at — I first suspected a
+  pose-mismatch step. IMPORTANT self-correction: my standalone lowstate read looked "frozen"
+  (0.01 deg variation) and I nearly called it stale; the lowstate TICK counter was advancing
+  (LIVE) — the robot was just held that steadily. Discipline check caught a false "stale" call.
+- User chose the LOW-RISK fix first: HANDOFF_OVERLAP_S — after SelectMode('ai') at the handoff,
+  keep commanding the SAME standing pose 0.5s so a latent onboard takeover never leaves the
+  robot briefly unheld. Same-pose command only -> no new-pose fall risk.
+- RESULT (user eyes, 2 replications, LED-cued via tools/stand_led_test.sh so the handoff moment
+  is visible): the small catch-step SHRANK to negligible/gone at 0.5s overlap vs a small shift
+  at 0.0. So the residual step was a brief unheld GAP at takeover, not (only) the pose mismatch.
+- Locked in: HANDOFF_OVERLAP_S default 0.0 -> 0.5 (env-overridable); test_deploy_exit updated to
+  assert 10 hold + 5 overlap sends around restore. 15/15 handoff tests pass.
+- STATE OF --exit stand: isolated handoff now validated CLEAN on the tether (settles calm ->
+  holds -> onboard takes over planted). Still to do for a standing SHOW end: run the full
+  dance+tail candidate on hardware, then author the standing tail into the real show motion +
+  re-verify (needs the GPU box back). The pose-match (deeper) option was NOT needed.
+- Robot left on onboard 'ai' balance (handoff restores it). LED test tool + iso motion are the
+  reusable validation rig.

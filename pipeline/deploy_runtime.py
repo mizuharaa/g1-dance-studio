@@ -78,6 +78,15 @@ RESTORE_MOTION_MODE = os.environ.get("RESTORE_MOTION_MODE", "ai")
 #                the end-of-run catch-step). This is UNVALIDATED on hardware (see the runtime
 #                docstring); every ABORT/FAULT path still damps immediately regardless of --exit.
 HANDOFF_HOLD_S = float(os.environ.get("HANDOFF_HOLD_S", "2.0"))
+# Optional OVERLAP: after SelectMode('ai') is re-asserted at the handoff, keep commanding
+# the SAME standing pose for this long so the robot is never briefly unheld if onboard's
+# takeover has latency (bridges a gap-induced catch-step). Commands only the pose the robot
+# is already in -> no new-pose fall risk; a harmless no-op if lowcmd is ignored once 'ai'
+# owns the actuators. Default 0.5s: VALIDATED on hardware 2026-07-07 (tethered, 2 replications)
+# — 0.5s overlap shrank the onboard-takeover catch-step to negligible/gone, where 0.0 left a
+# small shift. The residual step was thus a brief unheld GAP at takeover, not (only) the ~18 deg
+# pose mismatch to onboard's neutral. Set 0.0 to restore the no-overlap behavior.
+HANDOFF_OVERLAP_S = float(os.environ.get("HANDOFF_OVERLAP_S", "0.5"))
 # GUARD for --exit stand: the motion's final frame must be within this many rad of the
 # default (standing) pose on EVERY joint, else the handoff would start from a non-standing
 # pose and could topple the robot -> refuse --exit stand and fall back to damp.
@@ -871,6 +880,11 @@ def _stand_handoff_and_exit(pub, low_cmd, crc, mode_machine, meta, ref, kp=None,
     # Robot is standing, actively held. Hand back to onboard control BEFORE we stop
     # publishing, so it is never left unheld between us and the vendor controller.
     _restore_motion_service()
+    # Optional overlap hold (HANDOFF_OVERLAP_S): keep sending the same standing pose so a
+    # latent onboard takeover never leaves the robot unheld. Same-pose command only.
+    for _ in range(int(HANDOFF_OVERLAP_S * CONTROL_HZ)):
+        _send_cmd(pub, low_cmd, crc, mode_machine, final_pose, kp, kd, meta)
+        time.sleep(1.0 / CONTROL_HZ)
     print("   onboard balance restored while STANDING — handoff complete (no catch-step).",
           flush=True)
     try:
