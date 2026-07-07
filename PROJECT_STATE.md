@@ -1775,3 +1775,40 @@ human-supervised session (NOT autonomous — no ground motion has run):
   green-lit to user (their console click).
 
 ## 2026-07-07 — GREENNODE BOX DELETED (user console click; verified: SSH refused + monitor unreachable). Meter stopped. All artifacts were local first.
+
+## 2026-07-07 (afternoon) — Video sync FIXED, one-button show + opt-in stand-to-stand BUILT & tested, stand-after candidate staged. Investor demo ran (dance+music good).
+- LIVE DEMO (investor): first demo.sh run looked like "damp + no music + no video" — root causes,
+  all resolved: (1) "damp" = the onboard-balance release transient at start + the proven
+  end-of-run ramp-to-damp; telemetry proved the FULL dance ran (2589 ticks, identical to the
+  10:34 good run). (2) no music = the AUX SPEAKER WAS POWERED OFF (laptop routing was fine).
+  (3) no video = demo.sh never opened one + my xdg-open forked-and-exited. Re-run: dance + music
+  through aux = SUCCESS. CPU note: the 11:23 full run completed WHILE a workflow was starting
+  (load 1.28) — CPU starvation was NOT the cause; still stopped builds during live robot windows
+  as a precaution.
+- VIDEO SYNC FIXED (tools/make_side_by_side.py): the reference is a TUTORIAL — instructor stands
+  and talks ~0-7s before dancing. Retarget windowed that intro out, so robot dance-start (sim
+  4.0s) aligns to source ~7.0s. Original naive composite PADDED source +4.0s (wrong direction) =
+  ~7s lag. Fix: advance source ~3.4s + 0.9x drift correction (deployed motion runs ~10% slower
+  than raw video); verified frame-by-frame at 4 points. Derivation committed in the tool docstring.
+- BUILD (committed 0623e72): (a) one-button app show — POST /api/shows/{id}/run + pipeline/
+  show_runner.py, ordered guards (show-ready/audio/robot-ping/single-run-lock/typed
+  "I AM PRESENT WITH THE DAMPING REMOTE"), spawns the PROVEN show_run.sh, status poll, outcome
+  capture reuses shows.record_outcome. (b) opt-in stand-to-stand: deploy_runtime --exit
+  {damp,stand} default damp (proven path byte-identical); --exit stand = clean-completion only,
+  holds final pose then restores onboard balance STANDING (no catch-step), GUARDED (refuses
+  unless motion ends <=0.15rad from default -> damp), aborts always damp, telemetry saved.
+  show_run.sh EXIT_MODE env (default damp) so demo.sh is unaffected. ARM_ACTION_CAP_SCALE
+  default ->2.2. 26 new tests pass.
+- "STAND AFTER" GAP + FIX: the promoted Thriller motion ends mid-dance (~39deg off default) so
+  --exit stand is INERT on it (guard->damp). tools/make_stand_tail.py authors a candidate
+  (data/policies/thriller_standtail_candidate/) = dance + 2.5s cosine return-to-default + 1.5s
+  hold; runtime guard now PASSES on it. In-distribution (activation ramp in reverse) but
+  UNVERIFIED end-to-end (mjlab box deleted) -> TETHERED VALIDATION ONLY, not show-ready. Never
+  overwrites the sha-pinned show motion.
+- KNOWN RED TESTS (pre-existing, from the v3e/sharp promotion — NOT this build): test_arm_dance
+  (sharp ref arm speed 33.3>20 blanket limit — intended, needs per-joint limit) and
+  test_deploy_ramp (golden expects old thriller_show-derived deploy; motion is now the sharp
+  one). Update these goldens/limits for the sharp motion. Confirmed pre-existing on clean HEAD.
+- NEXT (robot, user present): tether session to validate --exit stand on the standtail candidate
+  (EXIT_MODE=stand) — the end-of-run handoff is where the catch-step lives; then re-author the
+  show motion with the standing tail + (box back) re-exam for a show-ready stand-ending dance.

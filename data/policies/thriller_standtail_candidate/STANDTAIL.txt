@@ -1,0 +1,6 @@
+CANDIDATE — return-to-standing tail for --exit stand validation (TETHERED ONLY).
+Built from /home/alois/g1-dance/data/policies/thriller/thriller_deploy.npz + 2.5s cosine return + 1.5s hold at default.
+frames: 2589 dance -> 2709 total (90.3s).
+final-frame max |q-default| = 0.0000 rad (guard tol 0.15) -> stand-guard PASSES.
+NOT show-ready: unverified end-to-end (mjlab box deleted). Validate on the tether
+with the user present + damping remote, using EXIT_MODE=stand.
