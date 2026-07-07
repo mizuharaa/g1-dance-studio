@@ -1,0 +1,24 @@
+{
+ "ref": "/home/alois/g1-dance/data/policies/thriller/thriller_deploy.npz",
+ "n_base_runs": 4,
+ "n_cand_runs": 1,
+ "track_rms_deg": {
+  "candidate": {
+   "legs": 11.270052798386024,
+   "waist": 5.938591142710391,
+   "arms": 9.319148887375324
+  },
+  "s2rb_baseline": {
+   "legs": 13.401006234366529,
+   "waist": 7.253504160099887,
+   "arms": 14.290680499145179
+  }
+ },
+ "gyro_wobble_2_10Hz_rad_s": {
+  "candidate_mean": 0.17668570285842572,
+  "candidate_each": [
+   0.17668570285842572
+  ],
+  "s2rb_baseline_mean": 0.1578161860405724
+ }
+}
