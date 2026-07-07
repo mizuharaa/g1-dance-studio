@@ -1812,3 +1812,30 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - NEXT (robot, user present): tether session to validate --exit stand on the standtail candidate
   (EXIT_MODE=stand) — the end-of-run handoff is where the catch-step lives; then re-author the
   show motion with the standing tail + (box back) re-exam for a show-ready stand-ending dance.
+
+## 2026-07-07 — STAND HANDOFF VALIDATED ON TETHER (isolated): works, SHRINKS the catch-step but doesn't eliminate it.
+- Method: isolated the handoff from the dance — built a stand-only motion (hold default 10s,
+  data/policies/thriller_standhold_iso via tools/make_stand_tail-style tiling of deploy frame 0),
+  ran ground-run-legodom --exit stand, HANDOFF_HOLD_S=3. User present + tether + remote.
+- Robot SETTLES to dead-calm: 0-3s ~58deg leg drift (policy taking over from move-to-default),
+  by pre-handoff last-2s = 0.75 deg drift / gyro 0.023 rad/s (CALM). So the earlier "wobble"
+  was just initial settling of a STATIC reference (dance ends dynamically INTO standing, won't
+  cold-start-wobble like this).
+- Observability: a clean handoff is INVISIBLE (robot just keeps standing), so built
+  tools/stand_led_test.sh — head LED BLUE during our hold, GREEN at the "handoff complete"
+  (SelectMode 'ai') instant. Operator watches the FEET when it goes green (the watch-the-robot
+  lesson again). LED via AudioClient voice service, separate short-lived DDS participant, fired
+  only outside the 50Hz lowcmd loop (no control contention).
+- **VERDICT (user eyes, 4 runs): SMALL SHIFT/STEP at the handoff.** Not planted-perfect, but a
+  big improvement over the old damp->restore path (1-1.5m rightward catch-step). The residual
+  step is at the ONBOARD controller's SelectMode('ai') takeover — the vendor controller
+  re-grabbing the robot — which we don't control; it is AFTER our telemetry ends (onboard behavior).
+- Interpretation: --exit stand delivers "ends standing, no damp-collapse" and materially reduces
+  the catch-step, but a small onboard-takeover step remains and is likely the floor without
+  vendor-side tuning. GOOD ENOUGH for a show end (vs damp) is the user's call.
+- Backlog to reduce further (uncertain): (a) match handoff pose/gains to onboard's expected
+  takeover state; (b) investigate if a brief overlap/handshake with 'ai' before unpublish helps;
+  (c) vendor guidance on SelectMode takeover transients. Not blocking.
+- Full dance+tail candidate (thriller_standtail_candidate) NOT yet run on hardware — the isolated
+  handoff is the same mechanism; running the full candidate adds the dance before an identical
+  handoff. Do that next tether session if a standing show-end is wanted.
