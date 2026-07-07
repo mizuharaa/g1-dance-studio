@@ -1930,3 +1930,21 @@ human-supervised session (NOT autonomous — no ground motion has run):
   box); operator-console polish (wire the preshow evaluator + setlist run-plan into richer UI);
   pipeline shakeout on real videos (needs box); adversarial safety re-review. Robot: tether-
   validate the ENTRY handoff, then untethered.
+
+## 2026-07-07 (eve) — ENTRY HANDOFF + FALL DETECTOR both TETHER-VALIDATED on hardware.
+- Method: two short isolation-stand runs (no dancing), user present + tether + remote, LED-cued.
+- TEST 1 ENTRY HANDOFF (real threshold): robot took over from onboard and held standing — user
+  verdict "stayed put, NO sag" at the onboard->policy release. The pre-arm-before-release + catch-
+  current-pose closes the unheld release window. Combined with the already-validated exit stand
+  handoff, the full untethered flow (remote walk-on -> button -> dance -> stand -> remote walk-off)
+  has NO damp/sag at either handoff.
+- TEST 2 FALL DETECTOR (threshold raised to 0.99 for the test so the stand's own ~9-11deg settling
+  tilt trips it — this session's stands settled gently, min uprightness 0.981/0.986): fired exactly
+  as designed — "FALL DETECTED at tick 2: pelvis 9 deg from vertical (0.99<0.99) for 3 ticks ->
+  damping + soft handoff to onboard". User verdict: robot DAMPED + head LED RED. Validates the full
+  path on real IMU: read tilt -> 3-tick DEBOUNCE -> raise -> damp -> onboard handoff. The real
+  deploy threshold (0.35) is unchanged and telemetry-clean (0 false trips across 26 runs).
+- Robot left on onboard 'ai' (fall path restores it). Both were the last robot-validations owed for
+  the entry handoff and fall detector; both PASS.
+- REMAINING robot-facing: slack-tether -> free untethered runs (the walk-on/dance/walk-off flow),
+  then push tests. Software: fall RECOVERY get-up (needs the box), operator-console polish.
