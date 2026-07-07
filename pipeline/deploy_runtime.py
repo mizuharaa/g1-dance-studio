@@ -184,6 +184,12 @@ ANKLE_PITCH_IDX = [4, 10]  # left/right ankle_pitch in the 29-joint order
 FALL_UPRIGHT_MIN = float(os.environ.get("FALL_UPRIGHT_MIN", "0.35"))
 FALL_HEIGHT_DROP_M = float(os.environ.get("FALL_HEIGHT_DROP_M", "0.15"))
 FALL_CONFIRM_TICKS = int(os.environ.get("FALL_CONFIRM_TICKS", "3"))  # 3 ticks @50Hz = 60 ms
+# START-POSE GUARD: refuse to start a ground run if the robot is not standing roughly upright.
+# A near-horizontal start makes move-to-default + the policy begin from a losing pose the robot
+# can't recover (near-fall observed 2026-07-07 free run 3 — the robot had been left leaned over).
+# Checked BEFORE releasing onboard, so a refusal leaves the robot safely self-balanced. Default
+# 0.85 (~32 deg tilt); a proper upright start is ~1.0 (a few deg). START_UPRIGHT_MIN=0 disables.
+START_UPRIGHT_MIN = float(os.environ.get("START_UPRIGHT_MIN", "0.85"))
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
@@ -969,6 +975,21 @@ def _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0):
         time.sleep(1.0 / CONTROL_HZ)
 
 
+def _check_start_upright(quat):
+    """Refuse (SystemExit) if the robot is not standing roughly upright at the start of a ground
+    run — call BEFORE releasing onboard so a refusal leaves the robot safely self-balanced. A
+    near-horizontal start can't be recovered by move-to-default + the policy. Disabled at 0."""
+    if START_UPRIGHT_MIN <= 0:
+        return
+    up = float(quat_wxyz_to_mat(quat)[2, 2])
+    if up < START_UPRIGHT_MIN:
+        tilt = float(np.degrees(np.arccos(np.clip(up, -1.0, 1.0))))
+        raise SystemExit(
+            f"REFUSED: robot is not upright at start ({tilt:.0f} deg tilt, uprightness {up:.2f} "
+            f"< {START_UPRIGHT_MIN}) — stand it up on its feet first, then re-run. Onboard "
+            f"balance untouched (nothing was released).")
+
+
 def _fall_signal(R_base, h_est, h0, ref_dz):
     """(is_fall_this_tick, reason) — the raw per-tick fall condition, NOT yet debounced.
     Topple: pelvis uprightness R_base[2,2] < FALL_UPRIGHT_MIN. Height collapse: the torso sits
@@ -1173,8 +1194,9 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
     _require_human("ground-run")
     make_dds(iface)
     sub = lowstate_subscriber()
-    q0, _, _, _, msg0 = read_state(sub)
+    q0, _, quat0, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
+    _check_start_upright(quat0)   # refuse a non-upright start BEFORE releasing onboard (stays safe)
     # ENTRY HANDOFF: pre-arm the publisher + damp context + signal handler BEFORE releasing
     # onboard, so there is zero setup latency in the unheld release window (fall risk untethered).
     pub, low_cmd, crc = _lowcmd_setup()
@@ -1413,8 +1435,9 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
     legodom.reset_filter()  # clear the velocity smoother so no stale value leaks in
     make_dds(iface)
     sub = lowstate_subscriber()
-    q0, _, _, _, msg0 = read_state(sub)
+    q0, _, quat0, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
+    _check_start_upright(quat0)   # refuse a non-upright start BEFORE releasing onboard (stays safe)
     # ENTRY HANDOFF: pre-arm the publisher + damp context + signal handler BEFORE releasing
     # onboard, so there is zero setup latency in the unheld release window (fall risk untethered).
     pub, low_cmd, crc = _lowcmd_setup()

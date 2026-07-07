@@ -2000,3 +2000,21 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - REMAINING to paid-show grade: free-run REPEATABILITY (3x clean free per the exam standard; got 1),
   music-synced free run, then push tests. Make the standtail+boost config the official show (needs the
   box to re-exam the standtail motion for a signed show-ready). Robot left on onboard 'ai'.
+
+## 2026-07-07 — 🏆 FREE-RUN REPEATABILITY MET: 3x CLEAN untethered full Thriller dances. + start-pose guard built (from a caught near-fall).
+- 3 clean tether-off full dances (172354/172748/173645): dance-peak tilt 13.9/14.3/13.5 deg,
+  p99 ~11, arms ~15.7/22, legs ~4.9/10, temps 55-57C, all ended standing, all user-confirmed clean.
+  Consistent balance, 56 deg margin to the fall trigger. Config: standtail + GROUND_LEG_KP_SCALE=1.5
+  + full safety spine.
+- ONE run (172942) spiked to 47.5 deg at the dance onset and needed a manual assist — DIAGNOSED as
+  a BAD START POSE (robot had been left leaned near-horizontal; move-to-default + policy can't recover
+  from there), NOT a balance failure (operator confirmed). Excluded from the count; the clean re-run
+  from a verified-upright start had a 7.5 deg onset (vs 47.5), confirming the diagnosis.
+- FIX BUILT (start-pose guard): deploy_runtime._check_start_upright() refuses to start any ground run
+  if the initial torso uprightness < START_UPRIGHT_MIN (0.85, ~32 deg tilt), checked BEFORE releasing
+  onboard so a refusal leaves the robot safely self-balanced. A non-upright start can no longer produce
+  that near-fall. +tests (21 deploy_exit green). Operator pre-check: stand the robot upright before the run.
+- STATUS: THRILLER RUNS FULLY UNTETHERED, REPEATABLY (3x clean). The mission's core capability is
+  demonstrated. Remaining to paid-show: music-synced free run, push-robustness tests, then make the
+  standtail+1.5x-boost config the signed show (needs the box to re-exam the standtail motion). Robot on
+  onboard 'ai'.

@@ -364,6 +364,33 @@ def test_fall_detector_default_thresholds():
 
 
 # ======================================================================================
+# START-POSE GUARD: refuse a non-upright start before releasing onboard
+# ======================================================================================
+def _pitch_quat(deg):
+    """wxyz quat for a `deg` pitch about y; quat_wxyz_to_mat(...)[2,2] = cos(deg) = uprightness."""
+    t = np.radians(deg) / 2.0
+    return np.array([np.cos(t), 0.0, np.sin(t), 0.0])
+
+
+def test_start_upright_guard(monkeypatch):
+    monkeypatch.setattr(dr, "START_UPRIGHT_MIN", 0.85)
+    dr._check_start_upright(np.array([1.0, 0, 0, 0]))      # upright -> ok
+    dr._check_start_upright(_pitch_quat(20))              # ~0.94 uprightness -> ok
+    with pytest.raises(SystemExit, match="not upright"):
+        dr._check_start_upright(_pitch_quat(45))         # ~0.71 -> refuse (before any release)
+    with pytest.raises(SystemExit, match="not upright"):
+        dr._check_start_upright(_pitch_quat(95))         # past horizontal -> refuse
+    monkeypatch.setattr(dr, "START_UPRIGHT_MIN", 0.0)     # disabled -> never refuses
+    dr._check_start_upright(_pitch_quat(95))
+
+
+def test_start_upright_guard_default():
+    if "START_UPRIGHT_MIN" in os.environ:
+        pytest.skip("START_UPRIGHT_MIN overridden in env")
+    assert dr.START_UPRIGHT_MIN == pytest.approx(0.85)
+
+
+# ======================================================================================
 # ENTRY handoff (onboard -> policy): pre-arm before release + catch the current pose
 # ======================================================================================
 @needs_artifacts
