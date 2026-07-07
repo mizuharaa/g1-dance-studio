@@ -1948,3 +1948,20 @@ human-supervised session (NOT autonomous — no ground motion has run):
   the entry handoff and fall detector; both PASS.
 - REMAINING robot-facing: slack-tether -> free untethered runs (the walk-on/dance/walk-off flow),
   then push tests. Software: fall RECOVERY get-up (needs the box), operator-console polish.
+
+## 2026-07-07 (eve) — UNTETHERED PROGRESSION: slack-tether stand PASS, slack-tether full dance CAUGHT THE TETHER at the arm-accent section. NOT free-ready. Stage 3 (free) correctly NOT attempted.
+- Staged, gated, user present + remote. Stage 1 slack-tether STAND: rock steady, settled 4.9deg
+  tilt / gyro 0.022, NO tether load — the robot self-balances standing free. PASS.
+- Stage 2 slack-tether FULL Thriller (standtail candidate, all handoffs + fall net active): completed
+  2709/2709, no fall trip, clean stand handoff, actions in-cap, 55C. BUT user: "danced but tether
+  caught/loaded." Telemetry localizes the lean to t~15-25s (peaks 16.5/15.0/18.7 deg) = the DYNAMIC
+  ARM-PUNCH accents (the sharp-reference crispness). Rest of the dance calm (3-6 deg). Max tilt 18.7
+  deg is 51deg from the 70deg fall trigger (not falling) but enough to load the SLACK tether.
+- FINDING (honest, gates free-running): the sharp-reference arm accents shift the standing balance
+  enough that, WITHOUT tether assist, the robot leans ~18-19deg at the punches. Not a fall, but more
+  balance envelope than is safe to test tether-off. The slack-tether stage did its job — caught this
+  before a free run.
+- PATH TO FREE-READY (needs decisions/box): (a) retrain with stronger push/balance robustness so the
+  legs reject the arm-accent disturbance (needs the GPU box); and/or (b) tune deploy (leg-gain boost
+  / arm cap) to stiffen leg support during accents; and/or (c) soften the accents (trades the crispness
+  the user wanted). NOT free-ready until the accent lean is reduced. Robot left on onboard 'ai'.
