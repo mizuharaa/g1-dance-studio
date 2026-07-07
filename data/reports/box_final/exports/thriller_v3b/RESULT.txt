@@ -1,0 +1,23 @@
+VERDICT=GATE_FAIL
+variant=v3b eval_task=Mjlab-Tracking-Flat-Unitree-G1-S2R-V3B-GAPEVAL
+checkpoint=/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-06_05-51-06_train-thriller-v3b/model_4999.pt
+onnx=/workspace/notebook-data/exports/thriller_v3b/last/policy.onnx
+gap_check=/workspace/notebook-data/exports/thriller_v3b/last/gap_check.json
+arm_tracking=/workspace/notebook-data/exports/thriller_v3b/last/arm_tracking.json
+render=/workspace/notebook-data/exports/thriller_v3b/rollout_v3b.mp4 (ok)
+s2rb_arm_baseline=13.80634564730819
+tag=last gate=FAIL nominal_survival=1.000 rr_mpkpe=0.083 drift_max=1.20 ankle mean=5.23/rms=7.05Nm ARM_RMS=9.42deg BEATS s2r-b 13.81
+tag=mid gate=FAIL nominal_survival=1.000 rr_mpkpe=0.083 drift_max=1.82 ankle mean=6.32/rms=8.31Nm ARM_RMS=9.62deg BEATS s2r-b 13.81
+
+DEPLOY CONTRACT (V3B): trained with arm actuator kp/kd x2.5. Deploy ONLY with ARM_GROUND_KP_SCALE=2.5 (pipeline/deploy_runtime.py ground-run-legodom) or a policy_meta.json with the 14 arm joints' kp/kd pre-multiplied by 2.5. At unscaled gains this policy reproduces the soft-arm gap it was trained to avoid.
+
+NEXT (laptop): compare RESULT.txt across v3a/v3b/v3c (decision matrix in
+cloud/V3_PROGRAM.md): gate v3 pass AND arm RMS < s2r-b baseline AND render
+visually crisp. Winner -> pull onnx+jsons, stage under data/policies/ as a
+CANDIDATE (never overwrite data/policies/thriller/), then the usual: render
+sign-off, held-out exams, ONE tethered HW test with telemetry, re-measure
+hardware arm RMS vs the 13.2 deg baseline.
+
+fluidity=/workspace/notebook-data/exports/thriller_v3b/fluidity.json
+FLUIDITY_LEG_BAND=0.1325 LEG_AMP=0.433 (s2r-b baseline 0.1468 / amp 0.34)
+fluidity bars: leg 2-10Hz band <= 0.20 (lower better); leg amp ratio > 0.5 preferred

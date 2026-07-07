@@ -1,0 +1,21 @@
+VERDICT=GATE_FAIL
+variant=v3a eval_task=Mjlab-Tracking-Flat-Unitree-G1
+checkpoint=/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-06_05-51-06_train-thriller-v3a/model_4999.pt
+onnx=/workspace/notebook-data/exports/thriller_v3a/last/policy.onnx
+gap_check=/workspace/notebook-data/exports/thriller_v3a/last/gap_check.json
+arm_tracking=/workspace/notebook-data/exports/thriller_v3a/last/arm_tracking.json
+render=/workspace/notebook-data/exports/thriller_v3a/rollout_v3a.mp4 (ok)
+s2rb_arm_baseline=13.80634564730819
+tag=last gate=FAIL ARM_RMS=9.72deg BEATS s2r-b 13.81
+tag=mid gate=FAIL ARM_RMS=11.02deg BEATS s2r-b 13.81
+
+NEXT (laptop): compare RESULT.txt across v3a/v3b/v3c (decision matrix in
+cloud/V3_PROGRAM.md): gate v3 pass AND arm RMS < s2r-b baseline AND render
+visually crisp. Winner -> pull onnx+jsons, stage under data/policies/ as a
+CANDIDATE (never overwrite data/policies/thriller/), then the usual: render
+sign-off, held-out exams, ONE tethered HW test with telemetry, re-measure
+hardware arm RMS vs the 13.2 deg baseline.
+
+fluidity=/workspace/notebook-data/exports/thriller_v3a/fluidity.json
+FLUIDITY_LEG_BAND=0.1300 LEG_AMP=0.432 (s2r-b baseline 0.1468 / amp 0.34)
+fluidity bars: leg 2-10Hz band <= 0.20 (lower better); leg amp ratio > 0.5 preferred

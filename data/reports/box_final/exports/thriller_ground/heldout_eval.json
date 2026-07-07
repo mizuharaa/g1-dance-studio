@@ -1,0 +1,27 @@
+{
+  "task": "Mjlab-Tracking-Flat-Unitree-G1-No-State-Estimation",
+  "checkpoint": "/workspace/notebook-data/cloud/logs/rsl_rl/g1_tracking/2026-07-04_06-09-02_train-thriller-ground/model_2999.pt",
+  "motion_file": "/workspace/notebook-data/motions/thriller_deploy.npz",
+  "conditions": {
+    "nominal": {
+      "condition": "nominal",
+      "num_episodes": 256,
+      "success_rate": 0.0,
+      "n_success": 0,
+      "mpkpe_m": 0.06985432654619217,
+      "ee_pos_error_m": 0.1009168028831482,
+      "seed": 90007,
+      "push_enabled": false
+    },
+    "push": {
+      "condition": "push",
+      "num_episodes": 256,
+      "success_rate": 0.0,
+      "n_success": 0,
+      "mpkpe_m": 0.06946367025375366,
+      "ee_pos_error_m": 0.10059429705142975,
+      "seed": 90008,
+      "push_enabled": true
+    }
+  }
+}

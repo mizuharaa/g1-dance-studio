@@ -1,0 +1,15 @@
+GROUND v2 (No-State-Estimation, 154-dim, ee-thresh loosened 0.25->0.6 to bootstrap)
+checkpoint: /workspace/notebook-data/cloud/logs/rsl_rl/g1_tracking/2026-07-04_07-39-19_train-thriller-ground-v2/model_2999.pt
+
+nominal_survival @matched-0.6 = 0.0   (>=0.95 needed)
+push_survival    @matched-0.6 = 0.0   (lower by design: no vel obs)
+nominal_survival @strict-0.25 = 0.0   (context: strict bar the gantry policy met)
+mpkpe = 0.115m
+ANKLE height err = 0.128m   (SAFETY: must be tight, <=0.15m)
+WRIST height err = 0.063m   (cosmetic: loose is OK)
+
+SIM_READY (tethered-first ground) = NO
+  = nominal@matched>=0.95 AND ankle_height_err<=0.15m.
+  NOTE: this authorizes only a HUMAN-SUPERVISED, TETHERED ground bring-up of the
+  BALANCING policy (not static PD, and never autonomous). If ankle err is loose,
+  next = v3 with SPLIT thresholds (tight ankle / loose wrist).

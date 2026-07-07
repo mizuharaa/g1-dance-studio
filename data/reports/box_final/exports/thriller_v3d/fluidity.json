@@ -1,0 +1,125 @@
+{
+  "trace": "/workspace/notebook-data/exports/thriller_v3d/sim_trace.npz",
+  "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-06_06-01-51_train-thriller-v3d/model_4999.pt",
+  "task": "Mjlab-Tracking-Flat-Unitree-G1",
+  "motion_file": "/workspace/notebook-data/motions/thriller_deploy_v2_sharp.npz",
+  "steps": 2599,
+  "terminated_at": -1,
+  "action_band_rms": {
+    "motion_0-2Hz": {
+      "legs": 0.5314888464077964,
+      "waist": 0.32300318358016195,
+      "arms": 2.3785590393593687
+    },
+    "wobble_2-10Hz": {
+      "legs": 0.14649988786750315,
+      "waist": 0.17473359988440487,
+      "arms": 0.18008800299237265
+    },
+    "buzz_10-25Hz": {
+      "legs": 0.01797245395463836,
+      "waist": 0.027277584745822526,
+      "arms": 0.023968078431729635
+    }
+  },
+  "action_rate": {
+    "legs": {
+      "mean": 0.05046636888195794,
+      "p95": 0.18685605935752392
+    },
+    "waist": {
+      "mean": 0.06358295633159587,
+      "p95": 0.23438788056373597
+    },
+    "arms": {
+      "mean": 0.07520968404535135,
+      "p95": 0.2777752563357353
+    }
+  },
+  "tracking_rms_deg": {
+    "legs": 11.036328656334943,
+    "waist": 4.906703916280245,
+    "arms": 10.27354449866336
+  },
+  "leg_vs_ref": {
+    "per_joint": {
+      "left_hip_pitch_joint": {
+        "lag_ms": 0.0,
+        "corr": 0.6461789308340532,
+        "amp_ratio": 0.5400275920976639
+      },
+      "left_hip_roll_joint": {
+        "lag_ms": 0.0,
+        "corr": 0.8643302877737501,
+        "amp_ratio": 0.5156593908941193
+      },
+      "left_hip_yaw_joint": {
+        "lag_ms": 20.0,
+        "corr": 0.6459551740910908,
+        "amp_ratio": 0.7304130263912718
+      },
+      "left_knee_joint": {
+        "lag_ms": 0.0,
+        "corr": 0.8434307677682772,
+        "amp_ratio": 0.555023741208377
+      },
+      "left_ankle_pitch_joint": {
+        "lag_ms": 20.0,
+        "corr": 0.46033381408457935,
+        "amp_ratio": 0.28864651117450074
+      },
+      "left_ankle_roll_joint": {
+        "lag_ms": 0.0,
+        "corr": 0.006623513867557852,
+        "amp_ratio": 0.005120695614123102
+      },
+      "right_hip_pitch_joint": {
+        "lag_ms": 20.0,
+        "corr": 0.5924704984176841,
+        "amp_ratio": 0.3450591278777928
+      },
+      "right_hip_roll_joint": {
+        "lag_ms": 0.0,
+        "corr": 0.7330370242474332,
+        "amp_ratio": 0.3524326613716608
+      },
+      "right_hip_yaw_joint": {
+        "lag_ms": 0.0,
+        "corr": 0.5788821368077545,
+        "amp_ratio": 0.6631071227662038
+      },
+      "right_knee_joint": {
+        "lag_ms": 0.0,
+        "corr": 0.7942100045015946,
+        "amp_ratio": 0.5159084129893237
+      },
+      "right_ankle_pitch_joint": {
+        "lag_ms": 0.0,
+        "corr": 0.4538049544729348,
+        "amp_ratio": 0.2659947134966186
+      },
+      "right_ankle_roll_joint": {
+        "lag_ms": 0.0,
+        "corr": 0.32833900750448136,
+        "amp_ratio": 0.14212787666209956
+      }
+    },
+    "amp_ratio_mean": 0.40996007271197965,
+    "amp_ratio_min": 0.005120695614123102,
+    "lag_ms_mean": 5.0
+  },
+  "wobble_ang_vel": {
+    "motion_0-2Hz": {
+      "sim_rms_rad_s": 0.21843151311262055,
+      "ref_rms_rad_s": 0.29412946595476225
+    },
+    "wobble_2-10Hz": {
+      "sim_rms_rad_s": 0.2560270090412803,
+      "ref_rms_rad_s": 0.2667554045910858
+    },
+    "buzz_10-25Hz": {
+      "sim_rms_rad_s": 0.06934605611078436,
+      "ref_rms_rad_s": 0.08986055822709006
+    }
+  }
+}

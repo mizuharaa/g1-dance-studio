@@ -1,0 +1,12 @@
+VERDICT=FAILED landed_rate=0.000 (bar 0.9)
+task=Mjlab-Tracking-Flat-Unitree-G1-Acro motion=/workspace/notebook-data/motions/acro_backflip.npz
+checkpoint=/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-06_16-05-14_train-acro-1/model_9999.pt
+onnx=/workspace/notebook-data/exports/acro1/last/policy.onnx
+acro_eval=/workspace/notebook-data/exports/acro1/last/acro_eval.json
+render=/workspace/notebook-data/exports/acro1/rollout_acro1.mp4 (ok)
+tag=last landed=0/64 (survived=64 rot=0 upright=64) ref_rot=1.168rev flight=0.52s peak_tau hip=78.7/139.0 knee=114.3/139.0 ankle=50.0/50.0Nm impact=75.1m/s2
+tag=mid landed=0/64 (survived=64 rot=0 upright=64) ref_rot=1.168rev flight=0.52s peak_tau hip=88.0/139.0 knee=122.91/139.0 ankle=50.0/50.0Nm impact=76.4m/s2
+
+SIM-ONLY RESULT. No hardware use without the separate human decision
+documented in docs/DYNAMIC_SKILLS.md (hardware-risk memo) — this policy
+was trained WITHOUT pushes and WITHOUT torque/thermal penalties.

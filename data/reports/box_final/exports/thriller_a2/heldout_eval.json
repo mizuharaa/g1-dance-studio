@@ -1,0 +1,27 @@
+{
+  "task": "Mjlab-Tracking-Flat-Unitree-G1",
+  "checkpoint": "/workspace/notebook-data/cloud/logs/rsl_rl/g1_tracking/2026-07-03_18-24-38_train-thriller-a2/model_3999.pt",
+  "motion_file": "/workspace/notebook-data/motions/thriller_deploy.npz",
+  "conditions": {
+    "nominal": {
+      "condition": "nominal",
+      "num_episodes": 256,
+      "success_rate": 1.0,
+      "n_success": 256,
+      "mpkpe_m": 0.24944257736206055,
+      "ee_pos_error_m": 0.0887647271156311,
+      "seed": 90001,
+      "push_enabled": false
+    },
+    "push": {
+      "condition": "push",
+      "num_episodes": 256,
+      "success_rate": 1.0,
+      "n_success": 256,
+      "mpkpe_m": 0.24975182116031647,
+      "ee_pos_error_m": 0.08762751519680023,
+      "seed": 90002,
+      "push_enabled": true
+    }
+  }
+}

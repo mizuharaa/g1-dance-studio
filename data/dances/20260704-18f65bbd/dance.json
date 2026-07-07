@@ -2,7 +2,7 @@
   "id": "20260704-18f65bbd",
   "name": "Thriller",
   "created_at": 1783099634.195152,
-  "updated_at": 1783393475.372211,
+  "updated_at": 1783395071.048235,
   "status": "show-ready",
   "duration_s": 49.3,
   "motion_csv": "data/policies/thriller/thriller_deploy.csv",
@@ -87,7 +87,7 @@
       "performance_s": 54.3
     },
     "muxed_preview": null,
-    "attached_at": 1783319418.8201904
+    "attached_at": 1783395071.0482337
   },
   "repeatability": {
     "consecutive_clean": 3,

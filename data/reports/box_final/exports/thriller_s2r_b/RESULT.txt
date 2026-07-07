@@ -1,0 +1,13 @@
+VERDICT=GATE_FAIL
+checkpoint=/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-04_17-04-58_train-thriller-s2r-b/model_4999.pt
+onnx=/workspace/notebook-data/exports/thriller_s2r_b/last/policy.onnx
+gap_check=/workspace/notebook-data/exports/thriller_s2r_b/last/gap_check.json
+tag=last gate=FAIL nominal_survival=1.000 mpkpe=0.177 ankle mean=6.05 rms=8.17 Nm worst_survival=0.484
+tag=mid gate=FAIL nominal_survival=0.969 mpkpe=0.438 ankle mean=6.36 rms=8.31 Nm worst_survival=0.125
+
+NEXT (laptop): if GATE_PASS -> pull onnx + gap_check.json, stage under
+data/policies/thriller_s2r/ (reuse policy_meta.json — same gains/scales/obs),
+render a rollout video for visual sign-off, then plan ONE tethered HW test
+(human present, damping remote in hand). If GATE_FAIL -> read per-section
+stats in gap_check.json; the failing sections drive the attempt-2 delta
+(targeted choreography edit or reward re-weighting).

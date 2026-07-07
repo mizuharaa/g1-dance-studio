@@ -1,0 +1,164 @@
+{
+  "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-06_19-51-20_train-thriller-v3e/model_9999.pt",
+  "task": "Mjlab-Tracking-Flat-Unitree-G1",
+  "motion_file": "/workspace/notebook-data/motions/thriller_deploy_v2_sharp.npz",
+  "num_envs": 64,
+  "success_rate": 1.0,
+  "steps_run": 2599,
+  "groups": {
+    "shoulder": {
+      "n_joints": 6,
+      "rms_deg": 7.724139621502702,
+      "worst_joint": "left_shoulder_roll_joint",
+      "worst_rms_deg": 8.569565064836537
+    },
+    "elbow": {
+      "n_joints": 2,
+      "rms_deg": 8.772530045977811,
+      "worst_joint": "right_elbow_joint",
+      "worst_rms_deg": 8.87758216497713
+    },
+    "wrist": {
+      "n_joints": 6,
+      "rms_deg": 9.813777322637055,
+      "worst_joint": "right_wrist_yaw_joint",
+      "worst_rms_deg": 13.686555174725509
+    },
+    "arms_all": {
+      "n_joints": 14,
+      "rms_deg": 8.822657180722686,
+      "worst_joint": "right_wrist_yaw_joint",
+      "worst_rms_deg": 13.686555174725509
+    },
+    "legs_all": {
+      "n_joints": 12,
+      "rms_deg": 10.578886042974434,
+      "worst_joint": "right_knee_joint",
+      "worst_rms_deg": 17.00795028239755
+    },
+    "waist_all": {
+      "n_joints": 3,
+      "rms_deg": 4.091642842650341,
+      "worst_joint": "waist_roll_joint",
+      "worst_rms_deg": 4.392463019718537
+    }
+  },
+  "per_joint": {
+    "left_hip_pitch_joint": {
+      "rms_deg": 7.906669718057865,
+      "p95_deg": 16.026411056518555
+    },
+    "left_hip_roll_joint": {
+      "rms_deg": 7.779465572730011,
+      "p95_deg": 14.773592948913574
+    },
+    "left_hip_yaw_joint": {
+      "rms_deg": 5.744719546995139,
+      "p95_deg": 11.04419994354248
+    },
+    "left_knee_joint": {
+      "rms_deg": 14.65360892620375,
+      "p95_deg": 29.93179702758789
+    },
+    "left_ankle_pitch_joint": {
+      "rms_deg": 15.751608230605099,
+      "p95_deg": 29.081697463989258
+    },
+    "left_ankle_roll_joint": {
+      "rms_deg": 7.686324796088577,
+      "p95_deg": 12.772340774536133
+    },
+    "right_hip_pitch_joint": {
+      "rms_deg": 9.921185217778243,
+      "p95_deg": 20.305767059326172
+    },
+    "right_hip_roll_joint": {
+      "rms_deg": 6.222299316320595,
+      "p95_deg": 11.512516021728516
+    },
+    "right_hip_yaw_joint": {
+      "rms_deg": 6.640725274643732,
+      "p95_deg": 12.878246307373047
+    },
+    "right_knee_joint": {
+      "rms_deg": 17.00795028239755,
+      "p95_deg": 29.669506072998047
+    },
+    "right_ankle_pitch_joint": {
+      "rms_deg": 12.76996139052131,
+      "p95_deg": 26.11745262145996
+    },
+    "right_ankle_roll_joint": {
+      "rms_deg": 5.604212391888696,
+      "p95_deg": 10.219582557678223
+    },
+    "waist_yaw_joint": {
+      "rms_deg": 4.273139715613946,
+      "p95_deg": 8.460367202758789
+    },
+    "waist_roll_joint": {
+      "rms_deg": 4.392463019718537,
+      "p95_deg": 9.062461853027344
+    },
+    "waist_pitch_joint": {
+      "rms_deg": 3.5596585575983473,
+      "p95_deg": 7.416285514831543
+    },
+    "left_shoulder_pitch_joint": {
+      "rms_deg": 6.691199623054013,
+      "p95_deg": 12.284650802612305
+    },
+    "left_shoulder_roll_joint": {
+      "rms_deg": 8.569565064836537,
+      "p95_deg": 17.661867141723633
+    },
+    "left_shoulder_yaw_joint": {
+      "rms_deg": 7.068154070279691,
+      "p95_deg": 14.139185905456543
+    },
+    "left_elbow_joint": {
+      "rms_deg": 8.666204574047795,
+      "p95_deg": 17.25222396850586
+    },
+    "left_wrist_roll_joint": {
+      "rms_deg": 5.647146431514113,
+      "p95_deg": 10.616046905517578
+    },
+    "left_wrist_pitch_joint": {
+      "rms_deg": 11.692842222908181,
+      "p95_deg": 21.815746307373047
+    },
+    "left_wrist_yaw_joint": {
+      "rms_deg": 11.282840119297171,
+      "p95_deg": 25.972938537597656
+    },
+    "right_shoulder_pitch_joint": {
+      "rms_deg": 7.656895963544186,
+      "p95_deg": 14.352311134338379
+    },
+    "right_shoulder_roll_joint": {
+      "rms_deg": 8.386600441167255,
+      "p95_deg": 17.751220703125
+    },
+    "right_shoulder_yaw_joint": {
+      "rms_deg": 7.800158642056262,
+      "p95_deg": 14.046086311340332
+    },
+    "right_elbow_joint": {
+      "rms_deg": 8.87758216497713,
+      "p95_deg": 18.707672119140625
+    },
+    "right_wrist_roll_joint": {
+      "rms_deg": 5.703976486451906,
+      "p95_deg": 10.495749473571777
+    },
+    "right_wrist_pitch_joint": {
+      "rms_deg": 7.879651546522936,
+      "p95_deg": 13.774658203125
+    },
+    "right_wrist_yaw_joint": {
+      "rms_deg": 13.686555174725509,
+      "p95_deg": 26.604394912719727
+    }
+  }
+}

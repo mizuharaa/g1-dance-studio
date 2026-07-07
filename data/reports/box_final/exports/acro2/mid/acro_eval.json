@@ -1,0 +1,117 @@
+{
+  "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-06_19-50-03_train-acro-2/model_5000.pt",
+  "motion_file": "/workspace/notebook-data/motions/acro_backflip.npz",
+  "task": "Mjlab-Tracking-Flat-Unitree-G1-Acro",
+  "num_envs": 64,
+  "frames": 277,
+  "fps": 50.0,
+  "duration_s": 5.54,
+  "reference": {
+    "total_rotation_rad": 7.337,
+    "total_rotation_rev": 1.168,
+    "rotation_axis_w": [
+      0.691,
+      -0.353,
+      0.631
+    ],
+    "flight_frames": 26,
+    "flight_s": 0.52
+  },
+  "success": {
+    "survived": 0,
+    "rotation_ok": 0,
+    "upright_ok": 0,
+    "landed": 0,
+    "landed_rate": 0.0,
+    "rotation_tolerance_rad": 1.467
+  },
+  "rotation_achieved_rad": {
+    "mean": 0.158,
+    "min": -0.161,
+    "max": 0.429
+  },
+  "final_gravity_z": {
+    "mean": -0.983,
+    "worst": -0.902
+  },
+  "min_pelvis_z_m": 0.493,
+  "peak_torque_nm_by_group": {
+    "hip": {
+      "max": 88.0,
+      "p95_env_peak": 88.0,
+      "rating": 139.0
+    },
+    "knee": {
+      "max": 139.0,
+      "p95_env_peak": 121.23,
+      "rating": 139.0
+    },
+    "ankle": {
+      "max": 50.0,
+      "p95_env_peak": 50.0,
+      "rating": 50.0
+    },
+    "waist": {
+      "max": 50.0,
+      "p95_env_peak": 50.0,
+      "rating": 88.0
+    },
+    "shoulder": {
+      "max": 25.0,
+      "p95_env_peak": 25.0,
+      "rating": 25.0
+    },
+    "elbow": {
+      "max": 10.42,
+      "p95_env_peak": 10.28,
+      "rating": 25.0
+    },
+    "wrist": {
+      "max": 9.14,
+      "p95_env_peak": 9.0,
+      "rating": 25.0
+    }
+  },
+  "peak_joint_vel_rad_s_by_group": {
+    "hip": {
+      "max": 16.36,
+      "p95_env_peak": 16.15,
+      "rating": 139.0
+    },
+    "knee": {
+      "max": 12.77,
+      "p95_env_peak": 12.21,
+      "rating": 139.0
+    },
+    "ankle": {
+      "max": 28.2,
+      "p95_env_peak": 20.35,
+      "rating": 50.0
+    },
+    "waist": {
+      "max": 8.9,
+      "p95_env_peak": 8.15,
+      "rating": 88.0
+    },
+    "shoulder": {
+      "max": 14.22,
+      "p95_env_peak": 13.51,
+      "rating": 25.0
+    },
+    "elbow": {
+      "max": 6.17,
+      "p95_env_peak": 6.04,
+      "rating": 25.0
+    },
+    "wrist": {
+      "max": 8.64,
+      "p95_env_peak": 8.41,
+      "rating": 25.0
+    }
+  },
+  "landing_impact": {
+    "peak_base_decel_m_s2": 195.7,
+    "median_env_peak_m_s2": 178.9,
+    "note": "upward base accel while falling >0.5 m/s; F ~ m*(g+a) across both legs"
+  }
+}

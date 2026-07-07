@@ -1,0 +1,32 @@
+{
+  "task": "Mjlab-Tracking-Flat-Unitree-G1-No-State-Estimation",
+  "checkpoint": "/workspace/notebook-data/cloud/logs/rsl_rl/g1_tracking/2026-07-04_07-39-19_train-thriller-ground-v2/model_2999.pt",
+  "motion_file": "/workspace/notebook-data/motions/thriller_deploy.npz",
+  "ee_threshold_m": 0.6,
+  "conditions": {
+    "nominal": {
+      "condition": "nominal",
+      "num_episodes": 256,
+      "success_rate": 0.0,
+      "n_success": 0,
+      "mpkpe_m": 0.1154211014509201,
+      "ankle_height_err_m": 0.1276235580444336,
+      "wrist_height_err_m": 0.06309258937835693,
+      "ee_threshold_m": 0.6,
+      "seed": 90007,
+      "push_enabled": false
+    },
+    "push": {
+      "condition": "push",
+      "num_episodes": 256,
+      "success_rate": 0.0,
+      "n_success": 0,
+      "mpkpe_m": 0.11437883973121643,
+      "ankle_height_err_m": 0.12523409724235535,
+      "wrist_height_err_m": 0.06270122528076172,
+      "ee_threshold_m": 0.6,
+      "seed": 90008,
+      "push_enabled": true
+    }
+  }
+}
