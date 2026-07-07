@@ -312,3 +312,64 @@ def test_arm_action_cap_scale_default_is_2_2():
     if "ARM_ACTION_CAP_SCALE" in os.environ:
         pytest.skip("ARM_ACTION_CAP_SCALE overridden in env")
     assert dr.ARM_ACTION_CAP_SCALE == pytest.approx(2.2)
+
+
+# ======================================================================================
+# ENTRY handoff (onboard -> policy): pre-arm before release + catch the current pose
+# ======================================================================================
+@needs_artifacts
+def test_entry_handoff_prearms_before_release_and_catches_current_pose(monkeypatch):
+    """The onboard->policy takeover must not leave the robot unheld (fall risk untethered):
+    our publisher + damp context + signal handler are armed BEFORE the onboard release, and
+    the CURRENT pose is held for ENTRY_CATCH_S the instant onboard lets go (before the ramp
+    to the ready pose). Mirror of the exit overlap."""
+    import pipeline.leg_odometry as lo
+    meta = dr.Meta(dr.DEFAULT_META)
+    ref = dr.Reference(dr.DEFAULT_MOTION)
+    q0 = meta.default.copy() + 0.3                       # DISTINCT current pose (not ready pose)
+    events, holds = [], []
+
+    monkeypatch.setenv("CONFIRMED_BY_HUMAN", "alois")
+    monkeypatch.setattr(lo, "LegOdometry", _FakeLegOdom)
+    monkeypatch.setattr(dr, "make_dds", lambda *a, **k: None)
+    monkeypatch.setattr(dr, "lowstate_subscriber", lambda *a, **k: object())
+    monkeypatch.setattr(dr, "read_state",
+                        lambda *a, **k: (q0.copy(), np.zeros(29), np.array([1.0, 0, 0, 0]),
+                                         np.zeros(3), _FakeMsg()))
+    monkeypatch.setattr(dr, "ENTRY_CATCH_S", 0.4)
+    monkeypatch.setattr(dr, "_lowcmd_setup",
+                        lambda *a, **k: (events.append("setup") or (None, None, None)))
+    monkeypatch.setattr(dr, "_release_motion_service", lambda *a, **k: events.append("release"))
+    monkeypatch.setattr(dr, "_install_damp_on_signals", lambda *a, **k: events.append("signals"))
+
+    def _fake_hold(pub, low_cmd, crc, mm, q, secs, kp, kd, meta_):
+        events.append("hold"); holds.append((np.asarray(q, float).copy(), secs))
+    monkeypatch.setattr(dr, "_hold", _fake_hold)
+    monkeypatch.setattr(dr, "_ramp_to_pose",
+                        lambda *a, **k: events.append("ramp"))
+    monkeypatch.setattr(dr.time, "sleep", lambda *a, **k: None)
+    monkeypatch.setattr(dr, "_send_cmd", lambda *a, **k: None)
+    monkeypatch.setattr(dr, "run_policy", lambda *a, **k: np.zeros(29))
+    monkeypatch.setattr(dr, "_damp", lambda *a, **k: events.append("damp"))
+
+    def _final(code=0):
+        events.append("finalize"); raise _ModeExit
+    monkeypatch.setattr(dr, "_finalize_and_exit", _final)
+
+    with pytest.raises(_ModeExit):
+        dr.mode_ground_run_legodom(meta, object(), ref, "iface", True, 0.05, "damp")
+
+    # pre-arm: our controller + safety spine are up BEFORE the onboard release
+    assert events.index("setup") < events.index("release")
+    assert events.index("signals") < events.index("release")
+    # entry catch: a hold AFTER release and BEFORE the ramp to the ready pose
+    ri, rampi = events.index("release"), events.index("ramp")
+    assert any(e == "hold" and ri < i < rampi for i, e in enumerate(events)), \
+        "no entry catch-hold between release and ramp"
+    # the FIRST hold catches the CURRENT pose q0 (not the ready/default pose), for ENTRY_CATCH_S
+    caught_pose, caught_secs = holds[0]
+    assert np.allclose(caught_pose, q0)
+    assert caught_secs == pytest.approx(0.4)
+    # the ENTRY is damp-free — nothing damps before the ramp to the ready pose (a trailing
+    # damp is the exit_mode=damp handoff at the END, which is a separate concern)
+    assert "damp" not in events[:rampi]

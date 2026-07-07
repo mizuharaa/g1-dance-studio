@@ -87,6 +87,14 @@ HANDOFF_HOLD_S = float(os.environ.get("HANDOFF_HOLD_S", "2.0"))
 # small shift. The residual step was thus a brief unheld GAP at takeover, not (only) the ~18 deg
 # pose mismatch to onboard's neutral. Set 0.0 to restore the no-overlap behavior.
 HANDOFF_OVERLAP_S = float(os.environ.get("HANDOFF_OVERLAP_S", "0.5"))
+# ENTRY handoff (mirror of the exit overlap): the onboard->policy takeover has an unheld
+# window while the motion service releases — nothing for feet-off gantry, but a FALL RISK
+# untethered on the ground. Fix: pre-arm our publisher + safety spine BEFORE releasing (zero
+# setup latency), then HOLD the robot's CURRENT pose for ENTRY_CATCH_S the instant onboard
+# lets go, so our controller grabs it exactly where it stands before easing to the ready pose.
+# Default 0.5s. Set 0.0 to restore the old release->ramp entry. Untethered use MUST be tether-
+# validated first (watch the feet at the onboard->policy handoff).
+ENTRY_CATCH_S = float(os.environ.get("ENTRY_CATCH_S", "0.5"))
 # GUARD for --exit stand: the motion's final frame must be within this many rad of the
 # default (standing) pose on EVERY joint, else the handoff would start from a non-standing
 # pose and could topple the robot -> refuse --exit stand and fall back to damp.
@@ -1111,13 +1119,21 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
     sub = lowstate_subscriber()
     q0, _, _, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
-    _release_motion_service()
+    # ENTRY HANDOFF: pre-arm the publisher + damp context + signal handler BEFORE releasing
+    # onboard, so there is zero setup latency in the unheld release window (fall risk untethered).
     pub, low_cmd, crc = _lowcmd_setup()
     global _DAMP_CTX
     _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
     _install_damp_on_signals()
     dt = 1.0 / CONTROL_HZ
     kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
+    _release_motion_service()
+    # Catch the CURRENT pose the instant onboard lets go (no unheld sag), then the ramp below
+    # eases from that same pose to the ready pose. Holds q0 at firm approach gains.
+    if ENTRY_CATCH_S > 0:
+        print(f"   entry catch: holding current pose {ENTRY_CATCH_S:.1f}s so the robot is never "
+              f"unheld at the onboard->policy handoff, then easing to the ready pose.")
+        _hold(pub, low_cmd, crc, mode_machine, q0, ENTRY_CATCH_S, kp_a, kd_a, meta)
     n_ticks = min(ref.T, int(max_secs * CONTROL_HZ))
     obs_dim = sum(w for _, w in obs_order)
     print(f"GROUND-RUN: stage-1 firm move-to-default (4s)+hold, then estimator-free policy "
@@ -1343,13 +1359,21 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
     sub = lowstate_subscriber()
     q0, _, _, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
-    _release_motion_service()
+    # ENTRY HANDOFF: pre-arm the publisher + damp context + signal handler BEFORE releasing
+    # onboard, so there is zero setup latency in the unheld release window (fall risk untethered).
     pub, low_cmd, crc = _lowcmd_setup()
     global _DAMP_CTX
     _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
     _install_damp_on_signals()
     dt = 1.0 / CONTROL_HZ
     kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
+    _release_motion_service()
+    # Catch the CURRENT pose the instant onboard lets go (no unheld sag), then the ramp below
+    # eases from that same pose to the ready pose. Holds q0 at firm approach gains.
+    if ENTRY_CATCH_S > 0:
+        print(f"   entry catch: holding current pose {ENTRY_CATCH_S:.1f}s so the robot is never "
+              f"unheld at the onboard->policy handoff, then easing to the ready pose.")
+        _hold(pub, low_cmd, crc, mode_machine, q0, ENTRY_CATCH_S, kp_a, kd_a, meta)
     n_ticks = min(ref.T, int(max_secs * CONTROL_HZ))
     print(f"GROUND-RUN-LEGODOM: stage-1 firm move-to-default (4s)+hold, then PROVEN gantry "
           f"policy (160-dim obs, base_lin_vel+height from LEG kinematics — service-independent) "
