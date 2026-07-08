@@ -212,3 +212,13 @@ PERMANENT FIX (image-independent, baked into provisioning):
    (for libEGL + newer libstdc++).
 VERIFIED: convert (csv_to_npz) of the 2-min Thriller ran clean, rc=0, CONVERT_OK (npz produced).
 Current box already patched live; provisioning fixed for all future boxes.
+
+### 2026-07-08 — infra fixed end-to-end; policy-quality outcome pending
+- FULL 2-min video Thriller (ba1585): pipeline ran fully (convert/train/export via the permanent
+  fixes), but the trained policy FAILED verify — 0/128 nominal survival, joint-track err ~1.25 rad,
+  reward plateaued 7.6. Training never converged. Cause = MOTION quality (640x360 source -> noisy
+  retarget) + 5000 iters too few for a 2-min jump motion. njmax NOT the cause (5 rare overflows).
+  The verify gate correctly rejected it.
+- CSV Thriller (new job 786ffa, rerun of stale 3d5060 whose 07-03 retarget lacked deploy_csv):
+  cleaner CSV motion (thriller_g1.csv), now training with all fixes. Watcher polling to terminal.
+  User decision: let the CSV job finish first before any retrain of the video motion.
