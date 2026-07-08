@@ -158,3 +158,41 @@ sessions. Trainings survive laptop reboots (they run in tmux on the box).
 - Resume: `bash cloud/run_job.sh status train-thriller-s2r` / `status s2r-autopilot`;
   verdict at exports/thriller_s2r/RESULT.txt. Baseline (deployed a2 on the same gate):
   reports/sim_gap_check_a2_1500_full.json.
+
+## 2026-07-08 — GPU box RECREATED autonomously via Chrome pilot (no API needed)
+- **g1dance-4090** created 11:15:07 (id `nb-c7b924ff-d359-43a6-9014-d37494ff89df`), HCM /
+  HCM-03-1A, RTX4090×1 / 16 CPU / 64 GB / 24 GB VRAM, Pytorch 2.5.1 CUDA 12.4, block 20 GB.
+  Network volume `g1dance-data` (nv-cb2e7860...) SURVIVED (fast path) → mounted at
+  /workspace/notebook-data. SSH pubkey g1dance-laptop installed; ports HTTP 8888 + TCP 22.
+- Done entirely by `tools/pilot.py` (headed Chrome, DISPLAY :0) driving the GreenNode console;
+  user only solved the login reCAPTCHA. Corrects the earlier "no GreenNode API → can't
+  create a box" wall. Account is VNG postpaid ("0 credits" is normal; billed month-end).
+- NEXT: wait for Running → grab SSH host:port from Connect dialog → update .secrets/cloud.json
+  → verify SSH+GPU → re-provision (BOX_RECREATE_RUNBOOK Part 4) → kick the 2-min Thriller job.
+  DELETE when the job's artifacts are pulled (teardown).
+
+### retry (1st attempt ERRORed)
+- Attempt 1 (zone HCM-03-1A) reached **ERROR** at ~11:33 after ~18 min CREATING; the local
+  NVMe/compute storage also ERRORed, no event/log message surfaced → silent backend
+  allocation failure (most likely RTX4090 capacity in 1A). Deleted it.
+- Attempt 2 created 11:40:43 in **zone HCM-03-1B** (hedge against 1A capacity). Same config;
+  `g1dance-data` volume attaches in 1B too (region-scoped). Polling for RUNNING.
+
+### box UP (attempt 2, zone 1B)
+- ACTIVE ~11:49 (~9 min). SSH `-p 44662 root@103.245.250.152` VERIFIED; GPU = RTX 4090 24564 MiB.
+- cloud.json updated (host 103.245.250.152, port 44662).
+- **Volume contents WIPED**: /workspace/notebook-data = only lost+found (the "0 B" was real) →
+  FULL re-provision path (not fast). Running BOX_RECREATE_RUNBOOK Part 4 (bootstrap + gvhmr + mjlab).
+
+### 20GB-volume fix + job RESUMED (2026-07-08 ~05:15 UTC)
+- Volume `g1dance-data` is only **20 GB** (undersized; console offers no resize — "Update
+  volume" only renames). Provisioning onto it filled it → mjlab install failed "No space".
+- FIX (no code change): relocated provisioning to block storage `/root/nbdata` (94 GB disk,
+  NB_DATA-honored scripts), then made every `/workspace/notebook-data/<subdir>` a SYMLINK to
+  `/root/nbdata/<subdir>`. Volume back to 1% used; app + run_job.sh use the default path
+  transparently, all real I/O lands on block storage. mjlab smoke test green via default path.
+- Provisioned: bootstrap + GVHMR (torch 2.3.0+cu121, checkpoints) + mjlab (mjlab_ready, cuda True).
+- Started server headless (g1dance conda, :8735) → forced retry of **Thriller dance FULL 2min**
+  (job 20260707-185326-ba1585, 124 s @ 640x360). Extract now RUNNING: tmux job-gvhmr-...,
+  GPU 34%/1.2GB, artifacts appearing. Pipeline will auto-advance extract→retarget→train→verify→export.
+- Box must stay UP until export artifacts are pulled; DELETE after (Chrome pilot / teardown).
