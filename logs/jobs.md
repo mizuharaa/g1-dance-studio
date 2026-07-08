@@ -278,3 +278,13 @@ robot stays under onboard control and the operator enters from the onboard AI-st
 -> the handoff is a small, stable move. Wired into both ground-run modes after the upright guard.
 Verified: near start passes, 0.68 rad (phone-stand) start refused. PROCEDURE: enter from the
 onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validation.
+
+### 2026-07-08 — RETRAIN PASSED + entry-guard corrected
+- Ankle-penalty retrain 96da66 FULL PASS: gate pass=True, ALL checks incl ankle_p95<=15 [nom]
+  and <=20 [push]. Nominal: survival 1.00, mpkpe 0.154m, ankle p95=10.7 (was 15.4), mean=3.7.
+  The 2.5x ankle_torque_l2 (+action_rate) dropped peak ankle torque 15.4->10.7 Nm without hurting
+  tracking. Deployable sim-verified CANDIDATE staged (data/policies/...); promotion is human.
+- Entry guard CORRECTED: verified the policy's ready pose is a CROUCH (knee +38deg, elbow +34deg),
+  NOT near the robot's normal onboard stand. So the move-to-default is a real move -> reliable
+  entry is FEET-OFF on the gantry (move happens in the air), then lower. START_POSE_MAX_DELTA_RAD
+  now DEFAULT 0 (off) so it never blocks the proven feet-off gantry entry; opt-in for feet-down.

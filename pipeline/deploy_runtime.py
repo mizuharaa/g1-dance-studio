@@ -196,11 +196,14 @@ FALL_CONFIRM_TICKS = int(os.environ.get("FALL_CONFIRM_TICKS", "3"))  # 3 ticks @
 START_UPRIGHT_MIN = float(os.environ.get("START_UPRIGHT_MIN", "0.85"))
 
 # Entry move-to-default is a STATIC PD ramp, NOT active balance. From a start pose FAR from the
-# ready/default pose it can tip a feet-on-ground robot before the balancing policy takes over
-# (2026-07-08 live-run entry fall). Refuse (before releasing onboard) if any joint is more than
-# this from default — enter from the onboard AI-stand (which sits near default) so the handoff is
-# a small, stable move. START_POSE_MAX_DELTA_RAD=0 disables the check.
-START_POSE_MAX_DELTA_RAD = float(os.environ.get("START_POSE_MAX_DELTA_RAD", "0.35"))
+# ready/default pose it can tip a FEET-ON-GROUND robot before the balancing policy takes over
+# (2026-07-08 live-run entry fall). This refuses (before releasing onboard) if any joint is more
+# than this from default. IMPORTANT: OFF BY DEFAULT (0). The proven entry is FEET-OFF on the
+# gantry, where a far start is SAFE (the tether holds through the move-to-default: normal onboard
+# stand -> the policy's crouched ready pose is a real move that must happen in the air) — a blanket
+# refuse would wrongly block that path. Enable it ONLY when deliberately attempting a feet-DOWN
+# entry, where the move-to-default can tip. e.g. START_POSE_MAX_DELTA_RAD=0.35.
+START_POSE_MAX_DELTA_RAD = float(os.environ.get("START_POSE_MAX_DELTA_RAD", "0"))
 
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
