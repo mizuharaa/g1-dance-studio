@@ -230,3 +230,19 @@ Current box already patched live; provisioning fixed for all future boxes.
 - RETRAIN 96da66 ("thriller CSV +ankle penalty"): dance.yaml boosts ankle_torque_l2 -4e-4 -> -1e-3
   (2.5x) + action_rate_l2 -0.2 -> -0.25, 6000 iters, keeps root_pos 1.0 drift fix. Verified args in
   the train command; running (ETA ~1h48m) -> verify. Watcher armed.
+
+### 2026-07-08 — live-run fixes: video + stand-hold exit (a & b)
+Live app show on the robot: dance ran well (telemetry: clean 52.7s); but (i) no side-by-side
+video, (ii) robot ended DAMPED / phone couldn't continue standing.
+- VIDEO FIX: SHOW_VIDEO was set only in the `free` branch of _build_env -> normal show launched
+  no player. Now set for EVERY show (show_display falls back to primary if no external monitor).
+- (a) STAND-END TAIL: already handled — the train stage rebuilds the deploy motion with
+  deploy_ramp stand_end=True; the retrain 96da66 motion ends at final_max_delta_rad=0.0 (exactly
+  standing). So EXIT_MODE=stand's guard passes for it. Verified, no change needed.
+- (b) STAND-HOLD EXIT wired for LIVE: _build_env now sets EXIT_MODE=stand on exit_stand in
+  rehearsal AND live (was rehearsal-only); UI checkbox enabled for live; server comment updated.
+  Safe: deploy_runtime `--exit stand` guard falls back to damp if the motion doesn't end standing.
+  Verified: live+stand->stand, live+off->damp (proven path unchanged), free->stand.
+- ENTRY (procedural, not code): the onboard->policy takeover has a brief unheld gap; start the
+  robot from the ONBOARD AI-stand (not the phone app) before GO so the handoff is the validated
+  path. First live stand-exit run must be tethered, operator present.

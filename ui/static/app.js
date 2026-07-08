@@ -591,7 +591,7 @@ function openRunShow(danceId) {
     <label style="display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:var(--text-dim);margin-top:14px;padding:11px 12px;border-radius:var(--r);background:var(--bg-2);border:1px solid var(--border)" id="runFreeWrap"><input type="checkbox" id="runFree" style="margin-top:2px"><span><b style="color:var(--text)">Untethered (free) show</b> — hardware-validated free config: standtail policy + leg-gain boost. The robot dances <b>fully untethered</b>, returns to standing, and hands back to onboard. <span class="muted" style="font-size:11px">Validated 2026-07-07; the standtail motion is not yet a signed show-ready artifact — this is a trial/live run, the signed policy is unchanged.</span></span></label>
     <label style="${lbl}">Operator</label>
     <input class="field" id="runOp" value="alois" autocomplete="off">
-    <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-dim);margin-top:12px" id="runStandWrap"><input type="checkbox" id="runStand"> Stand at end <span class="muted" style="font-size:11.5px">(experimental · unvalidated on hardware · rehearsal only)</span></label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-dim);margin-top:12px" id="runStandWrap"><input type="checkbox" id="runStand"> Stand at end <span class="muted" style="font-size:11.5px">(keep standing at the end + hand back to the remote/phone · needs a stand-ending motion · guard falls back to damping if not · tether the first run)</span></label>
     <label style="${lbl}">Confirm you are present with the damping remote</label>
     <input class="field" id="runPhrase" placeholder="${esc(RUN_PHRASE)}" autocomplete="off">
     <div class="hint" style="color:var(--danger);margin-top:6px">Type exactly, character for character: <b>${esc(RUN_PHRASE)}</b></div>
@@ -606,10 +606,13 @@ function openRunShow(danceId) {
   // Start unlocks ONLY on an exact phrase match (mirrors the server's 403 guard).
   const sync = () => { startBtn.disabled = phraseInp.value !== RUN_PHRASE; };
   phraseInp.oninput = sync;
-  // The manual stand-at-end toggle is rehearsal-only AND redundant when free (the
-  // free/standtail config always ends standing) — grey it out in both cases.
+  // The manual stand-at-end toggle is redundant when free (the free/standtail config
+  // always ends standing) — grey it out then. Available in BOTH rehearsal and live:
+  // deploy_runtime's `--exit stand` guard falls back to damping if the motion doesn't
+  // end standing, so offering it live is safe (2026-07-08: enables the standing-at-
+  // every-point show + remote/phone hand-back the default damp exit couldn't give).
   const syncStand = () => {
-    const off = mode === "live" || freeCb.checked;
+    const off = freeCb.checked;
     standCb.disabled = off; if (off) standCb.checked = false;
     standWrap.style.opacity = off ? "0.45" : "";
   };
@@ -628,7 +631,7 @@ function openRunShow(danceId) {
     const body = {
       operator: ($("#runOp", bg).value || "").trim() || "alois",
       mode, confirmation: phraseInp.value,
-      exit_stand: standCb.checked && mode === "rehearsal" && !free,
+      exit_stand: standCb.checked && !free,
       free,
     };
     try {

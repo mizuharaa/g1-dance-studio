@@ -152,10 +152,17 @@ def _build_env(operator: str, mode: str, exit_stand: bool, audio_mode: str,
         # Env contract for Lane B's side-by-side video launch (set only, not launched here).
         env["SHOW_VIDEO"] = FREE_SHOW_VIDEO
         env.setdefault("SHOW_DISPLAY", "")     # default empty; an operator/env may set a display
-    elif exit_stand and mode == "rehearsal":
-        # EXPERIMENTAL, UNVALIDATED ON HARDWARE (non-free path): a separate runtime lane
-        # implements the stand-at-end exit. Only ever permitted in rehearsal; leaving
-        # EXIT_MODE unset keeps the proven smooth ramp-to-damping exit.
+    elif exit_stand:
+        # Stand-hold exit (OPT-IN) — the "standing at every point" show: after the last
+        # dance tick, keep commanding the motion's FINAL standing pose at the policy's
+        # holding gains, then hand back to onboard 'ai' while STILL STANDING so the
+        # remote/phone can resume (the default ramp-to-damping leaves a damped robot the
+        # phone can't recover — 2026-07-08 live-run finding). Enabled for LIVE + rehearsal
+        # on operator opt-in. SAFE: deploy_runtime's `--exit stand` GUARD refuses and
+        # falls back to damp unless the motion's final frame is within tolerance of the
+        # default standing pose, so a non-stand-ending motion can never topple. The train
+        # stage builds a stand-ending motion (deploy_ramp stand_end=True); still, the
+        # FIRST run on a new policy/hardware must be tethered with the operator present.
         env["EXIT_MODE"] = "stand"
     return env
 

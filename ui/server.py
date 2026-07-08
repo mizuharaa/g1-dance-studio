@@ -783,7 +783,9 @@ def run_show(dance_id: str, payload: dict = Body(...)) -> dict:
     mode = payload.get("mode", "rehearsal")
     if mode not in ("rehearsal", "live"):
         raise HTTPException(400, "mode must be 'rehearsal' or 'live'")
-    # stand-at-end is experimental + rehearsal-only; begin_run enforces the mode gate.
+    # stand-at-end (keep standing + hand back to remote/phone) is OPT-IN for rehearsal
+    # AND live: deploy_runtime's `--exit stand` guard falls back to damping unless the
+    # motion ends near the standing pose, so it can never topple a non-stand-ending dance.
     exit_stand = bool(payload.get("exit_stand"))
     # OPT-IN untethered ("free") config: the HARDWARE-VALIDATED standtail policy + leg-gain
     # boost + stand-at-end (see show_runner.FREE_POLICY_DIR). All guards above still apply;
