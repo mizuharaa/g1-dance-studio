@@ -222,3 +222,11 @@ Current box already patched live; provisioning fixed for all future boxes.
 - CSV Thriller (new job 786ffa, rerun of stale 3d5060 whose 07-03 retarget lacked deploy_csv):
   cleaner CSV motion (thriller_g1.csv), now training with all fixes. Watcher polling to terminal.
   User decision: let the CSV job finish first before any retrain of the video motion.
+
+### 2026-07-08 — CSV Thriller: near-pass, ankle-penalty retrain launched
+- CSV Thriller (786ffa) verify: PASSED survival(100%)/tracking(mpkpe 0.16m)/drift/mean+thermal
+  torque; FAILED only ankle_p95 (nominal 15.4 vs 15.0 Nm; delay20push 20.9 vs 20.0). Good policy,
+  a hair over the peak-ankle-torque gate.
+- RETRAIN 96da66 ("thriller CSV +ankle penalty"): dance.yaml boosts ankle_torque_l2 -4e-4 -> -1e-3
+  (2.5x) + action_rate_l2 -0.2 -> -0.25, 6000 iters, keeps root_pos 1.0 drift fix. Verified args in
+  the train command; running (ETA ~1h48m) -> verify. Watcher armed.
