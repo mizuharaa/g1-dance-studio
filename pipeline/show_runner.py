@@ -187,6 +187,16 @@ def _build_env(operator: str, mode: str, exit_stand: bool, audio_mode: str,
         # stage builds a stand-ending motion (deploy_ramp stand_end=True); still, the
         # FIRST run on a new policy/hardware must be tethered with the operator present.
         env["EXIT_MODE"] = "stand"
+    # Stand-hold exit handback window. The default 2.0s hold + 0.5s overlap is too short for
+    # the operator to engage the onboard stand on the remote before deploy_runtime releases —
+    # onboard 'ai' takes back over PASSIVE and the robot sags ("limp after standing", 2026-07-08
+    # live run). Hold the standing pose firmly for HANDOFF_HOLD_S, then keep holding it for
+    # HANDOFF_OVERLAP_S AFTER 'ai' is restored, giving the operator a real window to press the
+    # onboard stand/AI on the remote so it is actively balancing before we let go. Same-pose
+    # command only (safe); env-overridable.
+    if env.get("EXIT_MODE") == "stand":
+        env.setdefault("HANDOFF_HOLD_S", "3.0")
+        env.setdefault("HANDOFF_OVERLAP_S", "5.0")
     return env
 
 
