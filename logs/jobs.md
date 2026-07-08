@@ -288,3 +288,13 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   NOT near the robot's normal onboard stand. So the move-to-default is a real move -> reliable
   entry is FEET-OFF on the gantry (move happens in the air), then lower. START_POSE_MAX_DELTA_RAD
   now DEFAULT 0 (off) so it never blocks the proven feet-off gantry entry; opt-in for feet-down.
+
+### 2026-07-08 — promoted ankle-fixed Thriller + wired show to deploy the dance's policy
+- Promoted dance 20260708-71711415 "thriller CSV +ankle penalty" -> show-ready + attached Thriller
+  music. Bundle complete (policy.onnx + policy_meta.json + *_deploy.npz + verdicts).
+- GAP FOUND: the non-free show deployed a HARDCODED DEFAULT_POLICY (old thriller); promoting a
+  dance didn't change what ran. FIX: _dance_policy_args(dance) passes --policy/--meta/--motion-npz
+  from the SELECTED dance's bundle into show_run.sh for non-free shows. Backward-compatible: the
+  old Thriller dance's policy_path IS data/policies/thriller/policy.onnx (==DEFAULT_POLICY), so it
+  deploys exactly as before; the new dance deploys the ankle-fixed, stand-ending policy. Falls
+  back to deploy_runtime default only if a dance's bundle is incomplete. Verified both dances.

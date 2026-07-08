@@ -65,6 +65,28 @@ def _free_show_args() -> list[str]:
         "--motion-npz", f"{d}/thriller_deploy.npz",
     ]
 
+
+def _dance_policy_args(dance: "shows.Dance") -> list[str]:
+    """--policy/--meta/--motion-npz for the SELECTED show-ready dance's bundle, so a normal
+    (non-free) show deploys THAT dance's policy — not deploy_runtime's hardcoded DEFAULT_POLICY.
+    The verify/export pipeline stages policy.onnx + policy_meta.json + <slug>_deploy.npz into the
+    policy dir (data/policies/<slug>/). Backward-compatible: the original Thriller dance's
+    policy_path IS data/policies/thriller/policy.onnx (== DEFAULT_POLICY), so it deploys exactly
+    as before. Returns [] — deploy_runtime falls back to its default policy — only if the dance
+    has no policy_path or the on-disk bundle is incomplete (never silently deploys a half-bundle)."""
+    if not dance.policy_path:
+        return []
+    p = PROJECT_ROOT / dance.policy_path
+    meta = p.parent / "policy_meta.json"
+    npzs = sorted(p.parent.glob("*_deploy.npz"))
+    if not (p.exists() and meta.exists() and npzs):
+        return []
+    return [
+        "--policy", dance.policy_path,
+        "--meta", str(meta.relative_to(PROJECT_ROOT)),
+        "--motion-npz", str(npzs[0].relative_to(PROJECT_ROOT)),
+    ]
+
 # PC2 (Jetson Orin) on the robot control net. A single 1 s ping is the reachability
 # probe the run guard uses; it is the only "does the robot answer" check we can make
 # without contacting the robot's control interface.
@@ -215,7 +237,7 @@ def begin_run(dance: "shows.Dance", *, operator: str, mode: str,
         log_path = show.dir / "run.log"
         # Free adds the standtail --policy/--meta/--motion-npz args through show_run.sh's
         # "$@"; the proven default spawns show_run.sh with no policy override.
-        cmd = [str(SHOW_RUN_SH)] + (_free_show_args() if free else [])
+        cmd = [str(SHOW_RUN_SH)] + (_free_show_args() if free else _dance_policy_args(dance))
         proc = spawn_show_process(cmd, env, log_path)
         global _current
         _current = {"show_id": show.id, "dance_id": dance.id, "mode": mode,
