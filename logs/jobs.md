@@ -246,3 +246,22 @@ video, (ii) robot ended DAMPED / phone couldn't continue standing.
 - ENTRY (procedural, not code): the onboard->policy takeover has a brief unheld gap; start the
   robot from the ONBOARD AI-stand (not the phone app) before GO so the handoff is the validated
   path. First live stand-exit run must be tethered, operator present.
+
+### 2026-07-08 — live-run round 2: STOP button + video-static + handoff diagnosis
+Run log data/shows/20260708-192836-b29628/run.log analyzed:
+- #2 VIDEO STATIC: vlc used Intel VA-API hw decode -> "Unknown input chroma VAOP" -> garbage.
+  FIX: force software decode (--avcodec-hw=none in show_display.build_player_argv).
+- #4 EXIT FALL: operator DID check "Stand at end", but the guard REFUSED --exit stand — the
+  CURRENTLY PROMOTED (old) Thriller motion ends 0.68 rad off standing (left_elbow) -> fell back
+  to damp (guard working). Resolves when the retrain (ends 0.0 rad) is PROMOTED.
+- #1 ENTRY FALL: log shows "RELEASING onboard motion/balance service — robot will NOT self-
+  balance" then entry-catch 0.5s + move-to-default(4s). Unheld window during the onboard->policy
+  release->grab; worse if the robot is phone-standing feet-on-ground at start (design expects
+  feet OFF/gantry during the firm move-to-default). Diagnosed; seamless fix = handoff overlap
+  (don't release onboard until policy holds) + validation, OR gantry-feet-off entry procedure.
+- #3 PHONE CAN'T STOP: during the show the onboard service is released, so the phone app has no
+  control. Physical remote B-damp (firmware) is the hard stop.
+- #5 STOP BUTTON: BUILT. show_runner.stop_run() SIGTERMs the show process GROUP -> deploy_runtime
+  damps (guaranteed on any exit incl. SIGTERM) + show_run.sh trap kills the video. Endpoint
+  POST /api/shows/runs/current/stop; big red STOP button in the run monitor. Robot goes SOFT
+  (damps) -> catch on tether. Second stop beside the physical remote (still primary).

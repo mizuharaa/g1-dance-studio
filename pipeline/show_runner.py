@@ -21,6 +21,7 @@ Safety posture (CLAUDE.md deploy rule):
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import threading
 import time
@@ -276,6 +277,30 @@ def _derive_phase(text: str, running: bool) -> str:
     if not running and phase in ("launching", "arming", "performing"):
         return "ended"
     return phase
+
+
+def stop_run() -> dict:
+    """App-side STOP for a running show. SIGTERMs the show's whole process GROUP
+    (spawn_show_process starts a new session, so the pgid == show_run.sh + deploy_runtime
+    + the video player). deploy_runtime's signal handler GUARANTEES it damps the robot
+    (soft) on any exit path incl. an external SIGTERM (see its module docstring), and
+    show_run.sh's trap tears down the video. This is a SECOND, software stop beside the
+    operator's physical remote B-damp — the remote stays the primary hard stop. The robot
+    goes SOFT (damps) and will sag into the tether, so keep tension on it.
+    Returns {stopped, was_running, detail}."""
+    with _lock:
+        run = _current
+        proc = run.get("proc") if run else None
+        if proc is None or proc.poll() is not None:
+            return {"stopped": False, "was_running": False,
+                    "detail": "no show is currently running"}
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError) as e:
+            return {"stopped": False, "was_running": True,
+                    "detail": f"could not signal the show process: {e}"}
+    return {"stopped": True, "was_running": True,
+            "detail": "STOP sent — the robot is damping (going soft); catch it on the tether."}
 
 
 def current_status() -> dict:

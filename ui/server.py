@@ -813,6 +813,15 @@ def current_run() -> dict:
     return show_runner.current_status()
 
 
+@app.post("/api/shows/runs/current/stop")
+def stop_current_run() -> dict:
+    """App-side STOP for the running show: SIGTERMs the show process group so
+    deploy_runtime damps the robot (soft) on the way out. A SECOND stop beside the
+    operator's physical remote B-damp (which stays the primary hard stop). Idempotent:
+    a no-op {stopped:false} if nothing is running."""
+    return show_runner.stop_run()
+
+
 # ---- venues (dance-area registry; drives the vet excursion limit) ----------------
 
 @app.get("/api/venues")

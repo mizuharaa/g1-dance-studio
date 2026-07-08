@@ -650,7 +650,8 @@ function openRunShow(danceId) {
 function openRunMonitor(show, initialRun, free = false) {
   const bg = el(`<div class="modal-bg"><div class="modal" style="max-width:620px">
     <h3>${esc(show.dance_name)} — <span id="runPhase">${esc((initialRun && initialRun.phase) || "launching")}</span>${free ? ' <span class="badge b-verified">Untethered</span>' : ""}</h3>
-    <div style="background:var(--danger);color:#fff;font-weight:800;text-align:center;padding:12px;border-radius:var(--r);letter-spacing:.5px;margin:10px 0;font-size:14px">⏹ REMOTE = ONLY STOP</div>
+    <button id="runStopBtn" class="btn btn-danger" style="width:100%;font-weight:800;font-size:16px;padding:16px;margin:10px 0;letter-spacing:.5px">⏹ STOP — DAMP THE ROBOT</button>
+    <div class="hint" style="color:var(--danger);text-align:center;margin:-4px 0 8px;font-size:11.5px">Software stop: damps the robot (goes soft — <b>catch it on the tether</b>). Your <b>physical remote B-damp</b> is still the primary hard stop.</div>
     <div id="runPhases" class="row" style="gap:5px;flex-wrap:wrap;margin:0 0 10px"></div>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Operator ${esc(show.operator)} · ${show.mode === "rehearsal" ? "rehearsal (never demotes the dance)" : "LIVE performance"} · <span id="runState">${initialRun && initialRun.running ? "running" : "starting…"}</span></div>
     <div id="runFall"></div>
@@ -680,6 +681,20 @@ function openRunMonitor(show, initialRun, free = false) {
     ).join("");
   };
   renderPhases((initialRun && initialRun.phase) || "launching", initialRun && initialRun.running);
+  // App-side STOP: POST -> show_runner.stop_run() SIGTERMs the show process group, so
+  // deploy_runtime damps the robot (soft) on the way out. Second stop beside the remote.
+  const stopBtn = $("#runStopBtn", bg);
+  if (stopBtn) stopBtn.onclick = async () => {
+    stopBtn.disabled = true; stopBtn.textContent = "⏹ STOPPING…";
+    try {
+      const r = await api("/api/shows/runs/current/stop", { method: "POST" });
+      toast(r.stopped ? "STOP sent — robot damping, catch it on the tether" : (r.detail || "nothing is running"), r.stopped ? "info" : "err");
+    } catch (e) {
+      toast("STOP request failed: " + e.message + " — USE THE PHYSICAL REMOTE B-DAMP", "err");
+    } finally {
+      setTimeout(() => { if (stopBtn) { stopBtn.disabled = false; stopBtn.textContent = "⏹ STOP — DAMP THE ROBOT"; } }, 1500);
+    }
+  };
   // Red banner shown the moment the runtime's fall detector trips: the damp + onboard
   // handoff already happened on the robot; the operator should record this as an Incident.
   const showFall = () => {

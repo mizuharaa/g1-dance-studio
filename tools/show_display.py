@@ -129,7 +129,12 @@ def build_player_argv(player: str, video, screen_index: int | None = None) -> li
         argv.append(video)                              # mpv exits at EOF by default
         return argv
     if player == "vlc":
-        argv = ["vlc", "--fullscreen", "--no-video-title-show", "--play-and-exit"]
+        # --avcodec-hw=none forces SOFTWARE decode. On Intel iGPUs vlc's VA-API path
+        # hands the filter chain a hardware surface it can't read ("Unknown input chroma
+        # VAOP") and renders colourful static (2026-07-08 live run). Software decode is
+        # plenty for a pre-rendered side-by-side and always produces correct frames.
+        argv = ["vlc", "--fullscreen", "--no-video-title-show", "--play-and-exit",
+                "--avcodec-hw=none"]
         if screen_index is not None:
             argv.append(f"--qt-fullscreen-screennumber={screen_index}")
         argv.append(video)
