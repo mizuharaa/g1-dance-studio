@@ -34,19 +34,24 @@ ls ~/onboard_deploy/                    # policy_onboard.onnx must be here (stag
 If `policy_onboard.onnx` is missing from the container's view, it's staged at the PC2 host
 `~/onboard_deploy/` and `~/g1-dance/data/policies/thriller_standtail_candidate/` — copy it in.
 
-## 2. Point the controller at OUR policy + confirm gains
+## 2. Gains — VERIFIED they ride in the ONNX metadata (no yaml patch needed)
 File: `/ws/src/motion_tracking_controller/config/g1/controllers.yaml`
-- [ ] Set `policy_path` → `~/onboard_deploy/policy_onboard.onnx`.
-- [ ] **CRITICAL — gains.** The controller's yaml defaults are BeyondMimic **kp 350 / kd 300**.
-      OUR policy trained at **kp 40.2 / 99.1 / 28.5, kd 2.56 / 6.31 / 1.81** (per-joint, in the
-      onnx metadata). Deploying at 350/300 is wildly out-of-distribution → **fall**.
-      Our gains now travel *inside* `policy_onboard.onnx` metadata, BUT the yaml may still
-      override. **Confirm which wins** before feet-down:
-      - Preferred: set the yaml `kp/kd/action_scale/default_position` to OUR values too
-        (source of truth: `data/policies/thriller_standtail_candidate/policy_meta.json`, and the
-        staged `~/onboard_deploy/onboard_controller_cfg.txt`), so yaml and metadata agree.
-      - At minimum, log the gains the controller actually loaded at startup and eyeball them.
-- [ ] `default_position`: ours hip_pitch −0.312, knee 0.669 (yaml ankle −0.33 vs ours −0.363 is trivial).
+- **VERIFIED 2026-07-08 on PC2**: `real.launch.py` loads our policy into the **`walking_controller`**
+  block (`walking_controller.policy.path`, set from the `policy_path:=` launch arg) and spawns it
+  **INACTIVE**; the robot comes up in `standby_controller`. The `walking_controller` block has **NO
+  kp/kd/action_scale/default in the yaml** — only `update_rate` + `ramp_seconds`. So its gains come
+  **from the ONNX metadata** (`Policy::getJointStiffness/getJointDamping`, parsed by
+  `OnnxPolicy::parseMetadata`). The **350/200/300** gains you may see in the yaml belong to the
+  separate `standby_controller`, NOT to our policy.
+- **VERIFIED**: `~/onboard_deploy/policy_onboard.onnx` metadata carries OUR values —
+  `joint_stiffness 40.179/99.098/28.501…`, `joint_damping 2.558/6.309/1.814…`,
+  `default_joint_pos −0.312/0.669/−0.363…`, per-joint `action_scale`, `anchor_body_name torso_link`,
+  correct obs order + joint/body names. So **do NOT edit the yaml gains** — they aren't used for
+  walking_controller and editing standby's would be wrong.
+- ⚠️ **Residual unknown (cross-check at launch, below)**: the code that *applies* metadata gains to
+  the motors lives in the **compiled** `RlController.cpp` (only headers ship in `/opt/ros`), so
+  "on_activate pushes metadata kp/kd to the actuators" is a strong inference, NOT source-verified.
+  The startup-log check in §3 is the mandatory cross-check before any feet-down activation.
 
 ## 3. Launch (feet OFF / on the gantry)
 ```bash
@@ -56,9 +61,12 @@ ros2 launch motion_tracking_controller real.launch.py \
   motion.start_step:=0
 ```
 - [ ] Watch the startup log: policy loaded, metadata parsed (anchor=torso_link, 14 body_names,
-      obs order `command,motion_anchor_pos_b,motion_anchor_ori_b,base_lin_vel,base_ang_vel,joint_pos,joint_vel,actions`),
-      **gains = OUR 40/99/28** (NOT 350/300). If gains read 350/300 → **STOP**, fix step 2.
-- [ ] With feet off: the controller should hold near the default pose without runaway.
+      obs order `command,motion_anchor_pos_b,motion_anchor_ori_b,base_lin_vel,base_ang_vel,joint_pos,joint_vel,actions`).
+- [ ] **MANDATORY cross-check** (resolves the §2 residual unknown): before activating
+      `walking_controller`, confirm from the controller log / `ros2 param` that the gains it will
+      apply are **OUR 40/99/28** (NOT 350/300, NOT 0). If you cannot confirm the applied gains are
+      ours → **STOP**, do not activate. (Robot is safely in standby until you switch.)
+- [ ] Robot comes up in `standby_controller` (feet off, gantry): holds the standby pose, no runaway.
 
 ## 4. ACTIVATION HAZARD — avoid the 0.68 rad lurch
 The clip's frame 0 differs from the standby default pose by up to **0.68 rad**. Activating
@@ -79,8 +87,11 @@ Bring up in increasing exposure; abort (B-damp) at any wrongness:
 
 ## 6. Go wireless (only after a clean tethered full run)
 The control loop is **already 100% onboard on eth1** — going "wireless" only moves the
-**trigger** off a wire:
-- [ ] Trigger transport = ros2 topic/action over **wlan0 / tailscale** (NOT the control net).
+**trigger** off a wire. **VERIFIED 2026-07-08 on PC2**: eth1 UP (192.168.123.164 control net),
+wlan0 UP (192.168.21.237), and **tailscale live** — PC2 = `unitree-g1` @ **100.111.44.110**. So
+the wireless path exists now.
+- [ ] Trigger transport = ros2 topic/action over **tailscale (100.111.44.110) / wlan0** (NOT eth1).
+      The laptop must share that path (join tailscale, or be on the same AP) to send the trigger.
 - [ ] Preflight the link first (RTT + DDS staleness GO/NO-GO — the show app's wireless preflight).
 - [ ] Confirm: pulling wifi mid-dance does **not** stall the 50 Hz loop (it's on eth1) — the
       robot keeps balancing; only new triggers are lost. Verify once, deliberately, tethered.
