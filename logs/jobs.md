@@ -265,3 +265,16 @@ Run log data/shows/20260708-192836-b29628/run.log analyzed:
   damps (guaranteed on any exit incl. SIGTERM) + show_run.sh trap kills the video. Endpoint
   POST /api/shows/runs/current/stop; big red STOP button in the run monitor. Robot goes SOFT
   (damps) -> catch on tether. Second stop beside the physical remote (still primary).
+
+### 2026-07-08 — entry-overlap fix (#1)
+Read the full entry sequence. The handoff OVERLAP is ALREADY built: mode_ground_run(_odom)
+pre-arms the lowcmd publisher + damp handler + signal handler BEFORE releasing onboard (zero
+setup latency in the unheld window) + a firm catch at q0. So no gap bug there.
+ROOT of the entry fall: the entry move-to-default is a STATIC PD ramp (not active balance); from
+a start pose FAR from the ready/default pose it tips a feet-on-ground robot before the policy
+takes over. FIX (safe, additive): _check_start_near_default(q0, meta) — refuses (SystemExit)
+BEFORE releasing onboard if any joint > START_POSE_MAX_DELTA_RAD (0.35 rad) from default, so the
+robot stays under onboard control and the operator enters from the onboard AI-stand (near default)
+-> the handoff is a small, stable move. Wired into both ground-run modes after the upright guard.
+Verified: near start passes, 0.68 rad (phone-stand) start refused. PROCEDURE: enter from the
+onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validation.

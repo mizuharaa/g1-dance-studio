@@ -195,6 +195,13 @@ FALL_CONFIRM_TICKS = int(os.environ.get("FALL_CONFIRM_TICKS", "3"))  # 3 ticks @
 # 0.85 (~32 deg tilt); a proper upright start is ~1.0 (a few deg). START_UPRIGHT_MIN=0 disables.
 START_UPRIGHT_MIN = float(os.environ.get("START_UPRIGHT_MIN", "0.85"))
 
+# Entry move-to-default is a STATIC PD ramp, NOT active balance. From a start pose FAR from the
+# ready/default pose it can tip a feet-on-ground robot before the balancing policy takes over
+# (2026-07-08 live-run entry fall). Refuse (before releasing onboard) if any joint is more than
+# this from default — enter from the onboard AI-stand (which sits near default) so the handoff is
+# a small, stable move. START_POSE_MAX_DELTA_RAD=0 disables the check.
+START_POSE_MAX_DELTA_RAD = float(os.environ.get("START_POSE_MAX_DELTA_RAD", "0.35"))
+
 # obs term order + widths (mjlab tracking, sums to 160) — authoritative layout.
 OBS_LAYOUT = [
     ("command", 58), ("motion_anchor_pos_b", 3), ("motion_anchor_ori_b", 6),
@@ -994,6 +1001,26 @@ def _check_start_upright(quat):
             f"balance untouched (nothing was released).")
 
 
+def _check_start_near_default(q0, meta):
+    """Refuse (SystemExit) if the robot's start joint pose is far from the default/ready pose —
+    call BEFORE releasing onboard so a refusal leaves the robot safely self-balanced. The entry
+    move-to-default is a STATIC PD ramp (not active balance); from a far start pose it can tip a
+    feet-on-ground robot before the balancing policy takes over (2026-07-08 live-run entry fall).
+    Enter from the onboard AI-stand (sits near default) so the handoff is a small, stable move.
+    Disabled at 0."""
+    if START_POSE_MAX_DELTA_RAD <= 0:
+        return
+    delta = np.abs(np.asarray(q0, float) - meta.default)
+    j = int(delta.argmax())
+    if delta[j] > START_POSE_MAX_DELTA_RAD:
+        raise SystemExit(
+            f"REFUSED: start pose is {delta[j]:.2f} rad from the ready pose at joint "
+            f"'{meta.joint_order[j]}' (> {START_POSE_MAX_DELTA_RAD:.2f} rad) — a static "
+            f"move-to-default from here risks a tip on the ground. Put the robot in the onboard "
+            f"AI-stand (near the standing pose) first, then re-run. Onboard balance untouched "
+            f"(nothing was released).")
+
+
 def _fall_signal(R_base, h_est, h0, ref_dz):
     """(is_fall_this_tick, reason) — the raw per-tick fall condition, NOT yet debounced.
     Topple: pelvis uprightness R_base[2,2] < FALL_UPRIGHT_MIN. Height collapse: the torso sits
@@ -1201,6 +1228,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
     q0, _, quat0, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
     _check_start_upright(quat0)   # refuse a non-upright start BEFORE releasing onboard (stays safe)
+    _check_start_near_default(q0, meta)  # refuse a far-from-ready start (entry-fall guard, pre-release)
     # ENTRY HANDOFF: pre-arm the publisher + damp context + signal handler BEFORE releasing
     # onboard, so there is zero setup latency in the unheld release window (fall risk untethered).
     pub, low_cmd, crc = _lowcmd_setup()
@@ -1442,6 +1470,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
     q0, _, quat0, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
     _check_start_upright(quat0)   # refuse a non-upright start BEFORE releasing onboard (stays safe)
+    _check_start_near_default(q0, meta)  # refuse a far-from-ready start (entry-fall guard, pre-release)
     # ENTRY HANDOFF: pre-arm the publisher + damp context + signal handler BEFORE releasing
     # onboard, so there is zero setup latency in the unheld release window (fall risk untethered).
     pub, low_cmd, crc = _lowcmd_setup()
