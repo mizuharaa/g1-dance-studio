@@ -79,11 +79,34 @@ fi
 fi
 
 # -- fallback: mjlab (run with: bash 20_training.sh mjlab) ------------------------
+# mjlab runs in an ISOLATED venv (NOT --system-site-packages). A system-site venv
+# inherits the base image's /opt/conda packages, and on a compute-only GreenNode
+# image those are incompatible with mjlab (2026-07-08: libstdc++/matplotlib +
+# scipy `sph_legendre_p` ufunc conflicts broke the convert stage, one after another).
+# Isolated => mjlab brings its own mutually-consistent numpy/scipy/matplotlib/torch
+# (manylinux wheels that work with the system libstdc++), so it is image-independent.
 if [ "${1:-}" = "mjlab" ]; then
-    VENV_MJ="$(ensure_venv mjlab)"
-    log "installing mjlab fallback"
+    VENV_MJ="$NB_DATA/envs/mjlab"
+    if [ ! -x "$VENV_MJ/bin/python" ]; then
+        log "creating isolated mjlab venv (no system-site-packages)"
+        /opt/conda/bin/python -m venv "$VENV_MJ" || die "mjlab venv creation failed"
+        "$VENV_MJ/bin/python" -m pip install -q --upgrade pip
+    fi
+    log "installing mjlab (isolated: pulls consistent torch/numpy/scipy/matplotlib)"
     if "$VENV_MJ/bin/python" -m pip install -q mjlab; then
-        report "mjlab_ready" "mjlab fallback installed (bounded fallback per architecture)"
+        # This GreenNode image is compute-only: no GL runtime and no NVIDIA EGL
+        # (NVIDIA_DRIVER_CAPABILITIES unset). mjlab imports PyOpenGL EGL at load, so
+        # install the GLVND loaders (libEGL.so.1, libGL.so.1, ...). They land in
+        # /opt/conda/lib, which the training scripts add to LD_LIBRARY_PATH.
+        log "installing GLVND GL loaders (libEGL/libGL) for headless mjlab import"
+        /opt/conda/bin/conda install -y -c conda-forge libglvnd libegl libgl libglx libopengl \
+            >/dev/null 2>&1 || log "WARNING: GL loader install failed — convert/render may break"
+        # The app calls csv_to_npz at repos/mjlab/src/mjlab/scripts (source-repo layout),
+        # but pip installs mjlab into site-packages. Bridge the two with a symlink.
+        PYVER="$("$VENV_MJ/bin/python" -c 'import sys;print(f"python{sys.version_info.major}.{sys.version_info.minor}")')"
+        mkdir -p "$NB_DATA/repos/mjlab/src"
+        ln -sfn "$VENV_MJ/lib/$PYVER/site-packages/mjlab" "$NB_DATA/repos/mjlab/src/mjlab"
+        report "mjlab_ready" "mjlab installed (isolated venv + GLVND loaders + repo-path shim)"
     else
         report "failed" "both Isaac Lab and mjlab installs failed — needs interactive debugging"
     fi

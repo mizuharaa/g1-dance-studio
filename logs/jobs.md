@@ -196,3 +196,19 @@ sessions. Trainings survive laptop reboots (they run in tmux on the box).
   (job 20260707-185326-ba1585, 124 s @ 640x360). Extract now RUNNING: tmux job-gvhmr-...,
   GPU 34%/1.2GB, artifacts appearing. Pipeline will auto-advance extract→retarget→train→verify→export.
 - Box must stay UP until export artifacts are pulled; DELETE after (Chrome pilot / teardown).
+
+### PERMANENT training-env fix (2026-07-08) — convert now works
+Root cause of both Thriller jobs failing at train: `envs/mjlab` was a `--system-site-packages`
+venv over this GreenNode compute-only image, so mjlab inherited the base /opt/conda's
+INCOMPATIBLE packages — cascading failures (mjlab script path → libstdc++/matplotlib →
+no GL runtime → scipy `sph_legendre_p` ufunc). The prior image happened to be compatible.
+PERMANENT FIX (image-independent, baked into provisioning):
+1. `cloud/20_training.sh`: mjlab now installs into an **isolated venv** (no system-site-packages)
+   → brings its own consistent numpy/scipy/matplotlib/torch (torch 2.12.1+cu130, CUDA OK).
+2. Install GLVND loaders `libglvnd libegl libgl libglx libopengl` (image has NO GL / no NVIDIA
+   EGL; mjlab imports PyOpenGL EGL at load) → `libEGL.so.1` present.
+3. `repos/mjlab/src/mjlab` symlink → site-packages (app expects repo layout).
+4. `pipeline/stages/cloud_motion.py`: all box scripts export `LD_LIBRARY_PATH=/opt/conda/lib`
+   (for libEGL + newer libstdc++).
+VERIFIED: convert (csv_to_npz) of the 2-min Thriller ran clean, rc=0, CONVERT_OK (npz produced).
+Current box already patched live; provisioning fixed for all future boxes.

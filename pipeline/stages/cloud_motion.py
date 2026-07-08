@@ -243,6 +243,7 @@ echo GVHMR_OK {stem}"""
 # exit nonzero AFTER the save, so tolerate its rc and gate on the copied npz.
 CONVERT_SCRIPT = """set -e
 cd {nb}
+export LD_LIBRARY_PATH=/opt/conda/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}
 export MUJOCO_GL=egl WANDB_MODE=offline
 rm -f /tmp/motion.npz
 {py} {converter} --input-file {csv} --output-name {name} \
@@ -254,6 +255,7 @@ echo CONVERT_OK {npz}"""
 
 TRAIN_SCRIPT = """set -e
 cd {nb}
+export LD_LIBRARY_PATH=/opt/conda/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}
 export MUJOCO_GL=egl
 for f in .wandb_key .wandb.key; do [ -f "$f" ] && export WANDB_API_KEY="$(cat $f)"; done
 [ -n "${{WANDB_API_KEY:-}}" ] || export WANDB_MODE=offline
@@ -265,6 +267,7 @@ for f in .wandb_key .wandb.key; do [ -f "$f" ] && export WANDB_API_KEY="$(cat $f
   --video False {extra}"""
 
 EXPORT_SCRIPT = """set -e
+export LD_LIBRARY_PATH=/opt/conda/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}
 export MUJOCO_GL=egl WANDB_MODE=disabled
 mkdir -p {exports}
 cd /tmp
@@ -274,12 +277,14 @@ echo EXPORT_OK {exports}/policy.onnx"""
 
 GAP_SCRIPT = """set -e
 cd {nb}
+export LD_LIBRARY_PATH=/opt/conda/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}
 export MUJOCO_GL=egl WANDB_MODE=disabled
 {py} cloud/sim_gap_check.py --checkpoint '{ckpt}' --motion-file {npz} \
   --num-envs {num_envs} --output-file {out}"""
 
 EXAM_SCRIPT = """set -e
 cd {nb}
+export LD_LIBRARY_PATH=/opt/conda/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}
 export MUJOCO_GL=egl WANDB_MODE=disabled
 {py} cloud/heldout_eval.py {task} --checkpoint '{ckpt}' --motion-file {npz} \
   --num-envs {num_envs} --seed {seed} --output-file {out}"""
