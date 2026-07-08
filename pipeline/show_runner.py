@@ -131,6 +131,14 @@ def _build_env(operator: str, mode: str, exit_stand: bool, audio_mode: str,
     env["DANCE_ID"] = dance_id                      # cue the THIS dance's music track
     if body:
         env["BODY"] = str(body)
+    # Side-by-side reference|sim video on the big screen — for EVERY show, not just
+    # `free`. BUG (2026-07-08 live run): SHOW_VIDEO was set only inside the `free`
+    # branch, so a normal tethered show launched no video (show_run.sh only starts the
+    # player when SHOW_VIDEO is non-empty). show_display.py falls back to full-screen
+    # on the primary monitor when no external display is connected, so this is safe on
+    # a laptop-only setup too; set SHOW_DISPLAY to force a specific xrandr output.
+    env.setdefault("SHOW_VIDEO", FREE_SHOW_VIDEO)
+    env.setdefault("SHOW_DISPLAY", "")
     if free:
         # HARDWARE-VALIDATED UNTETHERED ("free") SHOW CONFIG (see the module note at
         # FREE_POLICY_DIR). This runs the validated free config for a TRIAL/LIVE show;
