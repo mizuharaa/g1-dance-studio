@@ -46,6 +46,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-09: **Sim/ref video desync FIXED** (live-run complaint). Root cause: show played
+  the v3e side-by-side, whose sim panel is a DIFFERENT Thriller take (2589-frame lineage),
+  while the robot now runs thriller_csv_ankle_penalty (2789-frame). New local kinematic
+  renderer `tools/render_deploy_sim.py` (mujoco EGL, name-based joint map, no GPU) renders
+  the sim panel from the actual deploy npz → sim == robot. New composite
+  `data/previews/thriller_side_by_side_csv.mp4`; `FREE_SHOW_VIDEO` now points to it.
+  Verified: pelvis upright all frames, mid-dance aligned (evidence in
+  data/telemetry/side_by_side_csv_verify/). Human-vs-robot alignment stays approximate.
+- 2026-07-09: **Idle GPU box flagged for deletion.** Box 103.245.250.152 alive but 0% util,
+  no training job (only idle jupyter). Ankle policy on box is byte-identical (md5 ce91b79…)
+  to promoted local copy; wandb metadata pulled to logs/wandb_ankle_penalty/. Deletion
+  BLOCKED on user solving the GreenNode reCAPTCHA in the on-screen Chrome pilot window.
+- 2026-07-09: App relaunched headless (`ui/server.py` on :8735, API 200) — exit-window fix
+  (commit bd1f3e4, HANDOFF_HOLD_S=3.0/OVERLAP_S=5.0) now loaded. Desktop pywebview window
+  can't launch from the agent shell (X auth); user's normal window attaches to this server.
 - 2026-06-11: Project started. Workspace `~/g1-dance/`, git-tracked.
 - 2026-06-11: Research workflow launched to pin component choices (results → docs/architecture.md).
 - 2026-06-12: User confirmed cloud compute = GreenNode AI Platform Notebook instance.

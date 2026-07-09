@@ -1,0 +1,55 @@
+{
+  "os": "Linux-5.15.0-177-generic-x86_64-with-glibc2.35",
+  "python": "CPython 3.11.10",
+  "startedAt": "2026-07-08T10:53:21.299193Z",
+  "args": [
+    "Mjlab-Tracking-Flat-Unitree-G1-Sim2Real",
+    "--env.scene.num-envs",
+    "4096",
+    "--env.commands.motion.motion-file",
+    "/workspace/notebook-data/motions/thriller_csv_ankle_penalty_deploy.npz",
+    "--agent.max-iterations",
+    "6000",
+    "--agent.run-name",
+    "train-thriller_csv_ankle_penalty-96da66",
+    "--video",
+    "False",
+    "--env.rewards.motion_global_root_pos.weight",
+    "1.0",
+    "--env.rewards.ankle_torque_l2.weight",
+    "-1e-3",
+    "--env.rewards.action_rate_l2.weight",
+    "-0.25"
+  ],
+  "program": "/workspace/notebook-data/cloud/train_sim2real.py",
+  "codePath": "cloud/train_sim2real.py",
+  "codePathLocal": "cloud/train_sim2real.py",
+  "email": "luong.alois@gmail.com",
+  "root": "/workspace/notebook-data",
+  "host": "notebook-nb-62946ade-218a-4e58-8060-e1fb5b22ed02-699c98484wxl8g",
+  "executable": "/workspace/notebook-data/envs/mjlab/bin/python",
+  "cpu_count": 16,
+  "cpu_count_logical": 16,
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "100103397376",
+      "used": "61240614912"
+    }
+  },
+  "memory": {
+    "total": "67517476864"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 4090",
+      "memoryTotal": "25757220864",
+      "cudaCores": 16384,
+      "architecture": "Ada",
+      "uuid": "GPU-ad625a49-655d-b64f-6ace-db645593f95e"
+    }
+  ],
+  "cudaVersion": "13.0",
+  "writerId": "0cx69j6tpwm46qljaduaz4t0d8lvwz42"
+}

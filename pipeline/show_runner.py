@@ -49,7 +49,13 @@ SHOW_RUN_SH = PROJECT_ROOT / "tools" / "show_run.sh"
 FREE_POLICY_DIR = "data/policies/thriller_standtail_candidate"   # project-relative
 # Side-by-side reference video (Lane B's show_run.sh reads SHOW_VIDEO/SHOW_DISPLAY to
 # launch it; here we only set the env contract — the launch itself is Lane B's).
-FREE_SHOW_VIDEO = "data/previews/thriller_side_by_side_v3e.mp4"
+# 2026-07-09: switched from the v3e composite to the CSV-ankle composite. The v3e sim
+# panel was a DIFFERENT Thriller take (2589-frame lineage); the deployed dance is now
+# thriller_csv_ankle_penalty (2789-frame), so the v3e sim matched neither the robot nor
+# the reference (the "sim not in sync" live-run complaint). The new panel is rendered
+# from the actual deploy motion (tools/render_deploy_sim.py) so sim == robot; human-vs-
+# robot reference alignment stays approximate (src_lead=3.76,speed=0.9 — see make_side_by_side).
+FREE_SHOW_VIDEO = "data/previews/thriller_side_by_side_csv.mp4"
 
 
 def _free_show_args() -> list[str]:
