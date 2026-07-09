@@ -1,0 +1,35 @@
+file: data/telemetry/20260709-192744_ground-run-legodom.npz
+dt=20.2ms  ticks(dance)=2074  lag sweep 0..121ms
+joint                         lag_ms   corr range_rad
+left_hip_pitch_joint           121.3   0.46      2.14 <-leg
+left_hip_roll_joint            101.1   0.70      1.55 <-leg
+left_hip_yaw_joint              80.9   0.76      1.33 <-leg
+left_knee_joint                 80.9   0.76      1.80 <-leg
+left_ankle_pitch_joint          40.4   0.45      1.91 <-leg
+left_ankle_roll_joint           40.4   0.25      0.83 <-leg
+right_hip_pitch_joint           80.9   0.47      1.89 <-leg
+right_hip_roll_joint           101.1   0.38      0.99 <-leg
+right_hip_yaw_joint             80.9   0.64      1.82 <-leg
+right_knee_joint                80.9   0.84      2.78 <-leg
+right_ankle_pitch_joint         80.9   0.45      2.35 <-leg
+right_ankle_roll_joint          40.4   0.14      1.09 <-leg
+waist_yaw_joint                121.3   0.76      0.95
+waist_roll_joint                20.2   0.95      3.02
+waist_pitch_joint               40.4   0.82      1.79
+left_shoulder_pitch_joint      101.1   0.98      4.22
+left_shoulder_roll_joint       121.3   0.95      2.41
+left_shoulder_yaw_joint         80.9   0.99      3.86
+left_elbow_joint               101.1   0.99      2.38
+left_wrist_roll_joint           80.9   0.99      1.52
+left_wrist_pitch_joint          80.9   0.99      0.90
+left_wrist_yaw_joint            80.9   0.99      0.71
+right_shoulder_pitch_joint     121.3   0.96      3.61
+right_shoulder_roll_joint      121.3   0.95      2.36
+right_shoulder_yaw_joint        80.9   0.99      2.93
+right_elbow_joint              101.1   0.98      2.23
+right_wrist_roll_joint          60.7   1.00      2.17
+right_wrist_pitch_joint         80.9   0.98      0.63
+right_wrist_yaw_joint           80.9   0.99      1.06
+
+LEG joints (range>0.2rad): n=12  lag min/median/max = 40/81/121 ms  range-weighted mean = 80 ms
+=> effective command->response delay the balance policy experiences
