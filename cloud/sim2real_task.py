@@ -70,13 +70,19 @@ from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 TASK_ID = "Mjlab-Tracking-Flat-Unitree-G1-Sim2Real"
 
 # 1 physics step = 5 ms (mujoco timestep 0.005, decimation 4 -> 50 Hz control).
-# 0-20 ms per the audit (static walls are latency-free; 0-40 ms exceeded published
-# practice and risks a conservative policy). 40 ms stays an EVAL-ONLY condition.
+# 2026-07-09 REVISION (was 0-20 ms): the 20 ms cap was wrong for this hardware. The
+# 2026-07-09 ground run drifted and fell at ~45 s; four independent signals (sim
+# gap_check falls at 40 ms, hardware tilt/knee-buckle, telemetry command->response
+# cross-correlation = 80 ms leg median / 60-100 ms on light arm joints, comms ruled out
+# at 0.16 ms wired) put the real actuation+leg-odometry latency at 40-80 ms — OUTSIDE the
+# old trained band, exactly where the policy collapsed. See
+# data/telemetry/latency_diag_20260709/DIAGNOSIS.md. Randomizing the FULL 0-80 ms band
+# (not just the high end) keeps sharpness on low-delay episodes while teaching robustness.
 CMD_DELAY_MIN_LAG = 0
-CMD_DELAY_MAX_LAG = 4  # 20 ms
+CMD_DELAY_MAX_LAG = 16  # 0-80 ms (was 4 = 20 ms)
 CMD_DELAY_HOLD_PROB = 0.8
 
-OBS_DELAY_MAX_LAG = 1  # control steps -> 0-20 ms
+OBS_DELAY_MAX_LAG = 4  # control steps -> 0-80 ms (was 1 = 20 ms)
 DELAYED_OBS_TERMS = (
   "motion_anchor_pos_b",
   "motion_anchor_ori_b",
