@@ -46,6 +46,16 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10: **B2 feasibility finding — the 60-70% is a POLICY gap, not motion infeasibility;
+  Lane E UNBLOCKED.** tools/motion_feasibility.py + a Lane-D sandbox A/B prove it 3 ways
+  (data/telemetry/feasibility_20260710/): Thriller deploy is already velocity-feasible (peak
+  8.5<9.4 rad/s, 0% over); real hardware run 145111 shows a tracking gap (mean |target-q|
+  10-16 deg); and SLOWING the motion 1.0x->1.5x leaves the sandbox achieved fraction flat at
+  79.7%. So retiming won't help — the policy under-reaches subtle joints regardless of speed.
+  Recommendation: Lane E should train NOW on the Lane-B de-glitched motion (do not wait for a
+  B2 motion), validated in the sandbox. The feasibility tool stays for the vet gate + future
+  raw dances (thriller_g1 raw peak 56 rad/s = infeasible, correctly flagged).
+
 - 2026-07-10 (Windows handoff, Lane E prep): **v5 "fidelity" recipe implemented, launch
   blocked on 2 inputs.** `cloud/sim2real_task_v5.py` (+ launcher + `train_v5_curriculum.sh`):
   base recipe v2 + arm-scoped tracking terms (6 arm bodies, std 0.25/0.35, w 1.0 — subtle-move

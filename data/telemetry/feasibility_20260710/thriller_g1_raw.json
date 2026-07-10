@@ -1,0 +1,52 @@
+{
+  "frames": 1329,
+  "vel_limit_rad_s": 9.42,
+  "peak_vel_rad_s": 56.38,
+  "headroom_frac": -4.982,
+  "frames_over_limit_pct": 3.09,
+  "feasible": false,
+  "comfortable": false,
+  "worst_joints": [
+    {
+      "dof": 15,
+      "peak_rad_s": 56.38,
+      "pct_over": 1.28
+    },
+    {
+      "dof": 23,
+      "peak_rad_s": 53.91,
+      "pct_over": 0.38
+    },
+    {
+      "dof": 22,
+      "peak_rad_s": 49.82,
+      "pct_over": 0.75
+    },
+    {
+      "dof": 16,
+      "peak_rad_s": 43.91,
+      "pct_over": 0.98
+    },
+    {
+      "dof": 17,
+      "peak_rad_s": 39.62,
+      "pct_over": 0.9
+    },
+    {
+      "dof": 24,
+      "peak_rad_s": 37.09,
+      "pct_over": 0.75
+    },
+    {
+      "dof": 28,
+      "peak_rad_s": 18.98,
+      "pct_over": 0.15
+    },
+    {
+      "dof": 21,
+      "peak_rad_s": 15.0,
+      "pct_over": 0.15
+    }
+  ],
+  "file": "data/motions/thriller/thriller_g1.csv"
+}

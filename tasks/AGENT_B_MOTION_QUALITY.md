@@ -73,3 +73,10 @@ the robot CAN do:
 Acceptance: a `feasibility` report per motion (frames retimed, joints clamped, achievable
 fraction) + the vet gate flags an infeasible motion + tests. Coordinate with Lane D's sandbox
 (that's where "achievable fraction" is measured honestly).
+
+### Phase-2 STATUS (2026-07-10): feasibility ANALYSIS delivered; retime deprioritised
+tools/motion_feasibility.py ships (per-joint vel vs motor limit, headroom, feasible/comfortable
+flags; feeds the vet gate + future RAW dances, which ARE infeasible pre-clamp). But the retime
+does NOT fix the Thriller 60-70% — proven the motion is feasible AND slowing it doesn't help
+(data/telemetry/feasibility_20260710/). The warm-tips (knee/feet/stride) remain a future authoring
+option, but the primary fix for fidelity is Lane E, not this lane. Lane E is unblocked.

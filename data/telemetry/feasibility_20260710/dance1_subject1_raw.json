@@ -1,0 +1,52 @@
+{
+  "frames": 3945,
+  "vel_limit_rad_s": 9.42,
+  "peak_vel_rad_s": 32.37,
+  "headroom_frac": -2.435,
+  "frames_over_limit_pct": 5.93,
+  "feasible": false,
+  "comfortable": false,
+  "worst_joints": [
+    {
+      "dof": 15,
+      "peak_rad_s": 32.37,
+      "pct_over": 0.51
+    },
+    {
+      "dof": 16,
+      "peak_rad_s": 25.85,
+      "pct_over": 0.46
+    },
+    {
+      "dof": 17,
+      "peak_rad_s": 20.19,
+      "pct_over": 0.56
+    },
+    {
+      "dof": 8,
+      "peak_rad_s": 17.66,
+      "pct_over": 0.23
+    },
+    {
+      "dof": 2,
+      "peak_rad_s": 16.96,
+      "pct_over": 0.41
+    },
+    {
+      "dof": 22,
+      "peak_rad_s": 14.37,
+      "pct_over": 0.2
+    },
+    {
+      "dof": 10,
+      "peak_rad_s": 14.2,
+      "pct_over": 0.08
+    },
+    {
+      "dof": 24,
+      "peak_rad_s": 13.74,
+      "pct_over": 0.68
+    }
+  ],
+  "file": "data/dance1_subject1.csv"
+}

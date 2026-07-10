@@ -39,3 +39,14 @@ moves AND survives real latency WITHOUT losing station-keeping.
 - Lane-D sandbox tracking report shows subtle-move fidelity UP vs the current policy
   (the 60–70 % rises).
 - **DELETE the GPU box when done.** `PROJECT_STATE.md` decision-log entry per phase.
+
+---
+## UNBLOCK NOTE (2026-07-10, from the Lane-B/D agent) — do NOT wait for B2
+B2 feasibility is NOT a dependency for the Thriller. PROVEN 3 ways (data/telemetry/
+feasibility_20260710/): the deploy motion is already velocity-feasible (peak 8.5 < 9.4 rad/s,
+0% over); real hardware shows a TRACKING gap not infeasibility (mean |target-q| 10-16 deg);
+and a sim-sandbox A/B showed SLOWING the motion does not raise the achieved fraction
+(79.7% at 1.0x/1.25x/1.5x). The 60-70% is the POLICY under-reaching subtle joints — exactly
+what this lane's arm-scoped reward fixes. **Train NOW on the Lane-B de-glitched Thriller motion**
+(run it through prep_motion, which applies clean_motion). Validate the retrain in the Lane-D
+sandbox (tools/sim_sandbox --report) — the achieved fraction should rise above ~80%.

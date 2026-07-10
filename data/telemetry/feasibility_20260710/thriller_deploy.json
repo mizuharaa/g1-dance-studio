@@ -1,0 +1,52 @@
+{
+  "frames": 1674,
+  "vel_limit_rad_s": 9.42,
+  "peak_vel_rad_s": 8.48,
+  "headroom_frac": 0.1,
+  "frames_over_limit_pct": 0.0,
+  "feasible": true,
+  "comfortable": false,
+  "worst_joints": [
+    {
+      "dof": 15,
+      "peak_rad_s": 8.48,
+      "pct_over": 0.0
+    },
+    {
+      "dof": 23,
+      "peak_rad_s": 8.47,
+      "pct_over": 0.0
+    },
+    {
+      "dof": 16,
+      "peak_rad_s": 8.45,
+      "pct_over": 0.0
+    },
+    {
+      "dof": 3,
+      "peak_rad_s": 8.37,
+      "pct_over": 0.0
+    },
+    {
+      "dof": 22,
+      "peak_rad_s": 8.36,
+      "pct_over": 0.0
+    },
+    {
+      "dof": 24,
+      "peak_rad_s": 8.32,
+      "pct_over": 0.0
+    },
+    {
+      "dof": 17,
+      "peak_rad_s": 8.31,
+      "pct_over": 0.0
+    },
+    {
+      "dof": 9,
+      "peak_rad_s": 8.3,
+      "pct_over": 0.0
+    }
+  ],
+  "file": "data/policies/thriller_csv_ankle_penalty/thriller_csv_ankle_penalty_deploy.csv"
+}
