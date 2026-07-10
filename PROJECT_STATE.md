@@ -54,6 +54,16 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   first-inference latency. Overrun>2*dt still raises → damp, unchanged (tests/test_tick_clock.py,
   5 green). Loop clock base moved to perf_counter (odom `prev_t` updated to match). MEASUREMENT
   on the robot still owed (Lane A Phase 1 gate); C++ onboard runtime (Phase 2) gated on it.
+- 2026-07-10: **Lane D — policy-in-the-loop sim sandbox WORKING** (`tools/sim_sandbox.py`).
+  Runs the real policy.onnx in dynamic MuJoCo via the EXACT deploy contract (obs/inference/
+  PD imported from deploy_runtime — zero drift). Reproduces BOTH tester findings locally,
+  no robot: **fidelity ~72-80 %** (policy washes out subtle distal joints — wrists/ankles/knee,
+  matching "robot does 60-70 %, skips subtle moves") AND **latency destabilises** (ideal
+  survives tethered; 60 ms → fall ~20 s). Rendered honest-preview + per-DoF tracking report in
+  data/telemetry/sim_sandbox_20260710/. Tests green (tests/test_sim_sandbox.py). Caveat: uses
+  menagerie model not mjlab, so fall TIMING isn't quantitative (fidelity is); trust gate =
+  cross-check obs vs a real --mode read log (needs robot). Next: B2 feasibility; then E uses
+  this sandbox to validate the retrain before hardware.
 - 2026-07-10 (Windows handoff, Agent C): **FRONTEND OPERATOR-CONSOLE REVAMP COMPLETE.**
   Replaced the 811-line vanilla UI with a React + Vite + Tailwind/shadcn-compatible
   app under `ui/frontend/`; the checked-in production build is served directly by
