@@ -117,6 +117,7 @@ def main() -> int:
     ap.add_argument("--latency-ms", type=float, default=0.0)
     ap.add_argument("--tether-kp", type=float, default=150.0)
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--report", type=Path, default=None, help="write a small json summary")
     args = ap.parse_args()
 
     meta = D.Meta(args.dance / "policy_meta.json")
@@ -132,6 +133,14 @@ def main() -> int:
           + (f"  fell@{right.get('fell_at')}" if right.get('fell_at') else ""))
     render_studio(left, right, args.out, meta)
     print(f"wrote {args.out}")
+    if args.report:
+        import json
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(json.dumps({
+            "left_kind": left["kind"], "left_achieved": float(left["achieved"]),
+            "right_kind": right["kind"], "right_achieved": float(right["achieved"]),
+            "right_fell_at": right.get("fell_at"),
+        }))
     return 0
 
 

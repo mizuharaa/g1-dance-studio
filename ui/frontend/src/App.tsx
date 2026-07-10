@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { BarChart3, ChevronRight, CircleAlert, Command, Cpu, History, LayoutDashboard, Menu, Radio, RefreshCw, Shield, Square, Workflow, X } from "lucide-react"
+import { BarChart3, ChevronRight, CircleAlert, Clapperboard, Command, Cpu, History, LayoutDashboard, Menu, Radio, RefreshCw, Shield, Square, Workflow, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,13 +15,15 @@ const DancesScreen = lazy(() => import("@/screens/dances").then((module) => ({ d
 const PerformScreen = lazy(() => import("@/screens/perform").then((module) => ({ default: module.PerformScreen })))
 const AuditScreen = lazy(() => import("@/screens/audit").then((module) => ({ default: module.AuditScreen })))
 const SystemScreen = lazy(() => import("@/screens/system").then((module) => ({ default: module.SystemScreen })))
+const SimulationScreen = lazy(() => import("@/screens/simulation").then((module) => ({ default: module.SimulationScreen })))
 
-type Screen = "overview" | "pipeline" | "dances" | "perform" | "audit" | "system"
+type Screen = "overview" | "pipeline" | "dances" | "simulation" | "perform" | "audit" | "system"
 
 const NAV: Array<{ id: Screen; label: string; short: string; icon: typeof LayoutDashboard; section: "mission" | "operate" | "evidence" }> = [
   { id: "overview", label: "Overview", short: "Overview", icon: LayoutDashboard, section: "mission" },
   { id: "pipeline", label: "Pipeline studio", short: "Pipeline", icon: Workflow, section: "mission" },
   { id: "dances", label: "Dances & stats", short: "Dances", icon: BarChart3, section: "mission" },
+  { id: "simulation", label: "Simulation", short: "Simulation", icon: Clapperboard, section: "mission" },
   { id: "perform", label: "Show mode", short: "Show mode", icon: Radio, section: "operate" },
   { id: "audit", label: "Audit log", short: "Audit", icon: History, section: "evidence" },
   { id: "system", label: "System", short: "System", icon: Cpu, section: "evidence" },
@@ -61,6 +63,7 @@ export default function App() {
   const screen = useMemo(() => {
     if (active === "pipeline") return <PipelineScreen data={data} />
     if (active === "dances") return <DancesScreen data={data} />
+    if (active === "simulation") return <SimulationScreen data={data} />
     if (active === "perform") return <PerformScreen data={data} />
     if (active === "audit") return <AuditScreen data={data} />
     if (active === "system") return <SystemScreen data={data} />

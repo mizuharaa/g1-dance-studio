@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 from pipeline.config import DATA_DIR, STAGE_ORDER
 from pipeline import audio as audio_mod
 from pipeline import (body_models, cloud, monitor, policy_store, preshow, setlist,
-                      show_runner, shows, store, venue)
+                      show_runner, shows, sim_preview, store, venue)
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -432,6 +432,23 @@ def previews() -> list[dict]:
                    reverse=True)
     return [{"name": p.name, "url": f"/previews/{p.name}",
              "size": p.stat().st_size} for p in files]
+
+
+# ---- Simulation tab: policy-in-the-loop sim previews, versioned for before/after ----
+@app.get("/api/dances/{dance_id}/sims")
+def dance_sims(dance_id: str) -> dict:
+    """List stored sim versions for a dance (newest first) + any in-flight render."""
+    _load_dance_or_404(dance_id)
+    return {"dance_id": dance_id, "sims": sim_preview.list_sims(dance_id)}
+
+
+@app.post("/api/dances/{dance_id}/sim")
+def render_dance_sim(dance_id: str) -> dict:
+    """Render (background) the honest sim for the dance's CURRENT policy; poll /sims for status."""
+    dance = _load_dance_or_404(dance_id)
+    if not dance.policy_path:
+        raise HTTPException(409, "dance has no trained policy yet — nothing to simulate")
+    return sim_preview.render_async(dance)
 
 
 # ---- show mode: dance library ---------------------------------------------------
