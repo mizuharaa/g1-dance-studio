@@ -2,6 +2,11 @@
 """Show-prep for a retargeted motion CSV (recipe doc, sections 2 & 4).
 
 Steps, in order:
+  0. Outlier rejection + temporal smoothing (tools/motion_quality.clean_motion):
+     hampel + Savitzky-Golay on joints & root pos, slerp-aware SG on the root
+     quat. GVHMR is per-frame, so raw retargets carry single-frame limb flips —
+     this removes them BEFORE the velocity clamp, which otherwise drags an
+     outlier across multiple frames and snaps back (itself a glitch).
   1. Residual joint-velocity clamp: cap per-frame deltas at LIMIT_FRACTION of
      3π rad/s (GMR's use_velocity_limit handles most of it; this catches leftovers),
      then a 3-frame moving average ONLY on frames that were touched.
@@ -29,6 +34,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation, Slerp
 
 from pipeline.config import PROJECT_ROOT
+from tools.motion_quality import clean_motion
 
 MODEL_XML = PROJECT_ROOT / "third_party/mujoco_menagerie/unitree_g1/scene.xml"
 
@@ -98,6 +104,8 @@ def prep(in_csv: Path, out_csv: Path) -> dict:
     motion = np.loadtxt(in_csv, delimiter=",")
     model = mujoco.MjModel.from_xml_path(str(MODEL_XML))
 
+    motion, clean_info = clean_motion(motion)  # de-glitch BEFORE the clamp
+
     dof, touched = _clamp_joint_velocities(motion[:, 7:])
     motion[:, 7:] = dof
 
@@ -122,6 +130,7 @@ def prep(in_csv: Path, out_csv: Path) -> dict:
         "out_frames": int(full.shape[0]),
         "seconds": round(full.shape[0] / FPS, 1),
         "vel_clamped_frames": touched,
+        "motion_quality": clean_info,
         "ground_shift_m": round(-zmin, 4),
         "out": str(out_csv),
     }

@@ -46,6 +46,24 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10 (Lane B): **Twitch/glitch fix — temporal filtering added to the motion pipeline.**
+  Measured (script `tools/motion_quality.py`, raw outputs
+  `data/telemetry/motion_quality_20260710/`): all 5 repo CSVs carry isolated accel/jerk
+  spikes — jerk peaks 37k–68k rad/s³ vs p99 4.7k–12k; Thriller's committed vet record shows
+  the same signature (vel peak 56.4 rad/s vs p99 5.8). Fix in `clean_motion()`
+  (tools/motion_quality.py), wired into `prep_motion.prep()` BEFORE the velocity clamp:
+  accel-spike outlier rejection (robust z>10 vs per-joint MAD, floor 150 rad/s², cubic
+  re-interpolation; hampel was tried and rejected — rolling MAD inflates on fast joints)
+  + Savitzky–Golay (window 7, poly 3) on joints/root-pos + tangent-space (slerp-aware) SG
+  on the root quat. Before→after: spike frames −96–100 % (e.g. 341→2, 459→17), jerk peak
+  ÷4–20 (39359→3796), fidelity delta ≤0.04 rad RMS (sharpness kept; 2 Hz sines pass
+  unblurred). New advisory `smoothness` gate in `vet_motion.py` (jerk peak ≤20000,
+  spike frames ≤2 % — every raw file trips it, every cleaned file passes).
+  `vel_clamped_frames` drops 20–80 % but NOT to ~0 on LAFAN1 dances: they genuinely exceed
+  0.9·3π rad/s on sustained moves (already advisory-tolerated); glitch-driven clamps are
+  what's gone. Tests: `tests/test_motion_quality.py` (4 pass, no MuJoCo needed).
+  NOTE: existing trained policies (incl. the lat80 retrain) used UNFILTERED motion — the
+  filter applies to future extractions/preps.
 - 2026-07-10 (Windows handoff machine): **Multi-agent task board created (`tasks/`).**
   Three disjoint lanes: A = SDK latency audit + C++ onboard runtime (USER'S manual agent +
   human, needs Ubuntu laptop/robot; Python-loop code audit already done — loop is sound,

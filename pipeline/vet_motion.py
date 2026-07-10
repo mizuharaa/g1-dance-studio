@@ -49,6 +49,12 @@ FOOT_SKATE_SPEED = 0.30      # m/s tolerated horizontal foot speed during stance
 FOOT_CONTACT_HEIGHT = 0.045  # ankle_roll_link origin: grounded sole ~0.023-0.04 m
 FOOT_CONTACT_VZ = 0.20       # m/s max vertical speed to count as stance
 MOTOR_VEL_LIMIT = 3 * np.pi  # rad/s, G1 motor class limit (advisory)
+# Smoothness gate thresholds (2026-07-10 measurements,
+# data/telemetry/motion_quality_20260710): cleaned motions sit at jerk_peak
+# 7.5-14k rad/s^3 and <1.3% spike frames; raw GVHMR/GMR glitchy ones at 37-68k
+# and 7-13% — a glitchy motion trips BOTH margins comfortably.
+MAX_JERK_PEAK = 20000.0      # rad/s^3
+MAX_SPIKE_FRAMES_PCT = 2.0   # % of frames with a robust accel spike
 
 
 def main():
@@ -144,7 +150,23 @@ def main():
                               "limit": FOOT_SKATE_SPEED,
                               "ok": skate_p95 <= FOOT_SKATE_SPEED}
 
-    # ADVISORY 3: intake grounding — flag a motion that arrived un-grounded, so a
+    # ADVISORY 3: smoothness — accel/jerk spikes are the preview "twitch" and
+    # become jerky commands on hardware (2026-07-10 lane-B fix). A motion that
+    # went through prep_motion's clean stage passes; a raw glitchy one warns.
+    from tools.motion_quality import analyze as mq_analyze
+    mq = mq_analyze(m, CSV_FPS)
+    spike_pct = 100.0 * mq["spike_frame_count"] / max(len(m), 1)
+    advisory["smoothness"] = {
+        "jerk_peak_rad_s3": mq["jerk_peak_rad_s3"],
+        "jerk_p99_rad_s3": mq["jerk_p99_rad_s3"],
+        "spike_frames": mq["spike_frame_count"],
+        "spike_frames_pct": round(spike_pct, 1),
+        "limit_jerk_peak": MAX_JERK_PEAK,
+        "limit_spike_pct": MAX_SPIKE_FRAMES_PCT,
+        "ok": mq["jerk_peak_rad_s3"] <= MAX_JERK_PEAK
+              and spike_pct <= MAX_SPIKE_FRAMES_PCT}
+
+    # ADVISORY 4: intake grounding — flag a motion that arrived un-grounded, so a
     # raw (offset_to_ground=False) retarget can't silently rely on grounding here.
     advisory["grounding"] = {
         "input_contact_offset_m": round(float(ground_shift), 4),

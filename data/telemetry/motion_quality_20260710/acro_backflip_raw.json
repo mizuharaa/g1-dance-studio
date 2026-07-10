@@ -1,0 +1,88 @@
+{
+  "frames": 167,
+  "vel_peak_rad_s": 40.56,
+  "vel_p99_rad_s": 7.6,
+  "accel_peak_rad_s2": 1446.5,
+  "accel_p99_rad_s2": 214.5,
+  "jerk_peak_rad_s3": 68447.0,
+  "jerk_p99_rad_s3": 12284.0,
+  "spike_frames": [
+    45,
+    46,
+    47,
+    57,
+    63,
+    64,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    95,
+    96,
+    98,
+    99,
+    103,
+    104,
+    106
+  ],
+  "spike_frame_count": 20,
+  "spike_timestamps_s": [
+    1.5,
+    1.53,
+    1.57,
+    1.9,
+    2.1,
+    2.13,
+    2.27,
+    2.3,
+    2.33,
+    2.37,
+    2.4,
+    2.43,
+    2.47,
+    3.17,
+    3.2,
+    3.27,
+    3.3,
+    3.43,
+    3.47,
+    3.53
+  ],
+  "worst_joints": [
+    {
+      "dof_index": 15,
+      "spikes": 5
+    },
+    {
+      "dof_index": 0,
+      "spikes": 5
+    },
+    {
+      "dof_index": 17,
+      "spikes": 4
+    },
+    {
+      "dof_index": 25,
+      "spikes": 4
+    },
+    {
+      "dof_index": 24,
+      "spikes": 4
+    }
+  ],
+  "file": "data\\acro_refs\\converted\\acro_backflip.csv",
+  "clean": {
+    "outlier_frames_replaced": 34,
+    "jerk_peak_before": 68447.0,
+    "jerk_peak_after": 3161.0,
+    "jerk_p99_before": 12284.0,
+    "jerk_p99_after": 1178.0,
+    "spike_frames_before": 20,
+    "spike_frames_after": 0,
+    "dof_rms_delta_rad": 0.0394,
+    "dof_p99_delta_rad": 0.1675
+  }
+}
