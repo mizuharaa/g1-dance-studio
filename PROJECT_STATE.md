@@ -46,6 +46,17 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10: **Multi-agent review + re-plan around the 60–70 % fidelity gap.** Tester: the robot
+  performs only ~60–70 % of the dance, SKIPS subtle/fast moves clear in the 3D preview. Root cause:
+  the preview plays the REFERENCE; the robot runs a POLICY that only approximately tracks it
+  (subtle moves traded against balance, capped by motor limits, eroded by latency). PR review:
+  Lane-B twitch fix was done twice — main's `16f6aa7` is canonical (verified on the real Thriller:
+  spikes 25→0, jerk 11,939→2,454); my redundant `motion-quality-filter` branch retired. Frontend
+  branch reviewed SAFE-TO-MERGE (all 5 safety controls preserved, committed dist/, API contract ok).
+  Re-planned into 5 lanes (tasks/): A latency, B de-glitch+FEASIBILITY, C frontend+honest-preview,
+  **D policy-in-the-loop sim sandbox (flagship — the honest preview)**, E fidelity retrain
+  (subtle-move reward + curriculum latency DR, fixing the lat80 failure). Building D next.
+
 - 2026-07-10 (Lane B): **Twitch/glitch fix — temporal filtering added to the motion pipeline.**
   Measured (script `tools/motion_quality.py`, raw outputs
   `data/telemetry/motion_quality_20260710/`): all 5 repo CSVs carry isolated accel/jerk

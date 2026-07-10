@@ -52,3 +52,24 @@ The pipeline has **no temporal filtering**:
 - Committed before/after metrics proving spike reduction without dulling choreography.
 - Filter wired into the extract→retarget→prep flow + vet gate metric + tests green.
 - `PROJECT_STATE.md` decision-log entry with the numbers.
+
+---
+
+## Phase 2 — FEASIBILITY (new, 2026-07-10) — the robot skips moves it physically can't do
+De-glitch (Phase 1) is merged. But the tester saw the robot do only ~60–70 % and SKIP moves:
+the reference asks for joint speeds past the G1 motor-class limit (vet advisory already shows
+~30 % of frames over ~3π rad/s), so the policy washes them out. Make the reference something
+the robot CAN do:
+1. **Feasibility retime** — where peak joint velocity exceeds the motor limit, time-warp just
+   that segment (slow only the impossible bits) so the beat is kept where possible but no joint
+   is commanded past its limit. Report per-segment slowdown + which joints drove it.
+2. **Unitree High-Motion warm-tips as authoring constraints** (from the G1 SDK dev guide):
+   bring the **knee toward straight** where possible, **reduce stride frequency**, keep **feet
+   closer together**, and **avoid dead-still** frames — apply as soft constraints in the retarget
+   / a post-retarget pass so motions read natural AND stay in the robot's envelope.
+3. Feed the feasible motion to Lane E (retrain) and Lane D (sandbox) — validate the robot's
+   achieved-vs-reference fraction goes UP.
+
+Acceptance: a `feasibility` report per motion (frames retimed, joints clamped, achievable
+fraction) + the vet gate flags an infeasible motion + tests. Coordinate with Lane D's sandbox
+(that's where "achievable fraction" is measured honestly).

@@ -1,0 +1,87 @@
+{
+  "frames": 1674,
+  "vel_peak_rad_s": 8.48,
+  "vel_p99_rad_s": 5.24,
+  "accel_peak_rad_s2": 263.6,
+  "accel_p99_rad_s2": 73.3,
+  "jerk_peak_rad_s3": 11939.0,
+  "jerk_p99_rad_s3": 2571.0,
+  "spike_frames": [
+    444,
+    460,
+    464,
+    465,
+    467,
+    468,
+    540,
+    563,
+    816,
+    876,
+    905,
+    935,
+    943,
+    947,
+    948,
+    956,
+    1007,
+    1052,
+    1083,
+    1141,
+    1156,
+    1170,
+    1345,
+    1358,
+    1448
+  ],
+  "spike_frame_count": 25,
+  "spike_timestamps_s": [
+    14.8,
+    15.33,
+    15.47,
+    15.5,
+    15.57,
+    15.6,
+    18.0,
+    18.77,
+    27.2,
+    29.2,
+    30.17,
+    31.17,
+    31.43,
+    31.57,
+    31.6,
+    31.87,
+    33.57,
+    35.07,
+    36.1,
+    38.03,
+    38.53,
+    39.0,
+    44.83,
+    45.27,
+    48.27
+  ],
+  "worst_joints": [
+    {
+      "dof_index": 25,
+      "spikes": 10
+    },
+    {
+      "dof_index": 22,
+      "spikes": 4
+    },
+    {
+      "dof_index": 3,
+      "spikes": 4
+    },
+    {
+      "dof_index": 23,
+      "spikes": 3
+    },
+    {
+      "dof_index": 24,
+      "spikes": 3
+    }
+  ],
+  "file": "data/policies/thriller_csv_ankle_penalty/thriller_csv_ankle_penalty_deploy.csv"
+}
