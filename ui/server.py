@@ -503,10 +503,16 @@ def attach_policy(dance_id: str, payload: dict = Body(...)) -> dict:
     if not policy:
         raise HTTPException(400, "policy_path is required")
     try:
-        return _dance_dict(shows.attach_policy(dance_id, policy,
-                                               notes=payload.get("notes")))
+        dance = shows.attach_policy(dance_id, policy, notes=payload.get("notes"))
     except ValueError as e:
         raise HTTPException(400, str(e))
+    # Auto-render the honest sim for the NEW policy (background, no robot/GPU). A retrain
+    # keeps the previous version, so the Simulation tab's before/after lights up on its own.
+    try:
+        sim_preview.render_async(dance)
+    except Exception:  # a preview issue must never fail the policy attach
+        pass
+    return _dance_dict(dance)
 
 
 @app.get("/api/library/export")
