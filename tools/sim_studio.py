@@ -51,7 +51,7 @@ def _kinematic_reference(dance: Path, steps: int) -> dict:
 def _policy_rollout(dance: Path, steps: int, latency: float, tether: float, label: str) -> dict:
     out, _, _ = run_sandbox(dance, steps=steps, latency_ms=latency, tether_kp=tether)
     rep = tracking_report(out)
-    out["achieved"] = rep["achieved_fraction_overall"]
+    out["achieved"] = rep["amplitude_ratio_overall"]   # honest: how much it DANCES (not error)
     out["kind"] = label
     out["fell_at"] = rep["fell_at_tick"]
     return out
@@ -93,9 +93,14 @@ def render_studio(left: dict, right: dict, out_path: Path, meta):
         for x0, rec in ((6, left), (W + 6, right)):
             dr_.rectangle([x0 - 2, 2, x0 + W - 12, 34], fill=(0, 0, 0))
             dr_.text((x0, 4), rec["kind"], fill=(255, 255, 255))
-            dr_.text((x0, 18), f"achieved {rec['achieved']*100:.0f}%"
+            dr_.text((x0, 18), f"dances {rec['achieved']*100:.0f}% of the motion"
                      + (f"  FELL@{rec['fell_at']}" if rec.get("fell_at") else ""),
                      fill=(120, 220, 120) if rec["achieved"] > 0.85 else (240, 200, 90))
+        # uncalibrated-sim caveat, bottom strip
+        dr_.rectangle([0, 2 * H - 16, 2 * W, 2 * H], fill=(0, 0, 0))
+        dr_.text((6, 2 * H - 14),
+                 "SIM NOT YET CALIBRATED to the training model — under-represents hardware "
+                 "(reference | policy)", fill=(230, 170, 90))
         im.save(tmp / f"f{k:05d}.png")
     rL.close(); rR.close()
 
@@ -115,7 +120,8 @@ def main() -> int:
     ap.add_argument("--dance-b", type=Path, default=None, help="second policy dir -> before|after")
     ap.add_argument("--steps", type=int, default=1600)
     ap.add_argument("--latency-ms", type=float, default=0.0)
-    ap.add_argument("--tether-kp", type=float, default=150.0)
+    ap.add_argument("--tether-kp", type=float, default=0.0,
+                    help="keep 0 — a high tether pins the base and SUPPRESSES the dance")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--report", type=Path, default=None, help="write a small json summary")
     args = ap.parse_args()
@@ -127,7 +133,7 @@ def main() -> int:
     else:                                         # REFERENCE(intended) | POLICY(actual)
         left = _kinematic_reference(args.dance, args.steps)
         right = _policy_rollout(args.dance, args.steps, args.latency_ms, args.tether_kp,
-                                "POLICY (actual robot)")
+                                "POLICY (sim — uncalibrated)")
     print(f"left  {left['kind']}: achieved {left['achieved']*100:.0f}%")
     print(f"right {right['kind']}: achieved {right['achieved']*100:.0f}%"
           + (f"  fell@{right.get('fell_at')}" if right.get('fell_at') else ""))

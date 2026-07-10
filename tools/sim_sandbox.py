@@ -143,18 +143,26 @@ def run_sandbox(dance: Path, steps: int, latency_ms: float, xml: Path = SCENE,
 
 
 def tracking_report(out) -> dict:
-    """Reference-vs-achieved per joint: which moves the policy drops (the 60-70%)."""
+    """Reference-vs-achieved per joint. Reports BOTH how much the policy actually MOVES
+    (amplitude ratio — the honest 'does it dance') and a tracking-error fraction. Use the
+    amplitude ratio as the headline: the error fraction can look high even when the robot
+    barely moves (it measures closeness to the reference, not motion)."""
     q, ref_jp = out["q"], out["ref_jp"]
-    n = min(len(q), len(ref_jp))
-    err = ref_jp[:n] - q[:n]                                  # (T,29) tracking error
-    ref_rng = np.ptp(ref_jp[:n], axis=0) + 1e-6               # per-joint reference range
-    ach = 1.0 - np.clip(np.abs(err).mean(axis=0) / ref_rng, 0, 1)   # achieved fraction
+    n = out["fell_at_tick"] or min(len(q), len(ref_jp))       # score only the alive window
+    n = min(n, len(q), len(ref_jp))
+    q, ref_jp = q[:n], ref_jp[:n]
+    ref_rng = np.ptp(ref_jp, axis=0) + 1e-6                   # per-joint reference range
+    amp = np.ptp(q, axis=0) / ref_rng                         # amplitude ratio: does it dance?
+    err = ref_jp - q
+    ach = 1.0 - np.clip(np.abs(err).mean(axis=0) / ref_rng, 0, 1)
     return {
+        "amplitude_ratio_overall": float(np.clip(amp, 0, 3).mean()),   # HEADLINE: how much it moves
         "rms_err_rad": float(np.sqrt((err ** 2).mean())),
         "achieved_fraction_overall": float(ach.mean()),
-        "worst_tracked_dofs": [int(i) for i in np.argsort(ach)[:6]],
-        "per_dof_achieved": ach.round(3).tolist(),
+        "worst_tracked_dofs": [int(i) for i in np.argsort(amp)[:6]],
+        "per_dof_amplitude": np.clip(amp, 0, 3).round(3).tolist(),
         "fell_at_tick": out["fell_at_tick"],
+        "scored_ticks": int(n),
     }
 
 
@@ -164,7 +172,8 @@ def main():
     ap.add_argument("--steps", type=int, default=400)
     ap.add_argument("--latency-ms", type=float, default=0.0)
     ap.add_argument("--tether-kp", type=float, default=0.0,
-                    help="compliant tether stiffness (N/m). ~150 mimics the operator's tether")
+                    help="compliant tether stiffness (N/m). WARNING: high values (>~80) PIN the "
+                         "base and SUPPRESS the dance — keep 0 for an honest amplitude read")
     ap.add_argument("--out", type=Path, default=None, help="render mp4 (optional)")
     ap.add_argument("--report", type=Path, default=None, help="write tracking report json")
     args = ap.parse_args()
@@ -174,9 +183,9 @@ def main():
     rep = tracking_report(out)
     print(f"== sandbox {args.dance.name}  latency={args.latency_ms}ms  steps={len(out['q'])} ==")
     print(f"  fell_at_tick: {rep['fell_at_tick']}  (None = stayed up)")
-    print(f"  tracking RMS err: {rep['rms_err_rad']:.3f} rad")
-    print(f"  ACHIEVED fraction (ref range the robot reproduces): {rep['achieved_fraction_overall']*100:.1f}%")
-    print(f"  worst-tracked dof indices: {rep['worst_tracked_dofs']}")
+    print(f"  AMPLITUDE (how much it DANCES vs reference): {rep['amplitude_ratio_overall']*100:.0f}%  <- headline")
+    print(f"  (tracking-error fraction {rep['achieved_fraction_overall']*100:.0f}% — closeness, not motion)")
+    print(f"  NOTE: menagerie model != mjlab training model -> sim UNDER-represents hardware.")
     if args.report:
         import json
         args.report.parent.mkdir(parents=True, exist_ok=True)

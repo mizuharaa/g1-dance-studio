@@ -96,7 +96,7 @@ def _render(dance, sha: str) -> None:
         mp4, meta_p = d / f"{sha}.mp4", d / f"{sha}.report.json"
         subprocess.run(
             [sys.executable, "-m", "tools.sim_studio", "--dance", str(_policy_dir(dance)),
-             "--steps", "1600", "--tether-kp", "150",
+             "--steps", "1600", "--tether-kp", "0",     # 0 = honest amplitude (no base pinning)
              "--out", str(mp4), "--report", str(meta_p)],
             cwd=str(PROJECT_ROOT), check=True, timeout=1800,
             env={**os.environ, "MUJOCO_GL": "egl"})

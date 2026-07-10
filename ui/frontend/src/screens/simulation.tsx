@@ -33,7 +33,7 @@ function SimVideo({ v, tag }: { v: SimVersion; tag: string }) {
           <span className="font-mono text-[10px] font-medium text-slate-400">{v.sha}</span>
         </div>
         <Badge className={cn((v.achieved ?? 0) > 0.85 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
-          policy achieves {pct(v.achieved)}
+          dances {pct(v.achieved)} of the motion
         </Badge>
       </div>
       <div className="bg-slate-950 p-2">
@@ -102,6 +102,12 @@ export function SimulationScreen({ data }: { data: ConsoleData }) {
       <PageHeader title="Simulation"
         description="Policy-in-the-loop preview — reference (intended) vs policy (actual robot). Every training keeps its own version, so you can compare before vs after." />
 
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+        ⚠️ Sim not yet calibrated to the training model — it currently <b>under-represents</b> the
+        dance vs hardware. Use it to compare policies (before/after) and spot which joints move,
+        not as an exact preview of the real robot.
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         {dances.map((d) => (
           <button key={d.id} onClick={() => { setSelectedId(d.id); setCompare(false) }}
@@ -165,7 +171,7 @@ export function SimulationScreen({ data }: { data: ConsoleData }) {
                 {ready.map((v, i) => (
                   <div key={v.sha} className="flex items-center justify-between text-xs">
                     <span className="font-mono text-slate-500">{v.sha}{i === 0 ? "  (current)" : ""}</span>
-                    <span className="font-semibold text-slate-700">policy achieves {pct(v.achieved)}</span>
+                    <span className="font-semibold text-slate-700">dances {pct(v.achieved)} of the motion</span>
                   </div>
                 ))}
               </div>

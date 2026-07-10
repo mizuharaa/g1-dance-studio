@@ -46,6 +46,19 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10: **Sim sandbox HONESTY fix — it under-represents the dance; not calibrated yet.**
+  User caught that the policy "doesn't dance" in the Simulation tab. Diagnosed: (1) a tether hack
+  (kp 150) I added PINNED the base -> crushed motion to 8%; (2) even free, the policy's joints
+  achieve only ~24% of the reference AMPLITUDE while its TARGETS swing 437% (it over-commands and
+  thrashes) and falls at ~7s -- because the sandbox runs on the MENAGERIE G1 model, not the mjlab
+  model the policy trained on. On hardware the SAME policy dances 60-70%, so the SIM is wrong, not
+  the policy. The old "80% achieved" metric was misleading (tracking error, not motion). FIXES:
+  tracking_report now headlines AMPLITUDE ratio; tether default 0 (no pinning); sim_studio +
+  Simulation tab carry an "uncalibrated - under-represents hardware" caveat. TRUST GATE (still
+  owed): match mjlab dynamics/contact OR cross-check obs vs a real `--mode read` obs log (hardware)
+  before trusting sim amplitude/fall-timing. The before/after COMPARISON is still valid (same sim
+  bias both sides).
+
 - 2026-07-10: **Lane D Phase-2 — side-by-side "dance studio" preview** (`tools/sim_studio.py`).
   Two frame-synced panels + live state overlay. Default REFERENCE(intended)|POLICY(actual) puts
   the fidelity gap on screen (Thriller reference 100% vs policy 74% — subtle moves visibly washed

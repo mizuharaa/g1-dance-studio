@@ -24,11 +24,12 @@ pytestmark = pytest.mark.skipif(not DANCE.exists(), reason="thriller policy bund
 def test_sandbox_runs_deploy_contract_and_reports():
     # window must include real dance motion (onset ~3.6 s) for the fidelity metric to mean
     # something; before that the reference barely moves and the ratio is degenerate.
-    out, model, meta = run_sandbox(DANCE, steps=300, latency_ms=0.0, tether_kp=150.0)
+    out, model, meta = run_sandbox(DANCE, steps=300, latency_ms=0.0, tether_kp=0.0)
     rep = tracking_report(out)
     assert 0.0 <= rep["achieved_fraction_overall"] <= 1.0   # a valid fraction
+    assert rep["amplitude_ratio_overall"] >= 0.0            # headline: how much it moves
     assert rep["rms_err_rad"] > 0.0                         # the policy does NOT track perfectly
-    assert len(rep["per_dof_achieved"]) == 29               # full 29-dof contract
+    assert len(rep["per_dof_amplitude"]) == 29              # full 29-dof contract
     assert out["q"].shape[1] == 29 and out["ref_jp"].shape[1] == 29
 
 
