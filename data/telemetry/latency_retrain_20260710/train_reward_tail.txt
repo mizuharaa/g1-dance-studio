@@ -1,0 +1,12 @@
+  Episode_Reward/motion_global_root_pos: 0.0586
+         Episode_Termination/anchor_pos: 0.9583
+                            Mean reward: 7.12
+                    Mean episode length: 247.43
+        Metrics/motion/error_anchor_pos: 0.5748
+  Episode_Reward/motion_global_root_pos: 0.0539
+         Episode_Termination/anchor_pos: 0.8333
+                            Mean reward: 6.55
+                    Mean episode length: 229.81
+        Metrics/motion/error_anchor_pos: 0.5645
+  Episode_Reward/motion_global_root_pos: 0.0533
+         Episode_Termination/anchor_pos: 1.1667

@@ -46,6 +46,15 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10: **Latency retrain FAILED verification — do NOT deploy** (see
+  data/telemetry/latency_retrain_20260710/). `train-thriller_lat80-2607` (0-80 ms latency DR,
+  5000 iters): survival 0.000 in ALL 11 gap_check conditions incl. nominal; drift 2.2-7.1 m
+  (ankle policy was 0.46 m). rr_mpkpe 0.079 (dances well, can't hold station). Cross-checked by
+  the training curve: root-pos reward stalled 0.05, mean episode ~4.6 s (early anchor_pos/
+  ee_body_pos terminations). CAUSE: 0-80 ms DR too aggressive for 5000 iters — traded station-
+  keeping for latency robustness. The new 40 ms gap gate correctly refused it. NEXT RECIPE (not
+  run): curriculum delay 0->~60 ms OR 0-50 ms range + ~10k iters + stronger root penalty.
+  NOTE: all EXISTING trained policies used UNFILTERED motion (see the motion-quality work below).
 - 2026-07-10: **Latency-robust retrain LAUNCHED + project handover.** New GPU box
   `nb-9c7ba766-...` (ssh 103.245.250.152:59613, RSA key — ed25519 is rejected by GreenNode's
   key import). mjlab env reinstalled (isolated venv). Retrain `train-thriller_lat80-2607`
