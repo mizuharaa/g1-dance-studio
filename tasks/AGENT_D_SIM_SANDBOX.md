@@ -49,3 +49,13 @@ the obs (tol 1e-5). Only then is the twin trustworthy. Commit the comparison to 
 `tools/sim_sandbox.py` (new), `pipeline/obs_builder.py` (new, refactor), `deploy_runtime.py`
 (extract-only, no safety-path behavior change — flag if you must), `data/telemetry/`, `docs/`.
 Out of scope: `cloud/`, `ui/`, the safety envelope behavior.
+
+---
+## Phase-2 DELIVERED (2026-07-10): side-by-side "dance studio" preview
+`tools/sim_studio.py` renders two frame-synced panels with a live state overlay (achieved
+fraction, fell@). Default = REFERENCE (intended, kinematic) | POLICY (actual, dynamic sandbox)
+— the honest fidelity gap ON SCREEN (Thriller: reference 100% vs policy 74%, subtle moves
+visibly washed out). `--dance-b <after>` switches to POLICY(before) | POLICY(after) — the
+before/after retrain comparison, ready for Lane E's output. Tests in tests/test_sim_sandbox.py.
+Future: "send SDK-style command signals" (LocoClient stand/squat/velocity + arm-action IDs) is
+a separate onboard-controller sim, not the RL-policy path — scope it as its own step.

@@ -37,3 +37,14 @@ def test_latency_injection_is_not_a_noop():
     b, _, _ = run_sandbox(DANCE, steps=60, latency_ms=80.0, tether_kp=150.0)
     n = min(len(a["q"]), len(b["q"]))
     assert not np.allclose(a["q"][:n], b["q"][:n])          # delay changes what the robot does
+
+
+def test_studio_kinematic_reference_matches_the_deploy_npz():
+    """The 'intended' panel plays the reference joint_pos straight — verify it does."""
+    from tools.sim_studio import _kinematic_reference
+    rec = _kinematic_reference(DANCE, steps=50)
+    assert rec["q"].shape[1] == 29 and len(rec["q"]) == 50
+    assert rec["achieved"] == 1.0                           # reference = a perfect tracker
+    import pipeline.deploy_runtime as D
+    ref = D.Reference(next(DANCE.glob("*_deploy.npz")))
+    assert np.allclose(rec["q"][10], ref.jp[10])            # frame 10 IS reference frame 10

@@ -46,6 +46,12 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10: **Lane D Phase-2 — side-by-side "dance studio" preview** (`tools/sim_studio.py`).
+  Two frame-synced panels + live state overlay. Default REFERENCE(intended)|POLICY(actual) puts
+  the fidelity gap on screen (Thriller reference 100% vs policy 74% — subtle moves visibly washed
+  out, matching the tester report). `--dance-b` = POLICY(before)|POLICY(after) for the retrain
+  comparison (ready for Lane E). Rendered thriller_reference_vs_policy.mp4. Tests green.
+
 - 2026-07-10: **B2 feasibility finding — the 60-70% is a POLICY gap, not motion infeasibility;
   Lane E UNBLOCKED.** tools/motion_feasibility.py + a Lane-D sandbox A/B prove it 3 ways
   (data/telemetry/feasibility_20260710/): Thriller deploy is already velocity-feasible (peak
