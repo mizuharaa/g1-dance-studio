@@ -1,7 +1,17 @@
 # AGENT E — Fidelity retrain: track the subtle moves + match the robot's real signals
 
-**Owner: USER'S MANUAL AGENT + human.** Ubuntu laptop + GPU (recreate the GreenNode box —
-`docs/BOX_RECREATE_RUNBOOK.md`; RSA key only, add TCP 22). Not on the Windows clone.
+**Owner: Windows-side Claude (reassigned by user 2026-07-10) + human for box creation.**
+GPU: recreate the GreenNode box (`docs/BOX_RECREATE_RUNBOOK.md`; RSA key only, add TCP 22).
+Budget cap: 1.5M VND (user-authorized 2026-07-10).
+
+**STATUS 2026-07-10: recipe IMPLEMENTED, launch blocked on two inputs:**
+- code: `cloud/sim2real_task_v5.py` (arm-scoped tracking terms + root-pos 1.0 + env-var
+  delay caps) + `cloud/train_sim2real_v5.py` + `cloud/train_v5_curriculum.sh`
+  (3-stage staged-resume curriculum: 0-20 ms/4k → 0-50 ms/+3k → 0-60 ms/+3k iters).
+- blocked on: (1) `.secrets/` copied to the Windows machine (user doing), (2) Lane B
+  Phase-2 feasibility motion from the Ubuntu agent (user decision: wait, train once).
+- on the box, before stage 2: verify the rsl_rl resume flag names (`--help | grep -i resume`)
+  — marked in the script.
 
 ## Why
 Two failures compound into the "60–70 %": (1) the current policy **washes out subtle / arm

@@ -46,6 +46,15 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10 (Windows handoff, Lane E prep): **v5 "fidelity" recipe implemented, launch
+  blocked on 2 inputs.** `cloud/sim2real_task_v5.py` (+ launcher + `train_v5_curriculum.sh`):
+  base recipe v2 + arm-scoped tracking terms (6 arm bodies, std 0.25/0.35, w 1.0 — subtle-move
+  fidelity) + root-pos w 1.0 (kept from lat80) + LATENCY AS STAGED-RESUME CURRICULUM
+  (0-20 ms 4k iters → 0-50 ms +3k → 0-60 ms +3k; caps via G1_CMD/OBS_DELAY_MAX_LAG env vars;
+  60 not 80 ms — sim PD already models mechanical lag). Gates: gap_check 40 ms+push AND
+  nominal drift <1 m, then Lane-D sandbox, then hardware. User decisions: budget 1.5M VND;
+  train once on Lane-B Phase-2 motion (waiting on Ubuntu agent); `.secrets/` being copied to
+  this machine so Windows-side drives the box over SSH (human clicks the create form).
 - 2026-07-10 (Windows handoff, Lane A Phase-1 code): **50 Hz loop hardened in
   `pipeline/deploy_runtime.py`** — new `TickClock` gives all 4 policy loops absolute-deadline
   pacing (old relative `sleep(dt-elapsed)` accumulated phase drift vs the reference) and
