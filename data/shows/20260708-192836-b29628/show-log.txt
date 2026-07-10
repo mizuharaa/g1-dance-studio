@@ -1,0 +1,2 @@
+[2026-07-08 19:28:36] rehearsal show created for dance 'Thriller' by operator 'alois'
+[2026-07-08 19:28:36] RUN SHOW spawned (mode=rehearsal, audio=laptop, exit_mode=stand, config=proven default) — operator holds the damping remote

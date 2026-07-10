@@ -1,0 +1,7 @@
+[2026-07-08 18:39:08] live show created for dance 'Thriller' by operator 'Alois'
+[2026-07-08 18:40:26] checklist step 'robot_health' completed: {'at': 1783510826.9015238, 'confirmed': True}
+[2026-07-08 18:40:27] checklist step 'space_clear' completed: {'at': 1783510827.7152576, 'confirmed': True}
+[2026-07-08 18:40:31] checklist step 'battery' completed: {'at': 1783510831.2834396, 'value': 90.0}
+[2026-07-08 18:40:32] checklist step 'estop' completed: {'at': 1783510832.8401027, 'confirmed': True}
+[2026-07-08 18:40:33] checklist step 'venue_ack' completed: {'at': 1783510833.7167056, 'confirmed': True}
+[2026-07-08 18:40:44] deploy requested by operator — RECORDED ONLY (no robot contact)

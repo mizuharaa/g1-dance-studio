@@ -1,0 +1,15 @@
+SHOW RUN: dance=20260704-18f65bbd audio=laptop latency_comp=0.0s
+REFUSED --exit stand: motion final frame is NOT a standing pose — joint 'left_elbow_joint' sits 39.0 deg (0.680 rad > 0.15 rad) from default. Handing off from a non-standing pose could topple the robot -> FALLING BACK to --exit damp (proven ramp-to-damping).
+[ground-run-legodom] human-confirmed. Damping is your remote's job if anything looks wrong.
+!! RELEASING onboard motion/balance service — the robot will NOT self-balance.
+   Feet OFF ground, remote in hand, ready to damp.
+   motion service released — rt/lowcmd accepted for full-body.
+   entry catch: holding current pose 0.5s so the robot is never unheld at the onboard->policy handoff, then easing to the ready pose.
+GROUND-RUN-LEGODOM: stage-1 firm move-to-default (4s)+hold, then PROVEN gantry policy (160-dim obs, base_lin_vel+height from LEG kinematics — service-independent) 2589/2589 ticks @ 50Hz [--max-secs 52.0], action cap 10.0. Tethered. Ctrl-C / remote-damp to stop.
+reference yaw-aligned to robot heading (offset +8.8 deg).
+at default — starting leg-odometry policy. Keep tension on the tether; damp at the first sign of a fault, lurch, or lean.
+[show_audio] armed: mode=laptop offset=4.00s latency_comp=0.000s track=/home/alois/g1-dance/data/dances/20260704-18f65bbd/audio/music.wav
+ground segment done — smooth ramp to damping.
+[show_audio] done: {"mode": "laptop", "t0_epoch": 1783511076.303642, "offset_s": 4.0, "late_s": 8.273124694824219e-05}
+   restored onboard motion service ('ai') — remote/app can pair.
+telemetry saved: /home/alois/g1-dance/data/telemetry/20260708-184431_ground-run-legodom.npz (2589 ticks)

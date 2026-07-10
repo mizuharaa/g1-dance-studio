@@ -46,6 +46,12 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10: **Latency-robust retrain LAUNCHED + project handover.** New GPU box
+  `nb-9c7ba766-...` (ssh 103.245.250.152:59613, RSA key — ed25519 is rejected by GreenNode's
+  key import). mjlab env reinstalled (isolated venv). Retrain `train-thriller_lat80-2607`
+  running (4096 envs, 5000 iters, ETA ~1h35m) with latency DR 0-80ms + root-pos weight 1.0.
+  Verify plan: gap_check now GATES at 40ms+push (was 20ms) + 60/80ms stress lines; export →
+  heldout x3 → promote → DELETE box. Full handover for the incoming dev written to HANDOVER.md.
 - 2026-07-09: **Sim/ref video desync FIXED** (live-run complaint). Root cause: show played
   the v3e side-by-side, whose sim panel is a DIFFERENT Thriller take (2589-frame lineage),
   while the robot now runs thriller_csv_ankle_penalty (2789-frame). New local kinematic

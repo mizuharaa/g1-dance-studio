@@ -1,0 +1,197 @@
+{
+  "id": "20260708-71711415",
+  "name": "thriller CSV +ankle penalty",
+  "created_at": 1783516127.136763,
+  "updated_at": 1783516760.5288517,
+  "status": "show-ready",
+  "duration_s": 44.3,
+  "motion_csv": "data/policies/thriller_csv_ankle_penalty/thriller_csv_ankle_penalty_deploy.csv",
+  "policy_path": "data/policies/thriller_csv_ankle_penalty/policy.onnx",
+  "preview": "/previews/job-20260708-175045-96da66.mp4",
+  "vet": {
+    "file": "/home/alois/g1-dance/data/jobs/20260708-175045-96da66/retarget/motion.csv",
+    "frames": 1329,
+    "seconds": 44.3,
+    "ground_shift_m": 0.0,
+    "hard": {
+      "root_excursion": {
+        "max_m": 0.568,
+        "footprint_radius_m": 0.568,
+        "footprint_center_xy": [
+          -0.0,
+          -0.0
+        ],
+        "limit": 1.5,
+        "pass": true
+      },
+      "joint_limits": {
+        "worst_violation_rad": 0.0,
+        "pass": true
+      },
+      "pelvis_height": {
+        "min_m": 0.698,
+        "limit": 0.35,
+        "pass": true
+      }
+    },
+    "advisory": {
+      "joint_velocity": {
+        "peak_rad_s": 56.38,
+        "p99_rad_s": 5.81,
+        "frames_over_limit_pct": 3.1,
+        "limit": 9.42,
+        "ok": true
+      },
+      "foot_skate": {
+        "p95_stance_speed_m_s": 0.0,
+        "limit": 0.3,
+        "ok": true
+      },
+      "grounding": {
+        "input_contact_offset_m": 0.0,
+        "limit": 0.05,
+        "ok": true
+      }
+    },
+    "pass": true
+  },
+  "sim_exam": {
+    "verdict": "pass",
+    "at": 1783516127.1503575,
+    "exam_id": null,
+    "metrics": {
+      "nominal": {
+        "pass": true,
+        "success_rate": 1.0,
+        "n_success": 256,
+        "num_episodes": 256,
+        "mpkpe_m": 0.12302239239215851,
+        "ee_pos_error_m": 0.0846894234418869,
+        "held_out_seed": 90021
+      },
+      "push": {
+        "pass": true,
+        "success_rate": 1.0,
+        "n_success": 256,
+        "num_episodes": 256,
+        "force_n": 875.0,
+        "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
+        "mpkpe_m": 0.15026521682739258,
+        "held_out_seed": 90022
+      },
+      "repeatability": 256
+    },
+    "policy_sha256": "444864f9220836dc7e6cc9b11746e8ff02d009719dc453bef47e1ed5653c3abb"
+  },
+  "source_job": "20260708-175045-96da66",
+  "notes": "trained by app job 20260708-175045-96da66 (train-thriller_csv_ankle_penalty-96da66)",
+  "policy_sha256": "444864f9220836dc7e6cc9b11746e8ff02d009719dc453bef47e1ed5653c3abb",
+  "incident": null,
+  "audio": {
+    "track": "data/dances/20260708-71711415/audio/music.wav",
+    "source": "attached_file",
+    "align": {
+      "audio_delay_s": 1.5,
+      "trim_start_s": 0.0,
+      "trim_duration_s": 44.3,
+      "music_end_s": 45.8,
+      "performance_s": 49.3
+    },
+    "muxed_preview": "/previews/20260708-71711415_with_music.mp4",
+    "attached_at": 1783516760.5054557
+  },
+  "repeatability": {
+    "consecutive_clean": 3,
+    "total_runs": 3,
+    "last_run_at": 1783516127.1503575,
+    "history": [
+      {
+        "passed": true,
+        "at": 1783516127.1503575,
+        "exam_id": null,
+        "metrics": {
+          "nominal": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "mpkpe_m": 0.12302239239215851,
+            "ee_pos_error_m": 0.0846894234418869,
+            "held_out_seed": 90021
+          },
+          "push": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "force_n": 875.0,
+            "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
+            "mpkpe_m": 0.15026521682739258,
+            "held_out_seed": 90022
+          },
+          "repeatability": 256
+        },
+        "video": null,
+        "policy_sha256": "444864f9220836dc7e6cc9b11746e8ff02d009719dc453bef47e1ed5653c3abb"
+      },
+      {
+        "passed": true,
+        "at": 1783516127.1471484,
+        "exam_id": null,
+        "metrics": {
+          "nominal": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "mpkpe_m": 0.12027645111083984,
+            "ee_pos_error_m": 0.08441366255283356,
+            "held_out_seed": 90011
+          },
+          "push": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "force_n": 875.0,
+            "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
+            "mpkpe_m": 0.15440720319747925,
+            "held_out_seed": 90012
+          },
+          "repeatability": 256
+        },
+        "video": null,
+        "policy_sha256": "444864f9220836dc7e6cc9b11746e8ff02d009719dc453bef47e1ed5653c3abb"
+      },
+      {
+        "passed": true,
+        "at": 1783516127.1432376,
+        "exam_id": null,
+        "metrics": {
+          "nominal": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "mpkpe_m": 0.12414401769638062,
+            "ee_pos_error_m": 0.08464072644710541,
+            "held_out_seed": 90001
+          },
+          "push": {
+            "pass": true,
+            "success_rate": 1.0,
+            "n_success": 256,
+            "num_episodes": 256,
+            "force_n": 875.0,
+            "push_mechanism": "mjlab base-velocity impulse (~0.5 m/s); force_n is the m*dv/dt equivalent",
+            "mpkpe_m": 0.15195316076278687,
+            "held_out_seed": 90002
+          },
+          "repeatability": 256
+        },
+        "video": null,
+        "policy_sha256": "444864f9220836dc7e6cc9b11746e8ff02d009719dc453bef47e1ed5653c3abb"
+      }
+    ]
+  }
+}

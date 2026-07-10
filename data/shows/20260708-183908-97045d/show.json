@@ -1,0 +1,37 @@
+{
+  "id": "20260708-183908-97045d",
+  "dance_id": "20260704-18f65bbd",
+  "dance_name": "Thriller",
+  "operator": "Alois",
+  "created_at": 1783510748.0586421,
+  "steps": {
+    "robot_health": {
+      "at": 1783510826.9015238,
+      "confirmed": true
+    },
+    "space_clear": {
+      "at": 1783510827.7152576,
+      "confirmed": true
+    },
+    "battery": {
+      "at": 1783510831.2834396,
+      "value": 90.0
+    },
+    "estop": {
+      "at": 1783510832.8401027,
+      "confirmed": true
+    },
+    "venue_ack": {
+      "at": 1783510833.7167056,
+      "confirmed": true
+    }
+  },
+  "deploy": {
+    "requested_at": 1783510844.066418,
+    "note": "placeholder \u2014 nothing was sent to the robot"
+  },
+  "outcome": null,
+  "closed": false,
+  "mode": "live",
+  "setlist_id": null
+}

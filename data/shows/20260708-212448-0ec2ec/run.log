@@ -1,0 +1,63 @@
+SHOW RUN: dance=20260708-71711415 audio=laptop latency_comp=0.0s
+--exit stand: motion ends within 0.15 rad of the default standing pose on all joints -> on a CLEAN finish the robot will HOLD that standing pose 2.0s, then hand back to onboard balance (no end-of-run damping). ABORTS still damp.
+[ground-run-legodom] human-confirmed. Damping is your remote's job if anything looks wrong.
+!! RELEASING onboard motion/balance service — the robot will NOT self-balance.
+   Feet OFF ground, remote in hand, ready to damp.
+   motion service released — rt/lowcmd accepted for full-body.
+   entry catch: holding current pose 0.5s so the robot is never unheld at the onboard->policy handoff, then easing to the ready pose.
+GROUND-RUN-LEGODOM: stage-1 firm move-to-default (4s)+hold, then PROVEN gantry policy (160-dim obs, base_lin_vel+height from LEG kinematics — service-independent) 2600/2789 ticks @ 50Hz [--max-secs 52.0], action cap 10.0. Tethered. Ctrl-C / remote-damp to stop.
+reference yaw-aligned to robot heading (offset -68.2 deg).
+at default — starting leg-odometry policy. Keep tension on the tether; damp at the first sign of a fault, lurch, or lean.
+[show_audio] armed: mode=laptop offset=4.00s latency_comp=0.000s track=/home/alois/g1-dance/data/dances/20260708-71711415/audio/music.wav
+[show_display] player=vlc output=(primary/default) argv=vlc --fullscreen --no-video-title-show --play-and-exit --avcodec-hw=none data/previews/thriller_side_by_side_v3e.mp4
+[show_display] launching video (+0.068s vs tick0 target)
+[00005b092eff75d0] main libvlc: Running vlc with the default interface. Use 'cvlc' to use vlc without interface.
+[0000767864004950] gl gl: Initialized libplacebo v4.192.1 (API v192)
+libva info: VA-API version 1.24.0
+libva info: Trying to open /home/alois/miniconda3/envs/g1dance/lib/dri/iHD_drv_video.so
+libva info: Found init function __vaDriverInit_1_23
+libva info: va_openDriver() returns 0
+[000076786403cf40] croppadd filter error: Unknown input chroma VAOP
+[0000767864dc3d40] croppadd filter error: Unknown input chroma VAOP
+[0000767864004950] gl gl: Initialized libplacebo v4.192.1 (API v192)
+[00007678642ac720] croppadd filter error: Unknown input chroma VDV0
+[000076786484b2f0] chain filter error: Too high level of recursion (3)
+[0000767864007e80] main filter error: Failed to create video converter
+[000076786484b2f0] chain filter error: Too high level of recursion (3)
+[0000767864007e80] main filter error: Failed to create video converter
+[000076786484b2f0] chain filter error: Too high level of recursion (3)
+[0000767864007e80] main filter error: Failed to create video converter
+[000076786484b2f0] chain filter error: Too high level of recursion (3)
+[0000767864007e80] main filter error: Failed to create video converter
+[000076786484b2f0] chain filter error: Too high level of recursion (3)
+[0000767864007e80] main filter error: Failed to create video converter
+[000076786484b2f0] chain filter error: Too high level of recursion (3)
+[0000767864007e80] main filter error: Failed to create video converter
+[000076786484b2f0] chain filter error: Too high level of recursion (3)
+[0000767864007e80] main filter error: Failed to create video converter
+[0000767864dc54e0] main filter error: Failed to create video converter
+[00007678647ecb10] chain filter error: Too high level of recursion (3)
+[0000767864df5bf0] main filter error: Failed to create video converter
+[00007678647ecb10] chain filter error: Too high level of recursion (3)
+[0000767864df5bf0] main filter error: Failed to create video converter
+[00007678647ecb10] chain filter error: Too high level of recursion (3)
+[0000767864df5bf0] main filter error: Failed to create video converter
+[00007678647ecb10] chain filter error: Too high level of recursion (3)
+[0000767864df5bf0] main filter error: Failed to create video converter
+[00007678647ecb10] chain filter error: Too high level of recursion (3)
+[0000767864df5bf0] main filter error: Failed to create video converter
+[00007678647ecb10] chain filter error: Too high level of recursion (3)
+[0000767864df5bf0] main filter error: Failed to create video converter
+[00007678647ecb10] chain filter error: Too high level of recursion (3)
+[0000767864df5bf0] main filter error: Failed to create video converter
+[0000767864dc54e0] main filter error: Failed to create video converter
+[0000767870060a10] main video output error: Failed to create video converter
+[0000767870060a10] main video output error: Failed to compensate for the format changes, removing all filters
+[0000767864004950] gl gl: Initialized libplacebo v4.192.1 (API v192)
+[show_audio] done: {"mode": "laptop", "t0_epoch": 1783520696.7802458, "offset_s": 4.0, "late_s": 0.00011205673217773438}
+dance complete — STAND handoff: holding the final standing pose 2.0s at holding gains, then restoring onboard balance (NO damping).
+[00005b092f098a90] main playlist: end of playlist, exiting
+QObject::~QObject: Timers cannot be stopped from another thread
+   restored onboard motion service ('ai') — remote/app can pair.
+   onboard balance restored while STANDING — handoff complete (no catch-step).
+telemetry saved: /home/alois/g1-dance/data/telemetry/20260708-212451_ground-run-legodom.npz (2600 ticks)

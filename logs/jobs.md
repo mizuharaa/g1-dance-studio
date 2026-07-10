@@ -298,3 +298,18 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   old Thriller dance's policy_path IS data/policies/thriller/policy.onnx (==DEFAULT_POLICY), so it
   deploys exactly as before; the new dance deploys the ankle-fixed, stand-ending policy. Falls
   back to deploy_runtime default only if a dance's bundle is incomplete. Verified both dances.
+
+## 2026-07-09 20:00 — GPU box recreated for latency-robust retrain
+- Box: `g1-retrain-latency` id `nb-9c7ba766-f5bf-4e42-8091-7542b9372da6 (recreated 2026-07-10 09:40 with RSA key + TCP 22)`
+- 1x RTX4090 (aiplatform-standard-16x64-1rtx4090), zone HCM-03-1B, Pytorch 2.5.1 CUDA 12.4
+- Volume: g1dance-data + 100 GB blockstorage (root fill fix). Jupyter :8888.
+- Purpose: retrain thriller_csv_ankle_penalty with widened latency DR (0-80ms, commit 86110b9)
+  to close the sim2real latency gap that caused the 2026-07-09 fall.
+- DELETE WHEN DONE (see memory gpu-delete-when-done). Created->deletion billing.
+
+## 2026-07-10 09:57 — LATENCY-ROBUST retrain launched
+- Box: g1-retrain-latency id nb-9c7ba766-f5bf-4e42-8091-7542b9372da6, ssh 103.245.250.152:59613 (RSA key)
+- run-name: train-thriller_lat80-2607, task Sim2Real, 4096 envs, 5000 iters, ETA ~1h35m
+- Changes vs ankle policy: latency DR 0-80ms (was 0-20ms, commit 86110b9) + drift weight 1.0
+- Verify plan: gap_check gated at 40ms+push (was 20ms) + 60/80ms stress lines; heldout x3
+- tmux session 'train' on box; log $NB/train_lat.log
