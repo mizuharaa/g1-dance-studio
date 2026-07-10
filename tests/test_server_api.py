@@ -20,6 +20,16 @@ def test_health(client):
     assert got["stage_order"][0] == "extract"
 
 
+def test_react_frontend_and_spa_fallback(client):
+    c, _ = client
+    root = c.get("/")
+    assert root.status_code == 200
+    assert "G1 Operator Console" in root.text
+    assert c.get("/operator/audit").status_code == 200
+    # The SPA fallback must not turn a missing API route into an HTML 200.
+    assert c.get("/api/not-a-real-endpoint").status_code == 404
+
+
 def test_jobs_empty_initially(client):
     c, _ = client
     assert c.get("/api/jobs").json() == []

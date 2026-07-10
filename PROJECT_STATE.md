@@ -46,6 +46,27 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10 (Windows handoff, Agent C): **FRONTEND OPERATOR-CONSOLE REVAMP COMPLETE.**
+  Replaced the 811-line vanilla UI with a React + Vite + Tailwind/shadcn-compatible
+  app under `ui/frontend/`; the checked-in production build is served directly by
+  FastAPI and therefore by the existing pywebview desktop wrapper (no production Node
+  server). Old `ui/static/` removed after feature parity. Dark slate/blue mission-
+  control UI now has: live run state machine + estimated dance timeline; policy/show/
+  venue identity; compute/cost/training monitor; five-stage drag/drop pipeline with
+  logs, blockers, retry, and training approval; dance held-out stats and policy rollback;
+  perform mode, setlist builder, venues; filterable audit timeline; cloud/body-model/
+  library configuration. Safety UX is stronger: exact phrase `I AM PRESENT WITH THE
+  DAMPING REMOTE`, red primary-stop warning, oversized STOP both in the run card and
+  globally for the entire run, fall/incident state, and mandatory Clean/Aborted/Incident
+  capture. Browser evidence in `docs/ui_revamp/` at 1440/1024/768 plus running-STOP state.
+  Verification: `npm run build` PASS; Playwright 6/6 PASS (upload, responsive layouts,
+  typed-confirm lock, running STOP POST, audit filters); `tests/test_server_api.py` PASS
+  with the new React/SPA serving regression. Full pytest was attempted on this Windows
+  clone; unrelated suites still fail because gitignored policy/model artifacts + MuJoCo
+  are absent and several tests require Linux fcntl/permissions/symlinks. Missing backend
+  data for per-dance training cost/iterations, latency 40/60/80 results, immutable audit
+  history, and exact run ticks is recorded without fabrication in `tasks/API_GAPS.md`.
+
 - 2026-07-10 (Lane B): **Twitch/glitch fix — temporal filtering added to the motion pipeline.**
   Measured (script `tools/motion_quality.py`, raw outputs
   `data/telemetry/motion_quality_20260710/`): all 5 repo CSVs carry isolated accel/jerk
