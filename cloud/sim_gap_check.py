@@ -61,14 +61,23 @@ LEG_JOINTS = (
 ANKLE_PITCH = ("left_ankle_pitch_joint", "right_ankle_pitch_joint")
 
 # name, constant command delay in physics steps (5 ms each), push, obs noise
+# 2026-07-10: extended past 40 ms after the hardware fall. The deployed robot's measured
+# effective command->response latency was 40-80 ms (telemetry cross-correlation,
+# data/telemetry/latency_diag_20260709/); 60/80 ms conditions make that regime VISIBLE
+# and the 40 ms conditions are now GATED (see worst_names below) so a policy that would
+# fall at hardware latency can no longer pass verification.
 CONDITIONS = [
   ("nominal", 0, False, False),
   ("noise", 0, False, True),
   ("delay10ms", 2, False, True),
   ("delay20ms", 4, False, True),
   ("delay40ms", 8, False, True),
+  ("delay60ms", 12, False, True),
+  ("delay80ms", 16, False, True),
   ("delay20ms_push", 4, True, True),
   ("delay40ms_push", 8, True, True),
+  ("delay60ms_push", 12, True, True),
+  ("delay80ms_push", 16, True, True),
 ]
 
 # Gates per the first-principles audit (docs/first_principles_audit.md §3):
@@ -397,11 +406,16 @@ def main() -> None:
 
   # Gate: nominal bars + worst-injected-condition bars (audit §3 numbers).
   gate = None
-  # Worst GATED condition = 20 ms + push: the measured sensing path has ~zero
-  # latency (limp capture 2026-07-05: p95 staleness 1.78 ms), so 20 ms total is
-  # already ~2x any plausible reality; the 40 ms conditions stay in the matrix as
-  # informational stress lines but do not gate.
-  worst_names = [n for n in ("delay20ms_push", "delay20ms") if n in results]
+  # Worst GATED condition = 40 ms + push. REVISED 2026-07-10 after the hardware fall:
+  # the old 20 ms gate was WRONG. The DDS/comms staleness is ~zero (p95 1.78 ms wired),
+  # but the *effective command->response latency* — actuation + leg-odometry estimation —
+  # measured 40-80 ms on hardware (telemetry cross-correlation, DIAGNOSIS.md). A policy
+  # that fell at ~45 s passed the old 20 ms gate. Gating at 40 ms + push (a firm lower
+  # bound on the real added latency) makes that failure un-passable. 60/80 ms stay in the
+  # matrix as informational stress lines (they also fold in mechanical PD lag, so they
+  # over-state pure added latency — reported, not gated).
+  worst_names = [n for n in ("delay40ms_push", "delay40ms", "delay20ms_push", "delay20ms")
+                 if n in results]
   if worst_names and "nominal" in results:
     worst = min(worst_names, key=lambda k: results[k]["success_rate"])
     w, nom = results[worst], results["nominal"]
