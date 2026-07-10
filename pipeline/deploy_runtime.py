@@ -455,6 +455,67 @@ class Telemetry:
                 print(f"telemetry save failed (non-fatal): {e}")
 
 
+class TickClock:
+    """Absolute-deadline pacing + per-tick timing for the 50 Hz policy loops (Lane A).
+
+    The old loop tail (`sleep(dt - elapsed)`) re-anchored every tick on "now", so each
+    overrun and every ~1 ms of sleep jitter accumulated as phase drift against the
+    reference motion. Deadlines here are absolute (start + k*dt); a late tick eats
+    into its own slack only, never shifts the schedule. Safety semantics unchanged:
+    work > 2*dt raises -> caller's except path damps, exactly as before.
+    stats() goes into Telemetry.extra so every run leaves timing evidence."""
+
+    def __init__(self, hz=CONTROL_HZ):
+        self.dt = 1.0 / hz
+        self.work_ms, self.late_ms = [], []
+        self.soft_overruns = 0          # work > dt but <= 2*dt (survived, but no margin)
+        self._deadline = None
+
+    def tick(self, t0):
+        """Call at the end of each tick with the loop's t0 (time.perf_counter())."""
+        now = time.perf_counter()
+        work = now - t0
+        self.work_ms.append(work * 1e3)
+        if work > 2 * self.dt:
+            raise RuntimeError(f"cycle overrun {work*1000:.0f}ms -> damp")
+        if work > self.dt:
+            self.soft_overruns += 1
+        if self._deadline is None:
+            self._deadline = t0
+        self._deadline += self.dt
+        late = now - self._deadline
+        self.late_ms.append(late * 1e3)
+        if late > 0:
+            self._deadline = now   # behind schedule: full dt next tick, never burst-catch-up
+        else:
+            time.sleep(-late)
+
+    def stats(self):
+        if not self.work_ms:
+            return {}
+        w, l = np.asarray(self.work_ms), np.asarray(self.late_ms)
+        p = lambda a, q: round(float(np.percentile(a, q)), 3)  # noqa: E731
+        return {"ticks": int(w.size), "dt_ms": self.dt * 1e3,
+                "work_ms": {"p50": p(w, 50), "p95": p(w, 95), "p99": p(w, 99),
+                            "max": round(float(w.max()), 3)},
+                "late_ms": {"p50": p(l, 50), "p99": p(l, 99),
+                            "max": round(float(l.max()), 3)},
+                "soft_overruns": self.soft_overruns}
+
+    def report(self):
+        """Print a one-line summary and return stats. Never raises (runs in finally)."""
+        try:
+            s = self.stats()
+            if s:
+                w = s["work_ms"]
+                print(f"tick timing: {s['ticks']} ticks, work p50 {w['p50']:.1f} / "
+                      f"p95 {w['p95']:.1f} / p99 {w['p99']:.1f} / max {w['max']:.1f} ms "
+                      f"(budget {s['dt_ms']:.0f} ms), soft overruns {s['soft_overruns']}")
+            return s
+        except Exception:  # noqa: BLE001 - telemetry must never disturb shutdown
+            return {}
+
+
 # ---- LowState reading (unitree_sdk2py, like ~/robot teleop) --------------------
 def make_dds(iface):
     from unitree_sdk2py.core.channel import ChannelFactoryInitialize
@@ -660,6 +721,25 @@ def build_obs_ground(meta: Meta, ref: Reference, q, dq, imu_quat, gyro,
     expected = sum(w for _, w in order)
     assert obs.shape[0] == expected and widths_ok, f"ground obs dim {obs.shape[0]} != {expected}"
     return obs, terms
+
+
+def _ort_session(path):
+    """CPU inference session tuned for the 50 Hz loop: single-threaded (the policy MLP
+    is tiny — thread fan-out adds scheduling jitter, not speed) and pre-warmed so the
+    first real tick doesn't pay one-time allocation/JIT latency inside its 20 ms budget."""
+    import onnxruntime as ort
+    so = ort.SessionOptions()
+    so.intra_op_num_threads = 1
+    so.inter_op_num_threads = 1
+    s = ort.InferenceSession(str(path), sess_options=so, providers=["CPUExecutionProvider"])
+    try:
+        d = s.get_inputs()[0].shape[-1]
+        if isinstance(d, int):
+            for _ in range(3):
+                run_policy(s, np.zeros(d), 0)
+    except Exception:  # noqa: BLE001 - warm-up is best-effort; never block a run
+        pass
+    return s
 
 
 def run_policy(session, obs, tick):
@@ -1104,6 +1184,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None, exit_mode="damp"):
           f"Ctrl-C / remote-damp to stop.")
     global _TELEM
     telem = _TELEM = Telemetry("run", meta)
+    clock = TickClock()
     _acap = action_cap_vector(meta, MAX_ACTION)
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
@@ -1119,7 +1200,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None, exit_mode="damp"):
         # STAGE 2 — policy loop at TRAINED gains. Robot is already AT default and the
         # ramped motion (thriller_deploy) starts from default -> no lurch on entry.
         for tick in range(n_ticks):
-            t0 = time.time()
+            t0 = time.perf_counter()
             q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             obs, _ = build_obs(meta, ref, q, dq, imu_quat, gyro, last_action, tick)
             if not np.all(np.isfinite(obs)):
@@ -1133,10 +1214,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None, exit_mode="damp"):
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
             telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
-            elapsed = time.time() - t0
-            if elapsed > 2 * dt:
-                raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
-            time.sleep(max(0.0, dt - elapsed))
+            clock.tick(t0)   # absolute-deadline pacing; raises -> damp on 2*dt overrun
         # CLEAN full completion. OPT-IN: hand off STANDING instead of damping (guarded).
         if exit_mode == "stand":
             _stand_handoff_and_exit(pub, low_cmd, crc, mode_machine, meta, ref)
@@ -1151,6 +1229,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None, exit_mode="damp"):
         print(f"\nSTOP: {e} -> damping")
     finally:
         _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
+        telem.extra["tick_timing"] = clock.report()   # into the run npz (report never raises)
     _finalize_and_exit(0)   # guarantee soft + exit promptly (DDS teardown can hang)
 
 
@@ -1255,6 +1334,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
           f"Tethered. Ctrl-C / remote-damp to stop.")
     global _TELEM
     telem = _TELEM = Telemetry("ground-run", meta)
+    clock = TickClock()
     _acap = action_cap_vector(meta, GROUND_MAX_ACTION)
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
@@ -1267,7 +1347,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
         print("at default — starting ground policy. Keep tension on the tether; damp at "
               "the first sign of a fault, lurch, or lean.")
         for tick in range(n_ticks):
-            t0 = time.time()
+            t0 = time.perf_counter()
             q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             obs, _ = build_obs_ground(meta, ref, q, dq, imu_quat, gyro, last_action, tick, obs_order)
             if not np.all(np.isfinite(obs)):
@@ -1281,10 +1361,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
             telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
-            elapsed = time.time() - t0
-            if elapsed > 2 * dt:
-                raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
-            time.sleep(max(0.0, dt - elapsed))
+            clock.tick(t0)   # absolute-deadline pacing; raises -> damp on 2*dt overrun
         # CLEAN full completion. OPT-IN: hand off STANDING instead of damping (guarded).
         if exit_mode == "stand":
             _stand_handoff_and_exit(pub, low_cmd, crc, mode_machine, meta, ref)
@@ -1298,6 +1375,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
         print(f"\nSTOP: {e} -> damping")
     finally:
         _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
+        telem.extra["tick_timing"] = clock.report()   # into the run npz (report never raises)
     _finalize_and_exit(0)
 
 
@@ -1340,6 +1418,7 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="
           f"action cap {GROUND_MAX_ACTION:.1f}. Tethered. Ctrl-C / remote-damp to stop.")
     global _TELEM
     telem = _TELEM = Telemetry("ground-run-odom", meta)
+    clock = TickClock()
     _acap = action_cap_vector(meta, GROUND_MAX_ACTION)
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
@@ -1356,12 +1435,12 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="
         if o is None:
             raise RuntimeError("lost odom at policy start -> damp")
         odom_pos0 = o[0].copy()
-        prev_pos, prev_t = o[0].copy(), time.time()
+        prev_pos, prev_t = o[0].copy(), time.perf_counter()  # same base as loop t0
         prev_stamp, stale = o[2], 0
         print("at default — starting odometry-fed policy. Keep tension on the tether; "
               "damp at the first sign of a fault, lurch, or lean.")
         for tick in range(n_ticks):
-            t0 = time.time()
+            t0 = time.perf_counter()
             q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             o = read_odom(odom, timeout_s=0.5)
             if o is None:
@@ -1397,10 +1476,7 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
             telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
-            elapsed = time.time() - t0
-            if elapsed > 2 * dt:
-                raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
-            time.sleep(max(0.0, dt - elapsed))
+            clock.tick(t0)   # absolute-deadline pacing; raises -> damp on 2*dt overrun
         # CLEAN full completion. OPT-IN: hand off STANDING instead of damping (guarded).
         if exit_mode == "stand":
             _stand_handoff_and_exit(pub, low_cmd, crc, mode_machine, meta, ref)
@@ -1414,6 +1490,7 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="
         print(f"\nSTOP: {e} -> damping")
     finally:
         _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
+        telem.extra["tick_timing"] = clock.report()   # into the run npz (report never raises)
     _finalize_and_exit(0)
 
 
@@ -1516,6 +1593,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
               f"(see audit note at the GRAVITY_FF flag).")
     global _TELEM
     telem = _TELEM = Telemetry("ground-run-legodom", meta)
+    clock = TickClock()
     _acap = action_cap_vector(meta, GROUND_MAX_ACTION)
     try:
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
@@ -1527,7 +1605,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
         print("at default — starting leg-odometry policy. Keep tension on the tether; "
               "damp at the first sign of a fault, lurch, or lean.")
         for tick in range(n_ticks):
-            t0 = time.time()
+            t0 = time.perf_counter()
             q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
             R_base = quat_wxyz_to_mat(imu_quat)
             v_body, h_est, _ = legodom.estimate(q, dq, R_base, gyro)
@@ -1556,10 +1634,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
                       if GRAVITY_FF else None)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, kp_pol, kd_pol, meta, tau_ff=tau_ff)
             telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
-            elapsed = time.time() - t0
-            if elapsed > 2 * dt:
-                raise RuntimeError(f"cycle overrun {elapsed*1000:.0f}ms -> damp")
-            time.sleep(max(0.0, dt - elapsed))
+            clock.tick(t0)   # absolute-deadline pacing; raises -> damp on 2*dt overrun
         # CLEAN full completion. OPT-IN: hand off STANDING instead of damping. Hold at the
         # SAME boosted policy-phase gains (kp_pol/kd_pol) just used so there is no gain
         # discontinuity/sag during the handoff. Guarded upstream (motion ends standing).
@@ -1575,6 +1650,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
         print(f"\nSTOP: {e} -> damping")
     finally:
         _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
+        telem.extra["tick_timing"] = clock.report()   # into the run npz (report never raises)
     _finalize_and_exit(0)
 
 
@@ -1610,8 +1686,6 @@ def _build_parser():
 def main():
     a = _build_parser().parse_args()
 
-    import onnxruntime as ort
-
     # stand-hold is pure PD — no policy needed. Uses the standard meta (default pose).
     if a.mode == "stand-hold":
         return mode_stand_hold(Meta(Path(a.meta)), a.iface, a.i_will_watch_the_robot, a.secs) or 0
@@ -1632,7 +1706,7 @@ def main():
         gmeta = Meta(gm)
         obs_order = _ground_obs_order(gmeta)   # raises if not estimator-free
         gref = Reference(gmot)
-        gsession = ort.InferenceSession(str(gp), providers=["CPUExecutionProvider"])
+        gsession = _ort_session(gp)
         # --exit stand honored only if this ground motion ends standing (else -> damp).
         gexit = _resolve_exit_mode(a.exit_mode, gmeta, gref)
         return mode_ground_run(gmeta, gsession, gref, a.iface, a.i_will_watch_the_robot,
@@ -1640,7 +1714,7 @@ def main():
 
     meta = Meta(Path(a.meta))
     ref = Reference(Path(a.motion_npz))
-    session = ort.InferenceSession(a.policy, providers=["CPUExecutionProvider"])
+    session = _ort_session(a.policy)
 
     if a.mode == "read":
         return mode_read(meta, ref, session, a.iface, a.timeout_s)

@@ -39,10 +39,17 @@ Gaps found (your Phase 1/2 work):
 ## Phases
 
 ### Phase 1 — instrument + measure (Ubuntu laptop, robot in `read` mode — SAFE, no motion)
-- Add the tick-timing telemetry (gap 2) + absolute pacing (gap 1) + ORT opts (gap 4).
-- Run `deploy_runtime --mode read` for 5 min; commit the timing histogram.
-- **Gate:** if p99 tick < 5 ms of budget and zero overruns, the Python loop is show-grade;
-  C++ becomes an onboard-migration play, not a rescue.
+- **CODE DONE (2026-07-10, Windows side, committed to main):** `TickClock` in
+  `pipeline/deploy_runtime.py` — absolute-deadline pacing (no more schedule drift from
+  relative sleeps) + per-tick work/late stats saved into every run's telemetry npz under
+  `run_meta_json.tick_timing`; `_ort_session()` pins onnxruntime to 1 thread + pre-warms
+  3 inferences before the motion service is released. Overrun→damp semantics unchanged
+  (regression-tested: `tests/test_tick_clock.py`). Gap 3 (RT priority) is a run-command
+  change, not code: launch with `chrt -f 50 python pipeline/deploy_runtime.py ...`.
+- **MEASUREMENT still TODO (needs robot):** run a policy mode (gantry `run` is fine) or
+  any real motion segment; the summary prints at damp time and lands in the npz. Commit it.
+- **Gate:** if p99 work < 5 ms of the 20 ms budget and zero soft overruns, the Python loop
+  is show-grade; C++ becomes an onboard-migration play, not a rescue.
 
 ### Phase 2 — C++ onboard runtime (Jetson PC2, `unitree_sdk2` C++)
 - New `deploy/cpp/`: loads `policy.onnx` (onnxruntime C++ API), replicates the obs builder

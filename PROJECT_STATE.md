@@ -46,6 +46,14 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10 (Windows handoff, Lane A Phase-1 code): **50 Hz loop hardened in
+  `pipeline/deploy_runtime.py`** — new `TickClock` gives all 4 policy loops absolute-deadline
+  pacing (old relative `sleep(dt-elapsed)` accumulated phase drift vs the reference) and
+  records per-tick work/late stats into each run's telemetry npz (`run_meta_json.tick_timing`);
+  onnxruntime sessions now single-threaded + pre-warmed (`_ort_session`) so tick 0 doesn't pay
+  first-inference latency. Overrun>2*dt still raises → damp, unchanged (tests/test_tick_clock.py,
+  5 green). Loop clock base moved to perf_counter (odom `prev_t` updated to match). MEASUREMENT
+  on the robot still owed (Lane A Phase 1 gate); C++ onboard runtime (Phase 2) gated on it.
 - 2026-07-10 (Windows handoff, Agent C): **FRONTEND OPERATOR-CONSOLE REVAMP COMPLETE.**
   Replaced the 811-line vanilla UI with a React + Vite + Tailwind/shadcn-compatible
   app under `ui/frontend/`; the checked-in production build is served directly by
