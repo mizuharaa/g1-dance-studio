@@ -46,6 +46,14 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-10 (Windows handoff machine): **Multi-agent task board created (`tasks/`).**
+  Three disjoint lanes: A = SDK latency audit + C++ onboard runtime (USER'S manual agent +
+  human, needs Ubuntu laptop/robot; Python-loop code audit already done — loop is sound,
+  gaps are relative-sleep pacing / no tick telemetry / no RT prio / ORT thread opts);
+  B = motion-quality twitch fix (Claude agent, this machine — root cause: no temporal
+  filtering on GVHMR per-frame jitter, prep_motion velocity clamp can snap-back);
+  C = frontend dashboard revamp with shadcn+Playwright MCP (USER'S manual agent).
+  Note: this clone has no `.secrets/` — cloud/robot steps stay on the Ubuntu laptop.
 - 2026-07-10: **Latency retrain FAILED verification — do NOT deploy** (see
   data/telemetry/latency_retrain_20260710/). `train-thriller_lat80-2607` (0-80 ms latency DR,
   5000 iters): survival 0.000 in ALL 11 gap_check conditions incl. nominal; drift 2.2-7.1 m
