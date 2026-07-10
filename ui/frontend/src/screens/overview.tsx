@@ -8,9 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { InlineAlert, Metric, PageHeader, StatusBadge } from "@/components/console-ui"
+import { RobotPreview } from "@/components/robot-preview"
 import type { ConsoleData } from "@/hooks/use-console-data"
 import { api, type Show } from "@/lib/api"
 import { fmtDate, fmtDuration, fmtMoney, fmtPercent, shortHash } from "@/lib/utils"
+import { dancePreviewUrl } from "@/lib/preview"
 
 const STATES = [
   { key: "preflight", label: "Preflight" },
@@ -60,6 +62,7 @@ function LiveRunCard({ data, onPerform }: { data: ConsoleData; onPerform: () => 
   }, [data.run.running])
 
   const activeDance = data.dances.find((dance) => dance.id === data.run.dance_id)
+  const previewDance = activeDance ?? data.dances.find((dance) => dancePreviewUrl(dance)) ?? data.dances[0]
   const activeShow = data.shows.find((show) => show.id === data.run.show_id) ?? data.shows.find((show) => !show.closed)
   const phase = normalizedPhase(data.run.phase, data.run.running)
   const phaseIndex = STATES.findIndex((item) => item.key === phase)
@@ -94,6 +97,8 @@ function LiveRunCard({ data, onPerform }: { data: ConsoleData; onPerform: () => 
           <div className="rounded-lg border border-border bg-background/35 p-3"><div className="metric-label">Policy</div><div className="mt-1.5 truncate font-mono text-xs text-blue-300">{shortHash(activeDance?.policy_sha256)}</div></div>
           <div className="rounded-lg border border-border bg-background/35 p-3"><div className="metric-label">Venue</div><div className="mt-1.5 flex items-center gap-1.5 truncate text-sm font-semibold"><MapPin className="h-3.5 w-3.5 text-blue-400" />{data.venues?.active.name ?? "Not selected"}</div></div>
         </div>
+
+        {previewDance && !data.run.running && <RobotPreview compact url={dancePreviewUrl(previewDance)} title={`${previewDance.name} simulation preview`} duration={previewDance.duration_s} />}
 
         <div>
           <div className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground"><span>Performance timeline</span><span className="font-mono">{fmtDuration(elapsed)} / {activeDance ? fmtDuration(duration) : "—"}</span></div>

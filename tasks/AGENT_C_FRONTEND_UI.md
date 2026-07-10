@@ -4,6 +4,14 @@
 `ui/frontend/`; FastAPI/pywebview serves it. Playwright evidence is in
 `docs/ui_revamp/`; backend-only data gaps are in `tasks/API_GAPS.md`.
 
+**User-feedback revision (2026-07-10):** the console now uses the accessible
+light, punched-card language from the local Aeolus/Maestro references while
+preserving the dense operator layout. `Show mode` is a direct navigation item;
+its typed damping-remote warning is permanently visible above the preflight
+details. Real preview URLs open an in-app HTML5 video viewer from the animated
+MuJoCo robot stage on Overview, Pipeline, Dances, and Show mode. The compact
+robot mark and stage are code-native SVG/CSS and respect reduced-motion.
+
 **Owner: USER'S MANUAL AGENT** — run this with the shadcn MCP server and the Playwright MCP
 server connected (and Mobbin MCP for design reference if available). Do not run this lane from
 the orchestrator; it depends on those MCP servers.

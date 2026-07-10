@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { EmptyState, InlineAlert, PageHeader, StatusBadge } from "@/components/console-ui"
+import { RobotPreview } from "@/components/robot-preview"
 import type { ConsoleData } from "@/hooks/use-console-data"
 import { api, type PipelineJob, type StageState } from "@/lib/api"
 import { cn, fmtDate } from "@/lib/utils"
@@ -114,6 +115,7 @@ export function PipelineScreen({ data }: { data: ConsoleData }) {
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 border-b border-border/70"><div><div className="panel-kicker"><Gauge /> Pipeline progress</div><CardTitle className="mt-2 text-lg">{selected.name}</CardTitle><p className="mt-1 font-mono text-[10px] text-muted-foreground">{selected.id}</p></div><StatusBadge status={selected.current_stage ? selected.stages[selected.current_stage]?.state : "done"} /></CardHeader>
             <CardContent className="pt-5">
+              <RobotPreview className="mb-5" url={selected.preview_url} title={`${selected.name} robot preview`} duration={selected.vet?.seconds} />
               <div className="grid gap-2 md:grid-cols-5">
                 {STAGES.map((stage, index) => {
                   const record = selected.stages[stage.key]
@@ -126,7 +128,7 @@ export function PipelineScreen({ data }: { data: ConsoleData }) {
               <div className="mt-4 flex flex-wrap gap-2">
                 {trainNeedsApproval && <Button onClick={() => action.mutate({ jobId: selected.id, action: "approve-train" })}><Play /> Approve training</Button>}
                 {retryable && <Button variant="outline" onClick={() => action.mutate({ jobId: selected.id, action: "retry" })}><RotateCcw /> Retry stage</Button>}
-                {selected.preview_url && <Button variant="outline" asChild><a href={selected.preview_url} target="_blank" rel="noreferrer"><FileVideo2 /> Open preview</a></Button>}
+                {selected.preview_url && <Button variant="outline" asChild><a href={selected.preview_url} target="_blank" rel="noreferrer"><FileVideo2 /> Open preview file</a></Button>}
               </div>
             </CardContent>
           </Card>

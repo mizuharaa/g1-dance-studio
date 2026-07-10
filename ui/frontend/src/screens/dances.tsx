@@ -12,8 +12,10 @@ import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, InlineAlert, Metric, PageHeader, StatusBadge } from "@/components/console-ui"
+import { RobotPreview } from "@/components/robot-preview"
 import type { ConsoleData } from "@/hooks/use-console-data"
 import { api, type Dance } from "@/lib/api"
+import { dancePreviewUrl } from "@/lib/preview"
 import { cn, fmtDate, fmtDuration, fmtPercent, shortHash } from "@/lib/utils"
 
 interface PolicyVersion { version_id?: string; id?: string; created_at?: number; policy_sha256?: string; notes?: string; [key: string]: unknown }
@@ -73,6 +75,13 @@ function DanceDetail({ dance, data }: { dance: Dance; data: ConsoleData }) {
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 border-b border-border/70"><div><div className="panel-kicker"><Library /> Dance record</div><CardTitle className="mt-2 text-xl">{dance.name}</CardTitle><div className="mt-2 flex flex-wrap items-center gap-2"><StatusBadge status={dance.status} /><Badge variant="secondary">{fmtDuration(dance.duration_s)}</Badge><span className="font-mono text-[10px] text-muted-foreground">{dance.id}</span></div></div><div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setManage(true)}>Manage</Button>{dance.status === "sim-verified" && <Button onClick={() => promote.mutate()}><ShieldCheck /> Promote</Button>}</div></CardHeader>
       <CardContent className="pt-5">
         {dance.incident && <InlineAlert className="mb-4" tone="danger" title="Dance demoted after incident" body={String(dance.incident.detail ?? "Review the incident record before any new promotion.")} />}
+        <div className="mb-5 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(250px,.65fr)]">
+          <RobotPreview url={dancePreviewUrl(dance)} title={`${dance.name} simulation preview`} duration={dance.duration_s} />
+          <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-1">
+            <div className="hover-lift rounded-xl border border-slate-200 bg-white p-4"><div className="metric-label">Review gate</div><div className="mt-2 text-lg font-bold text-slate-900">Watch before training</div><p className="mt-1 text-[11px] leading-5 text-slate-500">Inspect balance, foot contact, and sharp transitions in the actual robot environment.</p></div>
+            <div className="hover-lift rounded-xl border border-slate-200 bg-white p-4"><div className="metric-label">Artifact</div><div className="mt-2 truncate font-mono text-xs font-bold text-blue-700">{shortHash(dance.policy_sha256)}</div><p className="mt-1 text-[11px] leading-5 text-slate-500">{dance.audio ? "Music-aligned preview available" : "Simulation preview only"}</p></div>
+          </div>
+        </div>
         <Tabs defaultValue="stats">
           <TabsList><TabsTrigger value="stats">Stats</TabsTrigger><TabsTrigger value="runs">Run history</TabsTrigger><TabsTrigger value="versions">Versions</TabsTrigger><TabsTrigger value="contract">Contract</TabsTrigger></TabsList>
           <TabsContent value="stats">

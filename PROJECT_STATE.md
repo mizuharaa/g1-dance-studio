@@ -2175,3 +2175,19 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - 2-MIN VIDEO (#1/#5): uploaded ('Thriller dance FULL 2min'), blocked at EXTRACT because it scp's the
   video to the deleted box (GVHMR runs on the box). => gated on #2 (a box). Pipeline itself is working.
   Other Create jobs are stale (dance1-e2e verify-failed known; old thriller train-blocked).
+
+## 2026-07-10 — FRONTEND FEEDBACK REVISION: accessible Show mode + clickable simulation preview.
+- Restored the operator essentials requested after the first React pass: direct `Show mode` navigation,
+  an always-visible physical damping-remote warning with the exact typed unlock, pre-show checklist,
+  setlists, venues, control-ownership phases, and the oversized run-time STOP path. Backend endpoint
+  semantics and the pywebview/FastAPI production path are unchanged.
+- Added a reusable animated MuJoCo-style robot environment with a friendlier code-native robot mark.
+  Preview stages use real dance/job preview URLs and open an in-app HTML5 video player with native
+  controls; the stage appears on Overview, Pipeline, Dances, and Show mode.
+- Visual language now follows the locally documented Aeolus/Maestro/Obsidian preferences: light flat
+  canvas, crisp punched white cards, one dark utility card, functional hover lift, compact information
+  hierarchy, `minmax(0,1fr)` responsive grids, and reduced-motion support. The safety warning remains red
+  and high contrast rather than being visually minimized.
+- VERIFIED against the real local server: `npm run build`; Playwright 7/7 at 1440/1024/768 including
+  multipart upload, run-time STOP, exact typed confirmation, clickable video preview, and audit filters.
+  Evidence: `docs/ui_revamp/show-mode-1280.png` and `preview-video-open.png` plus refreshed breakpoint shots.

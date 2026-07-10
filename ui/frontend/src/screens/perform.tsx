@@ -1,18 +1,19 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertOctagon, ArrowDown, ArrowUp, Check, ChevronRight, CircleAlert, GripVertical, ListMusic, MapPin, Plus, Radio, ShieldAlert, ShieldCheck, Sparkles, Trash2, Users, Volume2, WifiOff, X } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, InlineAlert, PageHeader, StatusBadge } from "@/components/console-ui"
+import { RobotPreview } from "@/components/robot-preview"
 import type { ConsoleData } from "@/hooks/use-console-data"
 import { api, type Dance, type SetList, type SetListItem, type Show } from "@/lib/api"
 import { cn, fmtDate, fmtDuration } from "@/lib/utils"
+import { dancePreviewUrl } from "@/lib/preview"
 
 const RUN_PHRASE = "I AM PRESENT WITH THE DAMPING REMOTE"
 
@@ -30,33 +31,6 @@ function OutcomeCapture({ show }: { show: Show }) {
   return <Card className="border-amber-500/30 bg-amber-500/[.05]"><CardContent className="pt-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-end"><div className="min-w-0 flex-1"><div className="panel-kicker text-amber-300"><CircleAlert /> Outcome required</div><div className="mt-2 text-sm font-semibold">{show.dance_name} • {show.mode}</div><div className="mt-1 text-[11px] text-amber-100/60">An open show blocks the next run. Incident immediately demotes the dance.</div><Input className="mt-3" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional operator notes — include the second of any anomaly" /></div><div className="grid shrink-0 grid-cols-3 gap-2"><Button variant="outline" className="border-emerald-500/30 text-emerald-300" onClick={() => mutation.mutate("clean")}>Clean</Button><Button variant="outline" className="border-amber-500/30 text-amber-300" onClick={() => mutation.mutate("aborted")}>Aborted</Button><Button variant="destructive" onClick={() => mutation.mutate("incident")}><AlertOctagon /> Incident</Button></div></div></CardContent></Card>
 }
 
-function RunShowDialog({ dance, open, onOpenChange }: { dance: Dance | null; open: boolean; onOpenChange: (value: boolean) => void }) {
-  const queryClient = useQueryClient()
-  const [operator, setOperator] = useState("")
-  const [phrase, setPhrase] = useState("")
-  const [mode, setMode] = useState<"rehearsal" | "live">("rehearsal")
-  const [exitStand, setExitStand] = useState(true)
-  const [free, setFree] = useState(false)
-  useEffect(() => { if (!open) { setPhrase(""); setFree(false) } }, [open])
-  const run = useMutation({
-    mutationFn: () => api.send(`/api/shows/${dance!.id}/run`, "POST", { confirmation: phrase, operator, mode, exit_stand: exitStand, free, audio_mode: "laptop" }),
-    onSuccess: () => { toast.success("Show started — keep the damping remote in hand"); onOpenChange(false); queryClient.invalidateQueries({ queryKey: ["current-run"] }); queryClient.invalidateQueries({ queryKey: ["shows"] }) },
-    onError: (error: Error) => toast.error(error.message),
-  })
-  if (!dance) return null
-  const confirmed = phrase === RUN_PHRASE && operator.trim().length > 0
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-2xl border-red-500/30"><DialogHeader><DialogTitle className="flex items-center gap-2 text-red-200"><ShieldAlert className="h-5 w-5" /> Arm live robot show</DialogTitle><DialogDescription>{dance.name} • {fmtDuration(dance.duration_s)} • policy and audio contract enforced server-side.</DialogDescription></DialogHeader>
-    <div className="space-y-4">
-      <div className="rounded-xl border border-red-500/35 bg-red-500/10 p-4 text-center"><div className="text-lg font-black tracking-wide text-red-200">REMOTE B-DAMP = PRIMARY STOP</div><div className="mt-1 text-xs text-red-200/65">This G1 has no torque-cut hardware e-stop. Hold the damping remote for the entire run.</div></div>
-      <div className="grid gap-3 sm:grid-cols-2"><div><label className="metric-label">Operator</label><Input className="mt-2" value={operator} onChange={(event) => setOperator(event.target.value)} placeholder="Operator name" /></div><div><label className="metric-label">Run mode</label><div className="mt-2 grid grid-cols-2 gap-2"><Button variant={mode === "rehearsal" ? "secondary" : "outline"} onClick={() => setMode("rehearsal")}>Rehearsal</Button><Button variant={mode === "live" ? "secondary" : "outline"} onClick={() => setMode("live")}>Live</Button></div></div></div>
-      <div className="grid gap-2 sm:grid-cols-2"><button className={cn("rounded-lg border p-3 text-left", exitStand ? "border-blue-500/40 bg-blue-500/[.07]" : "border-border")} onClick={() => setExitStand(!exitStand)}><div className="flex items-center gap-2 text-xs font-semibold"><span className={cn("flex h-4 w-4 items-center justify-center rounded border", exitStand && "border-blue-500 bg-blue-500 text-white")}>{exitStand && <Check className="h-3 w-3" />}</span> Stand at finish</div><p className="mt-1 text-[10px] text-muted-foreground">Policy holds final pose, then overlaps onboard handback.</p></button><button className={cn("rounded-lg border p-3 text-left", free ? "border-amber-500/40 bg-amber-500/[.07]" : "border-border")} onClick={() => setFree(!free)}><div className="flex items-center gap-2 text-xs font-semibold"><span className={cn("flex h-4 w-4 items-center justify-center rounded border", free && "border-amber-500 bg-amber-500 text-black")}>{free && <Check className="h-3 w-3" />}</span> Untethered/free config</div><p className="mt-1 text-[10px] text-muted-foreground">Only use the hardware-validated free policy and a clear venue.</p></button></div>
-      {free && <InlineAlert tone="warning" title="Highest-risk configuration" body="No tether catches the robot. This remains a conscious operator choice even after sim and hardware validation." />}
-      <div><label className="metric-label">Type the exact confirmation phrase</label><div className="mt-2 rounded-md bg-black/35 p-2.5 text-center font-mono text-[11px] text-red-300">{RUN_PHRASE}</div><Input data-testid="run-confirmation" className={cn("mt-2 font-mono", phrase && phrase !== RUN_PHRASE && "border-red-500/60")} value={phrase} onChange={(event) => setPhrase(event.target.value)} placeholder="Type phrase exactly" autoComplete="off" /></div>
-    </div>
-    <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button data-testid="start-show" variant="destructive" size="lg" disabled={!confirmed || run.isPending} onClick={() => run.mutate()}><Radio /> {run.isPending ? "Starting…" : "RUN SHOW"}</Button></DialogFooter>
-  </DialogContent></Dialog>
-}
-
 function ChecklistPanel({ dance }: { dance: Dance }) {
   const [acks, setAcks] = useState<string[]>([])
   const report = useQuery({ queryKey: ["checklist", dance.id, acks], queryFn: () => api.send<ChecklistReport>(`/api/dances/${dance.id}/checklist`, "POST", { acks }) })
@@ -68,26 +42,46 @@ function ChecklistPanel({ dance }: { dance: Dance }) {
   </div>
 }
 
+function InlineRunGate({ dance, blocked }: { dance: Dance; blocked: boolean }) {
+  const queryClient = useQueryClient()
+  const [operator, setOperator] = useState("")
+  const [phrase, setPhrase] = useState("")
+  const [mode, setMode] = useState<"rehearsal" | "live">("rehearsal")
+  const [exitStand, setExitStand] = useState(true)
+  const [free, setFree] = useState(false)
+  const confirmed = phrase === RUN_PHRASE && operator.trim().length > 0 && !blocked
+  const run = useMutation({
+    mutationFn: () => api.send(`/api/shows/${dance.id}/run`, "POST", { confirmation: phrase, operator, mode, exit_stand: exitStand, free, audio_mode: "laptop" }),
+    onSuccess: () => { toast.success("Show started — keep the damping remote in hand"); setPhrase(""); queryClient.invalidateQueries({ queryKey: ["current-run"] }); queryClient.invalidateQueries({ queryKey: ["shows"] }) },
+    onError: (error: Error) => toast.error(error.message),
+  })
+  return <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4 shadow-sm" data-testid="show-warning-gate">
+    <div className="flex items-start gap-3"><div className="rounded-lg bg-red-600 p-2 text-white"><ShieldAlert className="h-5 w-5" /></div><div className="min-w-0"><div className="text-sm font-black text-red-900">Physical damping remote required</div><p className="mt-1 text-[11px] leading-5 text-red-800/75">This robot has no torque-cut hardware e-stop. Hold B-damp for the full performance. Software STOP makes the robot go soft.</p></div></div>
+    <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2"><div className="min-w-0"><label className="metric-label text-red-800">Operator name</label><Input className="mt-2 border-red-200 bg-white" value={operator} onChange={(event) => setOperator(event.target.value)} placeholder="Operator name" /></div><div className="min-w-0"><label className="metric-label text-red-800">Run mode</label><div className="mt-2 grid grid-cols-2 gap-2"><Button variant={mode === "rehearsal" ? "secondary" : "outline"} onClick={() => setMode("rehearsal")}>Rehearsal</Button><Button variant={mode === "live" ? "secondary" : "outline"} onClick={() => setMode("live")}>Live show</Button></div></div></div>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2"><button className={cn("rounded-lg border bg-white p-3 text-left text-xs font-semibold", exitStand ? "border-blue-400 text-blue-800" : "border-slate-200 text-slate-600")} onClick={() => setExitStand(!exitStand)}>{exitStand ? "✓ " : ""}Stand and hand back at finish</button><button className={cn("rounded-lg border bg-white p-3 text-left text-xs font-semibold", free ? "border-amber-400 text-amber-800" : "border-slate-200 text-slate-600")} onClick={() => setFree(!free)}>{free ? "✓ " : ""}Untethered/free configuration</button></div>
+    <div className="mt-4 rounded-lg border border-red-200 bg-white p-3"><label className="text-[10px] font-black uppercase tracking-[.13em] text-red-800">Type this exact warning phrase to unlock</label><div className="mt-2 select-all rounded-md bg-red-950 px-3 py-2 text-center font-mono text-[10px] font-bold text-white sm:text-xs">{RUN_PHRASE}</div><Input data-testid="run-confirmation" className={cn("mt-2 border-red-200 bg-white font-mono", phrase && phrase !== RUN_PHRASE && "border-red-500 ring-2 ring-red-100")} value={phrase} onChange={(event) => setPhrase(event.target.value)} placeholder="Type phrase exactly" autoComplete="off" /></div>
+    <Button data-testid="start-show" variant="destructive" size="lg" className="mt-3 h-12 w-full text-base font-black" disabled={!confirmed || run.isPending} onClick={() => run.mutate()}><Radio /> {run.isPending ? "Starting…" : blocked ? "Resolve blockers before show" : "RUN SHOW"}</Button>
+  </div>
+}
+
 function PerformTab({ data }: { data: ConsoleData }) {
   const ready = data.dances.filter((dance) => dance.status === "show-ready")
   const [selectedId, setSelectedId] = useState<string | null>(ready[0]?.id ?? null)
-  const [runOpen, setRunOpen] = useState(false)
   const selected = data.dances.find((dance) => dance.id === selectedId) ?? ready[0]
   const openShow = data.shows.find((show) => !show.closed)
   return <div className="space-y-4">
     {openShow && <OutcomeCapture show={openShow} />}
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0"><div><div className="panel-kicker"><Sparkles /> Select act</div><CardTitle className="mt-2">Show-ready dances</CardTitle></div><Badge variant="success">{ready.length} ready</Badge></CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
-          {ready.map((dance) => <button key={dance.id} onClick={() => setSelectedId(dance.id)} className={cn("rounded-xl border p-4 text-left transition-colors", selected?.id === dance.id ? "border-blue-500/45 bg-blue-500/[.08] shadow-glow" : "border-border bg-background/25 hover:bg-accent/50")}><div className="flex items-start justify-between gap-2"><div className="rounded-lg bg-blue-500/10 p-2 text-blue-300"><Volume2 className="h-4 w-4" /></div><StatusBadge status={dance.status} /></div><div className="mt-4 text-sm font-semibold">{dance.name}</div><div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground"><span>{fmtDuration(dance.duration_s)}</span><span>•</span><span>{dance.audio ? "music attached" : "no music"}</span></div><div className="mt-3 flex items-center gap-2 text-[10px]"><span className={cn("status-dot", dance.audio ? "bg-emerald-400" : "bg-red-400")} /><span className={dance.audio ? "text-emerald-300" : "text-red-300"}>{dance.audio ? "Audio ready" : "Blocked: attach audio"}</span></div></button>)}
+          {ready.map((dance) => <button key={dance.id} onClick={() => setSelectedId(dance.id)} className={cn("hover-lift rounded-xl border p-4 text-left", selected?.id === dance.id ? "border-blue-400 bg-blue-50 shadow-sm" : "border-slate-200 bg-white hover:bg-blue-50/40")}><div className="flex items-start justify-between gap-2"><div className="rounded-lg bg-blue-100 p-2 text-blue-700"><Volume2 className="h-4 w-4" /></div><StatusBadge status={dance.status} /></div><div className="mt-4 text-sm font-bold text-slate-900">{dance.name}</div><div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500"><span>{fmtDuration(dance.duration_s)}</span><span>•</span><span>{dance.audio ? "music attached" : "no music"}</span></div><div className="mt-3 text-[10px] font-semibold"><span className={dance.audio ? "text-emerald-700" : "text-red-600"}>{dance.audio ? "Audio ready" : "Blocked: attach audio"}</span></div></button>)}
           {!ready.length && <div className="sm:col-span-2"><EmptyState icon={ShieldCheck} title="No show-ready dances" body="A dance needs three clean signed exams, a pinned policy, and an explicit promotion." /></div>}
         </CardContent>
       </Card>
-      <Card className="relative overflow-hidden"><div className="absolute right-0 top-0 h-48 w-48 rounded-full bg-blue-500/5 blur-3xl" /><CardHeader><div className="panel-kicker"><ShieldCheck /> Perform mode</div><CardTitle className="mt-2">{selected?.name ?? "Select a dance"}</CardTitle></CardHeader><CardContent>{selected ? <div className="space-y-4"><div className="grid grid-cols-2 gap-3"><div className="rounded-lg border border-border p-3"><div className="metric-label">Duration</div><div className="mt-2 text-lg font-semibold">{fmtDuration(selected.duration_s)}</div></div><div className="rounded-lg border border-border p-3"><div className="metric-label">Clean exams</div><div className="mt-2 text-lg font-semibold">{selected.repeatability?.consecutive_clean ?? 0}/{selected.repeatability_target ?? 3}</div></div></div><ChecklistPanel dance={selected} /><Button size="lg" className="w-full" disabled={!selected.audio || !!openShow || data.run.running} onClick={() => setRunOpen(true)}><Radio /> Arm run show</Button>{!selected.audio && <InlineAlert tone="danger" title="Audio missing" body="The live run endpoint refuses a silent dance." />}{openShow && <InlineAlert title="Resolve the open show first" body="Record Clean, Aborted, or Incident above." />}</div> : <EmptyState title="Select an act" body="Choose a show-ready dance to evaluate its preflight." />}</CardContent></Card>
+      <Card className="relative overflow-hidden"><CardHeader><div className="panel-kicker"><ShieldCheck /> Show controls</div><CardTitle className="mt-2">{selected?.name ?? "Select a dance"}</CardTitle></CardHeader><CardContent>{selected ? <div className="space-y-4"><RobotPreview url={dancePreviewUrl(selected)} title={`${selected.name} performance preview`} duration={selected.duration_s} /><div className="grid grid-cols-2 gap-3"><div className="hover-lift rounded-lg border border-slate-200 bg-white p-3"><div className="metric-label">Duration</div><div className="mt-2 text-lg font-bold">{fmtDuration(selected.duration_s)}</div></div><div className="hover-lift rounded-lg border border-slate-200 bg-white p-3"><div className="metric-label">Clean exams</div><div className="mt-2 text-lg font-bold">{selected.repeatability?.consecutive_clean ?? 0}/{selected.repeatability_target ?? 3}</div></div></div>{!selected.audio && <InlineAlert tone="danger" title="Audio missing" body="The live run endpoint refuses a silent dance." />}{openShow && <InlineAlert title="Resolve the open show first" body="Record Clean, Aborted, or Incident above." />}<InlineRunGate dance={selected} blocked={!selected.audio || !!openShow || data.run.running} /><ChecklistPanel dance={selected} /></div> : <EmptyState title="Select an act" body="Choose a show-ready dance to evaluate its preflight." />}</CardContent></Card>
     </div>
     <Card><CardHeader><div className="panel-kicker"><Users /> Control ownership</div><CardTitle className="mt-2">Walk-on → policy → walk-off</CardTitle></CardHeader><CardContent><div className="grid gap-2 md:grid-cols-5">{data.phases.map((phase, index) => <div key={phase.phase} className="rounded-lg border border-border bg-background/25 p-3"><div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/10 font-mono text-[10px] text-blue-300">{index + 1}</span><span className="text-[10px] font-bold uppercase tracking-wide">{phase.phase.replaceAll("_", " ")}</span></div><div className="mt-2 text-[10px] font-semibold text-blue-300">{phase.owner}</div><p className="mt-1 line-clamp-3 text-[9px] leading-4 text-muted-foreground">{phase.note}</p></div>)}</div></CardContent></Card>
-    <RunShowDialog dance={selected ?? null} open={runOpen} onOpenChange={setRunOpen} />
   </div>
 }
 
@@ -126,5 +120,5 @@ function VenuesTab({ data }: { data: ConsoleData }) {
 }
 
 export function PerformScreen({ data }: { data: ConsoleData }) {
-  return <div><PageHeader eyebrow="Operate" title="Shows & setlists" description="Performance mode makes blockers explicit, keeps the stop path visible, and never hides who owns the robot." actions={data.run.running ? <Badge variant="destructive" className="animate-pulse">SHOW RUNNING</Badge> : <Badge variant="secondary">standby</Badge>} /><Tabs defaultValue="perform"><TabsList><TabsTrigger value="perform">Perform</TabsTrigger><TabsTrigger value="setlists">Setlists</TabsTrigger><TabsTrigger value="venues">Venues</TabsTrigger></TabsList><TabsContent value="perform"><PerformTab data={data} /></TabsContent><TabsContent value="setlists"><SetlistsTab data={data} /></TabsContent><TabsContent value="venues"><VenuesTab data={data} /></TabsContent></Tabs></div>
+  return <div><PageHeader eyebrow="Operate" title="Show mode" description="Select the act, watch the robot preview, complete every safety check, then type the physical-remote confirmation to run." actions={data.run.running ? <Badge variant="destructive" className="animate-pulse">SHOW RUNNING</Badge> : <Badge variant="secondary">Robot standing by</Badge>} /><Tabs defaultValue="perform"><TabsList><TabsTrigger value="perform">Perform</TabsTrigger><TabsTrigger value="setlists">Setlists</TabsTrigger><TabsTrigger value="venues">Venues</TabsTrigger></TabsList><TabsContent value="perform"><PerformTab data={data} /></TabsContent><TabsContent value="setlists"><SetlistsTab data={data} /></TabsContent><TabsContent value="venues"><VenuesTab data={data} /></TabsContent></Tabs></div>
 }
