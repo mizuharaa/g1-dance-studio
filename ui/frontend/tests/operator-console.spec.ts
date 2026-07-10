@@ -82,18 +82,11 @@ test("running state keeps an oversized STOP visible and sends stop", async ({ pa
 })
 
 test("typed confirmation stays locked until exact phrase", async ({ page }) => {
+  await page.route("**/api/shows", (route) => route.fulfill({ json: [] }))
   await openConsole(page)
-  await page.getByRole("button", { name: "Shows & setlists" }).click()
-  await expect(page.getByRole("heading", { name: "Shows & setlists" })).toBeVisible()
-  const outcomeRequired = page.getByText("Outcome required").first()
-  if (await outcomeRequired.isVisible().catch(() => false)) {
-    // The real dataset contains an unresolved historical show. The blocker is the
-    // expected safety behavior; use route data only for this non-mutating dialog check.
-    await page.route("**/api/shows", (route) => route.fulfill({ json: [] }))
-    await page.reload()
-    await page.getByRole("button", { name: "Shows & setlists" }).click()
-  }
-  await page.getByRole("button", { name: "Arm run show" }).click()
+  await page.getByRole("button", { name: "Show mode" }).click()
+  await expect(page.getByRole("heading", { name: "Show mode" })).toBeVisible()
+  await expect(page.getByTestId("show-warning-gate")).toBeVisible()
   await page.getByPlaceholder("Operator name").fill("Venue operator")
   const confirmation = page.getByTestId("run-confirmation")
   const start = page.getByTestId("start-show")
@@ -101,6 +94,19 @@ test("typed confirmation stays locked until exact phrase", async ({ page }) => {
   await expect(start).toBeDisabled()
   await confirmation.fill("I AM PRESENT WITH THE DAMPING REMOTE")
   await expect(start).toBeEnabled()
+  await page.screenshot({ path: evidence("show-mode-1280.png"), fullPage: true })
+})
+
+test("simulation stage opens the preview video", async ({ page }) => {
+  await openConsole(page)
+  await page.getByRole("button", { name: "Dances & stats" }).click()
+  await expect(page.getByRole("heading", { name: "Dances & stats" })).toBeVisible()
+  const preview = page.getByTestId("preview-open").first()
+  await expect(preview).toBeVisible()
+  await preview.click()
+  await expect(page.getByRole("dialog")).toBeVisible()
+  await expect(page.getByTestId("preview-video")).toBeVisible()
+  await page.screenshot({ path: evidence("preview-video-open.png"), fullPage: true })
 })
 
 test("audit filters incidents and per-dance records", async ({ page }) => {

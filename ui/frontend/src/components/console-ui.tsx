@@ -8,7 +8,7 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
     <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         {eyebrow && <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400">{eyebrow}</div>}
-        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-[28px]">{title}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-[30px]">{title}</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
@@ -37,7 +37,7 @@ export function EmptyState({ icon: Icon = CircleDashed, title, body, action }: {
 }
 
 export function InlineAlert({ title, body, tone = "warning", className }: { title: string; body?: string; tone?: "warning" | "danger" | "info" | "success"; className?: string }) {
-  const colors = tone === "danger" ? "border-red-500/25 bg-red-500/10 text-red-200" : tone === "success" ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" : tone === "info" ? "border-blue-500/25 bg-blue-500/10 text-blue-200" : "border-amber-500/25 bg-amber-500/10 text-amber-100"
+  const colors = tone === "danger" ? "border-red-200 bg-red-50 text-red-800" : tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : tone === "info" ? "border-blue-200 bg-blue-50 text-blue-800" : "border-amber-200 bg-amber-50 text-amber-900"
   return (
     <div className={cn("flex gap-3 rounded-lg border p-3 text-xs", colors, className)}>
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -47,6 +47,6 @@ export function InlineAlert({ title, body, tone = "warning", className }: { titl
 }
 
 export function Metric({ label, value, detail, accent }: { label: string; value: ReactNode; detail?: ReactNode; accent?: "blue" | "green" | "red" | "amber" }) {
-  const accentClass = accent === "green" ? "text-emerald-300" : accent === "red" ? "text-red-300" : accent === "amber" ? "text-amber-300" : "text-white"
+  const accentClass = accent === "green" ? "text-emerald-700" : accent === "red" ? "text-red-600" : accent === "amber" ? "text-amber-700" : "text-foreground"
   return <div><div className="metric-label">{label}</div><div className={cn("mt-2 text-2xl font-semibold tracking-tight", accentClass)}>{value}</div>{detail && <div className="mt-1 text-[11px] text-muted-foreground">{detail}</div>}</div>
 }

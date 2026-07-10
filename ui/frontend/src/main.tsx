@@ -17,7 +17,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <Tooltip.Provider delayDuration={250}>
         <App />
-        <Toaster theme="dark" richColors position="top-right" closeButton />
+        <Toaster theme="light" richColors position="top-right" closeButton />
       </Tooltip.Provider>
     </QueryClientProvider>
   </React.StrictMode>,

@@ -6,7 +6,7 @@ export default defineConfig({
   expect: { timeout: 8_000 },
   use: {
     baseURL: "http://127.0.0.1:8735",
-    colorScheme: "dark",
+    colorScheme: "light",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
