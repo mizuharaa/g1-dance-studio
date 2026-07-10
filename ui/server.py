@@ -1,6 +1,6 @@
 """Local engine behind the G1 Dance Studio desktop app.
 
-FastAPI app serving the ui/static frontend plus a JSON API over the pipeline's
+FastAPI app serving the built React frontend plus a JSON API over the pipeline's
 job store (pipeline/store.py). This process never talks to the robot: the
 deploy endpoint only records an explicit human confirmation request on disk.
 
@@ -36,7 +36,10 @@ from pipeline import (body_models, cloud, monitor, policy_store, preshow, setlis
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
-STATIC_DIR = Path(__file__).parent / "static"
+FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
+# Production and pywebview both use the checked-in Vite build. Rebuild it after
+# frontend changes with `cd ui/frontend && npm run build`.
+STATIC_DIR = FRONTEND_DIST
 PREVIEWS_DIR = DATA_DIR / "previews"
 VET_SCRIPT = PROJECT_ROOT / "pipeline" / "vet_motion.py"
 
@@ -938,6 +941,14 @@ PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/previews", StaticFiles(directory=PREVIEWS_DIR, follow_symlink=True),
           name="previews")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/{full_path:path}")
+def spa_fallback(full_path: str) -> FileResponse:
+    """Return the React shell for client routes; preserve API 404 semantics."""
+    if full_path.startswith("api/"):
+        raise HTTPException(404, "not found")
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 def main() -> None:

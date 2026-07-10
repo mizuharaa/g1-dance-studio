@@ -1,5 +1,9 @@
 # AGENT C — Frontend Dashboard Revamp (shadcn + Playwright MCP)
 
+**Status: COMPLETE (2026-07-10).** React source and production build are in
+`ui/frontend/`; FastAPI/pywebview serves it. Playwright evidence is in
+`docs/ui_revamp/`; backend-only data gaps are in `tasks/API_GAPS.md`.
+
 **Owner: USER'S MANUAL AGENT** — run this with the shadcn MCP server and the Playwright MCP
 server connected (and Mobbin MCP for design reference if available). Do not run this lane from
 the orchestrator; it depends on those MCP servers.
