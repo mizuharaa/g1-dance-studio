@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, Check, ChevronRight, CircleDashed, Clock3, FileVideo2, Gauge, LoaderCircle, Play, RotateCcw, Scissors, ScrollText, UploadCloud, X } from "lucide-react"
 import { toast } from "sonner"
@@ -46,25 +46,39 @@ function TrimPanel({ job }: { job: PipelineJob }) {
   const dur = job.input?.duration_s ?? 0
   const [start, setStart] = useState(0)
   const [length, setLength] = useState(Math.min(TRIM_MAX_S, dur))
-  const maxLen = Math.max(5, Math.min(TRIM_MAX_S, dur - start))
-  const len = Math.min(length, maxLen)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const clampLen = (v: number, s = start) => Math.max(5, Math.min(v, Math.min(TRIM_MAX_S, dur - s)))
+  const len = clampLen(length)
   const end = start + len
-  const [thumb, setThumb] = useState({ s: 0, e: len })
-  useEffect(() => { const id = window.setTimeout(() => setThumb({ s: start, e: end }), 250); return () => window.clearTimeout(id) }, [start, end])
+  // Playable webm proxy so you can actually WATCH/scrub the clip in the app (QtWebEngine can't
+  // decode the H.264 source). Poll until the on-demand transcode is ready.
+  const proxy = useQuery({
+    queryKey: ["proxy", job.id],
+    queryFn: () => api.get<{ ready?: boolean; url?: string; status?: string }>(`/api/jobs/${job.id}/proxy`),
+    refetchInterval: (q) => (q.state.data as { ready?: boolean } | undefined)?.ready ? false : 2000,
+  })
+  const proxyUrl = proxy.data?.ready ? proxy.data.url : null
+  const seek = (t: number) => { const v = videoRef.current; if (v) { try { v.currentTime = Math.max(0, Math.min(t, dur)) } catch { /* not seekable yet */ } } }
+  const onStart = (v: number) => { setStart(v); if (v + len > dur) setLength(clampLen(length, v)); seek(v) }
+  const onLength = (v: number) => { setLength(v); seek(start + clampLen(v)) }
+  const setStartHere = () => { const t = videoRef.current?.currentTime ?? 0; const s = Math.min(t, Math.max(0, dur - 5)); setStart(s); setLength(clampLen(length, s)) }
+  const setEndHere = () => { const t = videoRef.current?.currentTime ?? 0; setLength(clampLen(t - start)) }
   const trim = useMutation({
     mutationFn: () => api.send<PipelineJob>(`/api/jobs/${job.id}/trim`, "POST", { start_s: start, length_s: len }),
     onSuccess: () => { toast.success("Segment trimmed — pipeline started"); qc.invalidateQueries({ queryKey: ["jobs"] }) },
     onError: (e: Error) => toast.error(e.message),
   })
   return <Card className="border-amber-400/60">
-    <CardHeader><div className="panel-kicker text-amber-500"><Scissors /> Trim required</div><CardTitle className="mt-2">Clip is {fmtTime(dur)} — pick a segment (max 4:00)</CardTitle><p className="mt-1 text-xs text-muted-foreground">Long clips are cut before training. Scrub with the sliders; the frames update as you move.</p></CardHeader>
+    <CardHeader><div className="panel-kicker text-amber-500"><Scissors /> Trim required</div><CardTitle className="mt-2">Clip is {fmtTime(dur)} — pick a segment (max 4:00)</CardTitle><p className="mt-1 text-xs text-muted-foreground">Play/scrub the video, mark the in & out points, then use the segment.</p></CardHeader>
     <CardContent className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Start · {fmtTime(thumb.s)}</div><img src={`/api/jobs/${job.id}/frame?t=${thumb.s.toFixed(1)}`} alt="start frame" className="aspect-video w-full rounded-lg border border-border bg-black object-contain" /></div>
-        <div><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">End · {fmtTime(thumb.e)}</div><img src={`/api/jobs/${job.id}/frame?t=${thumb.e.toFixed(1)}`} alt="end frame" className="aspect-video w-full rounded-lg border border-border bg-black object-contain" /></div>
+      {proxyUrl ? <video ref={videoRef} src={proxyUrl} controls playsInline className="max-h-[46vh] w-full rounded-lg bg-black" data-testid="trim-video" /> :
+        <div className="flex h-56 flex-col items-center justify-center gap-3 rounded-lg bg-slate-950 text-center"><LoaderCircle className="h-6 w-6 animate-spin text-blue-400" /><div className="text-sm font-semibold text-white">Preparing preview…</div><p className="max-w-sm text-xs text-slate-400">Converting the clip so it plays in the app (a few seconds, cached).</p></div>}
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" size="sm" onClick={setStartHere} disabled={!proxyUrl}>◁ Set start at playhead</Button>
+        <Button variant="outline" size="sm" onClick={setEndHere} disabled={!proxyUrl}>Set end at playhead ▷</Button>
       </div>
-      <div><div className="flex justify-between text-[11px] text-muted-foreground"><span>Start</span><span className="font-mono">{fmtTime(start)}</span></div><input type="range" min={0} max={Math.max(0, dur - 5)} step={0.5} value={start} onChange={(e) => setStart(Number(e.target.value))} className="mt-1 w-full accent-blue-500" data-testid="trim-start" /></div>
-      <div><div className="flex justify-between text-[11px] text-muted-foreground"><span>Length (max 4:00)</span><span className="font-mono">{fmtTime(len)}</span></div><input type="range" min={5} max={maxLen} step={0.5} value={len} onChange={(e) => setLength(Number(e.target.value))} className="mt-1 w-full accent-blue-500" data-testid="trim-length" /></div>
+      <div><div className="flex justify-between text-[11px] text-muted-foreground"><span>Start</span><span className="font-mono">{fmtTime(start)}</span></div><input type="range" min={0} max={Math.max(0, dur - 5)} step={0.5} value={start} onChange={(e) => onStart(Number(e.target.value))} className="mt-1 w-full accent-blue-500" data-testid="trim-start" /></div>
+      <div><div className="flex justify-between text-[11px] text-muted-foreground"><span>Length (max 4:00)</span><span className="font-mono">{fmtTime(len)}</span></div><input type="range" min={5} max={Math.max(5, Math.min(TRIM_MAX_S, dur - start))} step={0.5} value={len} onChange={(e) => onLength(Number(e.target.value))} className="mt-1 w-full accent-blue-500" data-testid="trim-length" /></div>
       <div className="rounded-lg border border-border bg-background/25 p-2.5 text-center font-mono text-sm">Using {fmtTime(start)} → {fmtTime(end)} <span className="text-muted-foreground">({fmtTime(len)})</span></div>
       <Button className="w-full" size="lg" disabled={trim.isPending} onClick={() => trim.mutate()} data-testid="trim-confirm"><Scissors /> {trim.isPending ? "Trimming…" : `Use this segment (${fmtTime(start)}–${fmtTime(end)})`}</Button>
     </CardContent>

@@ -8,12 +8,15 @@ on demand; the final TRIM is a fast keyframe copy. Uses imageio-ffmpeg's bundled
 from __future__ import annotations
 
 import subprocess
+import threading
 from pathlib import Path
 
 MAX_UNTRIMMED_S = 240          # clips longer than this (4 min) are gated for trimming
 MIN_SEGMENT_S = 5              # a segment must be at least this long
 
 _ffmpeg: str | None = None
+_proxy_jobs: dict[str, str] = {}
+_proxy_lock = threading.Lock()
 
 
 def ffmpeg_exe() -> str:
@@ -50,6 +53,47 @@ def extract_frame(src: Path, t: float, out_jpg: Path) -> bool:
     except Exception:  # noqa: BLE001
         tmp.unlink(missing_ok=True)
         return False
+
+
+def _proxy_transcode(src: Path, out_webm: Path) -> None:
+    """Small, fast, seekable VP9/WebM proxy (640-wide, 15 fps, no audio) for the trimmer's live
+    scrubber — the desktop webview can't decode H.264 but plays VP9. ~15-30x realtime."""
+    tmp = out_webm.with_name(out_webm.name + ".part.webm")
+    out_webm.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [ffmpeg_exe(), "-y", "-i", str(src), "-vf", "scale=640:-2", "-r", "15",
+           "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "40", "-deadline", "realtime",
+           "-cpu-used", "8", "-row-mt", "1", "-an", "-f", "webm", str(tmp)]
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, timeout=600)
+    tmp.replace(out_webm)
+
+
+def ensure_proxy(src: Path, out_webm: Path) -> dict:
+    """Ensure a scrubbable webm proxy of `src` exists (background + cached). {ready, status}."""
+    if not src.is_file():
+        return {"ready": False, "status": "source-missing"}
+    try:
+        if out_webm.is_file() and out_webm.stat().st_mtime >= src.stat().st_mtime:
+            return {"ready": True}
+    except OSError:
+        pass
+    key = str(out_webm)
+    with _proxy_lock:
+        state = _proxy_jobs.get(key)
+        if state is None or state.startswith("error"):
+            _proxy_jobs[key] = "running"
+
+            def _run() -> None:
+                try:
+                    _proxy_transcode(src, out_webm)
+                    with _proxy_lock:
+                        _proxy_jobs.pop(key, None)
+                except Exception as e:  # noqa: BLE001
+                    with _proxy_lock:
+                        _proxy_jobs[key] = f"error: {type(e).__name__}"
+            threading.Thread(target=_run, daemon=True).start()
+        status = _proxy_jobs.get(key, "running")
+    return {"ready": False, "status": status}
 
 
 def trim(src: Path, dst: Path, start_s: float, length_s: float) -> None:

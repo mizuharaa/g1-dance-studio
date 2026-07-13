@@ -61,7 +61,9 @@ def validate(path: Path) -> dict:
         raise RuntimeError(
             f"video is {duration:.1f}s — too short, the pipeline needs at "
             f"least {MIN_SECONDS}s of continuous dance")
-    if duration > MAX_SECONDS:
+    # +5 s tolerance: a keyframe-copy trim of a "4:00" segment lands ~240.2 s, which must not
+    # fail this gate (the built-in trimmer already holds the user to <=4 min).
+    if duration > MAX_SECONDS + 5:
         raise RuntimeError(
             f"video is {duration / 60:.1f} min — longer than the current "
             f"{MAX_SECONDS // 60} min limit; trim it to the segment you want "

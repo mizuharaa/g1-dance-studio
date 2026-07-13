@@ -336,6 +336,25 @@ def job_frame(job_id: str, t: float = 0.0) -> FileResponse:
     return FileResponse(cache, media_type="image/jpeg")
 
 
+@app.get("/api/jobs/{job_id}/proxy")
+def job_proxy(job_id: str) -> dict:
+    """Ensure a scrubbable VP9/WebM proxy of the job's input video exists (so the trimmer can PLAY
+    it inline in the desktop webview), transcoding on demand. Returns {ready, url?, status?}. The
+    proxy lives under /previews so the Range-capable static mount serves it (seeking works)."""
+    try:
+        job = store.load_job(job_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such job: {job_id}")
+    src = job.dir / "input.mp4"
+    if not src.exists():
+        raise HTTPException(404, "job has no input video")
+    out = PREVIEWS_DIR / "proxy" / f"{job_id}.webm"
+    result = video_edit.ensure_proxy(src, out)
+    if result.get("ready"):
+        result["url"] = f"/previews/proxy/{job_id}.webm"
+    return result
+
+
 @app.post("/api/jobs/{job_id}/trim")
 def trim_job(job_id: str, payload: dict = Body(...)) -> dict:
     """Cut the job's (too-long) input video down to the chosen <=4 min segment, then score +
