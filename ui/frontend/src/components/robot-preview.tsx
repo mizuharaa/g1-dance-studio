@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react"
-import { Box, ExternalLink, Expand, Play, VideoOff } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Box, ExternalLink, Expand, Loader2, Play, VideoOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn, fmtDuration } from "@/lib/utils"
-import { openExternal } from "@/lib/desktop"
+import { openExternal, useDesktopShell } from "@/lib/desktop"
 
 export function CuteRobot({ className }: { className?: string }) {
   return (
@@ -38,39 +38,50 @@ export function CuteRobotMark({ className }: { className?: string }) {
  *  (which has the codec) via the pywebview bridge. In a normal browser the video just plays
  *  and the fallback never shows. `data-testid="preview-video"` stays mounted for tests. */
 export function PreviewPlayer({ url, autoPlay = true, className, testId = "preview-video" }: { url: string; autoPlay?: boolean; className?: string; testId?: string }) {
-  const [status, setStatus] = useState<"loading" | "playing" | "failed">("loading")
-  const statusRef = useRef(status)
-  statusRef.current = status
+  const desktop = useDesktopShell()
+  const [retry, setRetry] = useState(0)
+  const [src, setSrc] = useState<string | null>(null)
+  const [state, setState] = useState<"preparing" | "ready" | "failed">("preparing")
   useEffect(() => {
-    setStatus("loading")
-    // If the embedded engine can't decode H.264 it often neither plays nor fires `error`
-    // promptly — treat "still loading after a beat" as unplayable and offer the browser.
-    const timer = window.setTimeout(() => {
-      if (statusRef.current === "loading") setStatus("failed")
-    }, 2_200)
-    return () => window.clearTimeout(timer)
-  }, [url])
+    let cancelled = false, tries = 0
+    setState("preparing"); setSrc(null)
+    // In a normal browser, H.264 mp4 plays directly. In the desktop app (PySide6 QtWebEngine,
+    // no H.264 codec) we transcode to VP9/WebM server-side and play that inline.
+    if (!desktop) { setSrc(url); setState("ready"); return }
+    const poll = () => {
+      if (cancelled) return
+      fetch(`/api/preview-webm?src=${encodeURIComponent(url)}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (cancelled) return
+          if (d?.ready && d.url) { setSrc(d.url); setState("ready"); return }
+          if (typeof d?.status === "string" && d.status.startsWith("error")) { setState("failed"); return }
+          if (++tries > 60) { setState("failed"); return }   // ~90s cap
+          window.setTimeout(poll, 1_500)
+        })
+        .catch(() => { if (!cancelled && ++tries <= 60) window.setTimeout(poll, 1_500); else if (!cancelled) setState("failed") })
+    }
+    poll()
+    return () => { cancelled = true }
+  }, [url, desktop, retry])
   return (
     <div className={cn("relative", className)}>
-      <video
-        data-testid={testId}
-        src={url}
-        controls
-        autoPlay={autoPlay}
-        playsInline
-        className="max-h-[70vh] w-full rounded-lg bg-black"
-        onCanPlay={() => setStatus("playing")}
-        onPlaying={() => setStatus("playing")}
-        onError={() => setStatus("failed")}
-      />
-      {status === "failed" && (
+      {src && <video data-testid={testId} src={src} controls autoPlay={autoPlay} playsInline className="max-h-[70vh] w-full rounded-lg bg-black" onError={() => setState("failed")} />}
+      {state === "preparing" && (
+        <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-lg bg-slate-950 p-6 text-center" data-testid="preview-preparing">
+          <Loader2 className="h-7 w-7 animate-spin text-blue-400" />
+          <div className="text-sm font-semibold text-white">Preparing preview…</div>
+          <p className="max-w-sm text-xs leading-5 text-slate-400">Converting to a codec the app can play inline — a few seconds, then it’s cached.</p>
+        </div>
+      )}
+      {state === "failed" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg bg-slate-950/92 p-6 text-center" data-testid="preview-codec-fallback">
           <VideoOff className="h-7 w-7 text-slate-400" />
-          <div className="text-sm font-semibold text-white">This preview can’t play inside the app window</div>
-          <p className="max-w-sm text-xs leading-5 text-slate-400">The desktop window can’t decode this video’s codec (H.264). Open it in your system browser to watch it full quality.</p>
+          <div className="text-sm font-semibold text-white">Couldn’t play this preview inline</div>
+          <p className="max-w-sm text-xs leading-5 text-slate-400">Open it in your system browser to watch it full quality.</p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button size="sm" onClick={() => openExternal(url)}><ExternalLink className="h-4 w-4" /> Open in browser</Button>
-            <Button size="sm" variant="outline" onClick={() => setStatus("loading")}>Try inline again</Button>
+            <Button size="sm" variant="outline" onClick={() => setRetry((r) => r + 1)}>Retry</Button>
           </div>
         </div>
       )}

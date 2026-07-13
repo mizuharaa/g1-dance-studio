@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 from pipeline.config import DATA_DIR, STAGE_ORDER
 from pipeline import audio as audio_mod
 from pipeline import (body_models, cloud, monitor, policy_store, preshow, setlist,
-                      show_runner, shows, sim_preview, store, venue)
+                      show_runner, shows, sim_preview, store, venue, video_web)
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -424,6 +424,24 @@ def vet(csv: str) -> dict:
             raise HTTPException(500, f"vet_motion failed: {proc.stderr[-500:]}")
         _vet_cache[key] = json.loads(proc.stdout)
     return _vet_cache[key]
+
+
+@app.get("/api/preview-webm")
+def preview_webm(src: str) -> dict:
+    """Ensure a VP9/WebM sibling of a preview mp4 exists so the codec-limited desktop webview
+    can play it INLINE (no H.264). Transcodes on demand (cached). `src` is a /previews/... URL
+    path. Returns {ready, url?, status?}; poll until ready, then play `url`."""
+    rel = src.split("/previews/", 1)[-1].lstrip("/")
+    parts = [p for p in rel.split("/") if p and p != "."]
+    # traversal guard (don't resolve — previews can be SYMLINKS out of the tree; the .webm is
+    # written next to the symlink under /previews, and ffmpeg follows the symlink to read).
+    if any(p == ".." for p in parts) or not parts or not parts[-1].endswith(".mp4"):
+        raise HTTPException(400, "src must be a .mp4 under /previews")
+    mp4 = PREVIEWS_DIR.joinpath(*parts)
+    result = video_web.ensure_webm(mp4)
+    if result.get("ready"):
+        result["url"] = "/previews/" + video_web.webm_sibling(mp4).relative_to(PREVIEWS_DIR).as_posix()
+    return result
 
 
 @app.get("/api/previews")
