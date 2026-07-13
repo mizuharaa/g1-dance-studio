@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 from pipeline.config import DATA_DIR, STAGE_ORDER
 from pipeline import audio as audio_mod
 from pipeline import (body_models, cloud, monitor, policy_store, preshow, setlist,
-                      show_runner, shows, sim_preview, store, venue, video_web)
+                      show_runner, shows, sim_preview, store, venue, video_quality, video_web)
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -171,6 +171,12 @@ def _job_dict(job: store.Job) -> dict:
     vet = job.dir / "retarget" / "vet.json"
     if vet.exists():
         d["vet"] = json.loads(vet.read_text())
+    quality = job.dir / "quality.json"          # upload-time video quality gate (video_quality)
+    if quality.exists():
+        try:
+            d["quality"] = json.loads(quality.read_text())
+        except (ValueError, OSError):
+            pass
     return d
 
 
@@ -210,8 +216,29 @@ def _create_job(name: str, src: Path, *, move: bool = False) -> store.Job:
     else:
         shutil.copyfile(src, dest)
     job.log(f"input {kind}: {src.name} ({size} bytes)")
+    if kind == "video":
+        _quality_check_async(job.dir, dest)     # scores the clip on the 1-10 rubric (video_quality)
     _job_queue.put(job.id)
     return job
+
+
+def _quality_check_async(job_dir: Path, video_path: Path) -> None:
+    """Run the upload-time video quality gate in the background (~3 s) and write the rubric to
+    job_dir/quality.json. Kept out of the job record so it can't race the stage worker's saves."""
+    import threading
+
+    def _work() -> None:
+        try:
+            rubric = video_quality.analyze(video_path)
+        except Exception as e:  # noqa: BLE001 — advisory gate must never break job creation
+            rubric = {"ok": False, "verdict": "error",
+                      "recommendation": f"quality check failed: {type(e).__name__}", "dimensions": {}}
+        try:
+            (job_dir / "quality.json").write_text(json.dumps(rubric, indent=2))
+        except OSError:
+            pass
+
+    threading.Thread(target=_work, daemon=True).start()
 
 
 @app.post("/api/jobs")

@@ -10,8 +10,33 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { EmptyState, InlineAlert, PageHeader, StatusBadge } from "@/components/console-ui"
 import { RobotPreview } from "@/components/robot-preview"
 import type { ConsoleData } from "@/hooks/use-console-data"
-import { api, type PipelineJob, type StageState } from "@/lib/api"
+import { api, type PipelineJob, type StageState, type VideoQuality } from "@/lib/api"
 import { cn, fmtDate } from "@/lib/utils"
+
+const DIM_LABELS: Record<string, string> = {
+  framerate: "Framerate", resolution: "Resolution", lighting: "Lighting",
+  sharpness_snappy: "Sharpness / snappy", movement_feasibility: "Movement feasibility",
+}
+const scoreColor = (s?: number) => s == null ? "text-muted-foreground" : s >= 7 ? "text-emerald-400" : s >= 5 ? "text-amber-400" : "text-red-400"
+
+function QualityGate({ q }: { q: VideoQuality }) {
+  if (q.verdict === "unreadable" || q.verdict === "error") {
+    return <Card className="border-red-500/40"><CardContent className="flex items-center gap-2 pt-5 text-sm font-semibold text-red-300"><AlertTriangle className="h-4 w-4" /> Video quality check: {q.recommendation}</CardContent></Card>
+  }
+  const tone = q.verdict === "good" ? "success" : q.verdict === "acceptable" ? "warning" : "destructive"
+  return <Card>
+    <CardHeader className="flex-row items-center justify-between space-y-0"><div><div className="panel-kicker"><Gauge /> Video quality check</div><CardTitle className="mt-2">Upload rubric</CardTitle></div><div className="flex items-center gap-3"><Badge variant={tone as "success" | "warning" | "destructive"}>{q.verdict}</Badge><div className="text-right"><div className={cn("font-mono text-xl font-bold", scoreColor(q.overall_score))}>{q.overall_score}/10</div><div className="text-[9px] uppercase tracking-wide text-muted-foreground">overall</div></div></div></CardHeader>
+    <CardContent>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {Object.entries(q.dimensions ?? {}).map(([k, d]) => <div key={k} className="rounded-lg border border-border bg-background/25 p-3"><div className="flex items-center justify-between"><span className="text-[11px] font-semibold">{DIM_LABELS[k] ?? k}</span><span className={cn("font-mono text-sm font-bold", scoreColor(d.score))}>{d.score}/10</span></div><Progress value={(d.score ?? 0) * 10} className="mt-1.5 h-1" /><div className="mt-1.5 font-mono text-[9px] text-muted-foreground">{d.value}</div><div className="mt-1 text-[10px] leading-4 text-muted-foreground">{d.note}{d.flag ? <span className="text-amber-400"> · {d.flag}</span> : null}</div></div>)}
+        <div className="rounded-lg border border-blue-500/25 bg-blue-500/[.06] p-3"><div className="flex items-center justify-between"><span className="text-[11px] font-semibold">Dance difficulty</span><span className="font-mono text-sm font-bold text-blue-300">{q.difficulty?.score}/10</span></div><Progress value={(q.difficulty?.score ?? 0) * 10} className="mt-1.5 h-1" indicatorClassName="bg-blue-500" /><div className="mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300">{q.difficulty?.value}</div><div className="mt-1 text-[10px] leading-4 text-muted-foreground">{q.difficulty?.note}</div></div>
+      </div>
+      {!!q.blockers?.length && <InlineAlert className="mt-3" tone="danger" title="Blockers — a better clip will train much better" body={q.blockers.join(" · ")} />}
+      {!!q.flags?.length && <div className="mt-2 text-[10px] text-amber-400">⚠ {q.flags.join(" · ")}</div>}
+      <div className="mt-3 rounded-lg border border-border bg-background/25 p-3 text-xs text-muted-foreground">{q.recommendation}</div>
+    </CardContent>
+  </Card>
+}
 
 const STAGES = [
   { key: "extract", label: "Extract", note: "Video → body pose" },
@@ -132,6 +157,8 @@ export function PipelineScreen({ data }: { data: ConsoleData }) {
               </div>
             </CardContent>
           </Card>
+
+          {selected.quality && <QualityGate q={selected.quality} />}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>

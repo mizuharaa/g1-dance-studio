@@ -9,6 +9,20 @@ export interface JobStage {
   meta?: Record<string, unknown>
 }
 
+export interface QualityDim { score?: number; value?: string; note?: string; flag?: string | null }
+export interface VideoQuality {
+  ok?: boolean
+  verdict?: string           // good | acceptable | poor | unreadable | error
+  overall_score?: number
+  difficulty?: QualityDim
+  dimensions?: Record<string, QualityDim>
+  blockers?: string[]
+  flags?: string[]
+  warnings?: string[]
+  recommendation?: string
+  duration_s?: number
+}
+
 export interface PipelineJob {
   id: string
   name: string
@@ -18,6 +32,7 @@ export interface PipelineJob {
   stages: Record<string, JobStage>
   preview_url?: string
   vet?: VetReport
+  quality?: VideoQuality
   log_tail?: string[]
 }
 
