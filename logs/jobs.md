@@ -327,3 +327,12 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - GATES (auto-run at end): gap_check survival @40ms+push AND nominal drift <1m AND heldout >=99% (3 seeds).
 - RESUME IF SESSION DIES: check `$NB/logs/train_v5.log`; on "==== GATES"/"PULL artifacts" -> pull with
   `bash scripts/retrain_pull.sh 103.245.250.152 55792` -> sign -> promote -> DELETE BOX (billing!).
+
+## 2026-07-13 (cont.) — stage 2 RELAUNCHED correctly (from model_3999, not model_500)
+- Bug: mjlab's default checkpoint sort is ALPHABETICAL (model_500 > model_3999), and --load-run
+  matches run dirs with re.match (start-anchored) so a bare run-name never matches the
+  "<timestamp>_<name>" dir. A resume attempt had grabbed model_500 (iter 500) — curriculum defeated.
+- Fix: cloud/resume_curriculum_v5.sh resolves the newest run dir + HIGHEST-NUMBERED checkpoint and
+  pins both explicitly. Killed the model_500 run, cleaned aborted s2/s3 dirs, relaunched:
+  stage 2 now resumes 2026-07-13_05-25-45_..._s1 / model_3999.pt (VERIFIED in proc args + log).
+  Log: $NB/logs/resume_v5.log. Monitor from laptop: `bash scripts/train_watch.sh 103.245.250.152 55792`.
