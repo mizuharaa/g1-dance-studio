@@ -239,3 +239,62 @@ def test_outcome_required_before_next_run(run_env, monkeypatch):
     r3 = c.post(f"/api/shows/{d.id}/run",
                 json={"operator": "alois", "mode": "rehearsal", "confirmation": PHRASE})
     assert r3.status_code == 200
+
+
+# ---- emergency software E-STOP (POST /api/safety/estop) -------------------------
+# The pkill of stray processes is ALWAYS monkeypatched — a test must never signal real
+# deploy_runtime / show_run.sh processes on the host.
+
+def test_estop_no_run_is_honest(run_env, monkeypatch):
+    """With nothing to stop, the E-STOP does not lie: it reports stopped=False and points
+    the operator at the remote / power switch (the only stop for remote/onboard motion)."""
+    c, _, _, show_runner = run_env
+    monkeypatch.setattr(show_runner, "_pkill_deploy", lambda: [])
+    r = c.post("/api/safety/estop")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["stopped"] is False
+    assert body["was_running"] is False
+    assert "remote" in body["detail"].lower()
+
+
+def test_estop_damps_running_show_with_sigterm(run_env, monkeypatch):
+    """A running app-launched show is SIGTERMed (so deploy_runtime damps) — never SIGKILLed
+    (which would skip damping and leave the motors energised)."""
+    import os
+    import signal
+    c, _, shows_mod, show_runner = run_env
+    d = _show_ready_with_audio(shows_mod, "Estoppable")
+    _install_spawn(show_runner, monkeypatch, PILOT_LINES, rc=None)  # stays running
+    assert c.post(f"/api/shows/{d.id}/run",
+                  json={"operator": "alois", "mode": "rehearsal",
+                        "confirmation": PHRASE}).status_code == 200
+    sent = {}
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(os, "killpg", lambda pgid, sig: sent.update(pgid=pgid, sig=sig))
+    monkeypatch.setattr(show_runner, "_pkill_deploy", lambda: [])
+    body = c.post("/api/safety/estop").json()
+    assert body["stopped"] is True
+    assert body["tracked_stopped"] is True
+    assert body["was_running"] is True
+    assert sent["sig"] == signal.SIGTERM   # NOT SIGKILL
+
+
+def test_estop_signals_stray_deploy_when_untracked(run_env, monkeypatch):
+    """Even with no tracked run, the E-STOP catches a stray deploy process (one launched
+    outside the app, or a leftover after a crash)."""
+    c, _, _, show_runner = run_env  # _current is None in the fixture
+    monkeypatch.setattr(show_runner, "_pkill_deploy", lambda: ["deploy_runtime"])
+    body = c.post("/api/safety/estop").json()
+    assert body["stopped"] is True
+    assert body["strays_signaled"] == ["deploy_runtime"]
+    assert body["was_running"] is False
+
+
+def test_safety_status_reports_reachability_and_run(run_env):
+    """The Safety panel's snapshot endpoint returns robot reachability + live run status."""
+    c, _, _, _ = run_env  # robot_reachable faked True by the fixture
+    body = c.get("/api/safety/status").json()
+    assert body["robot_reachable"] is True
+    assert body["run"]["running"] is False
+    assert body["run"]["phase"] == "idle"

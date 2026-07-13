@@ -15,19 +15,47 @@
     --secondary: 211 30% 92%;
     --secondary-foreground: 209 42% 22%;
     --muted: 211 32% 94%;
-    --muted-foreground: 212 17% 43%;
+    /* darker than the original 43% L — the low-contrast muted text was hard to read */
+    --muted-foreground: 215 25% 32%;
     --accent: 212 38% 91%;
     --accent-foreground: 211 50% 18%;
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 211 26% 84%;
-    --input: 211 26% 78%;
-    --ring: 217 91% 60%;
+    --border: 212 25% 79%;
+    --input: 211 26% 74%;
+    --ring: 217 91% 55%;
     --radius: 0.75rem;
+  }
+
+  /* Dark theme — toggled by adding `.dark` to <html> (see lib/theme.ts). The shadcn
+     primitives are all token-driven, so these variables flip Card/Dialog/Button/Input/
+     Badge/muted text automatically; the screen-level hardcoded slate/white utilities are
+     remapped in the unlayered ".dark [class~=...]" sheet at the bottom of this file. */
+  .dark {
+    --background: 222 30% 8%;
+    --foreground: 210 38% 96%;
+    --card: 222 26% 13%;
+    --card-foreground: 210 38% 96%;
+    --popover: 222 28% 12%;
+    --popover-foreground: 210 38% 96%;
+    --primary: 217 91% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 20% 22%;
+    --secondary-foreground: 210 32% 90%;
+    --muted: 217 20% 18%;
+    --muted-foreground: 214 20% 72%;
+    --accent: 217 24% 24%;
+    --accent-foreground: 210 34% 94%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 19% 26%;
+    --input: 217 19% 30%;
+    --ring: 217 91% 62%;
   }
 
   * { @apply border-border; }
   html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
     margin: 0;
@@ -35,6 +63,7 @@
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: #eef4f9;
   }
+  html.dark body { background: #0a0e15; }
   ::selection { background: rgba(59,130,246,.3); }
   button, input, textarea, select { font: inherit; }
 }
@@ -57,13 +86,15 @@
   }
   .hover-lift { transition: transform 180ms cubic-bezier(.22,.9,.28,1), box-shadow 180ms ease, border-color 160ms ease; }
   .hover-lift:hover { transform: translateY(-3px); border-color: rgba(37,99,235,.42); box-shadow: 0 16px 30px -20px rgba(32,73,125,.45); }
-  .light-console [class~="text-blue-300"] { color: #1d4ed8; }
-  .light-console [class~="text-blue-200"], .light-console [class~="text-blue-100/70"] { color: rgba(30,64,175,.82); }
-  .light-console [class~="text-emerald-300"] { color: #047857; }
-  .light-console [class~="text-amber-300"], .light-console [class~="text-amber-200"] { color: #92400e; }
-  .light-console [class~="text-amber-100/60"], .light-console [class~="text-amber-100/70"] { color: rgba(120,53,15,.78); }
-  .light-console [class~="text-red-300"], .light-console [class~="text-red-200"] { color: #b91c1c; }
-  .light-console [class~="text-red-200/60"] { color: rgba(153,27,27,.78); }
+  /* These remap "meant-for-dark" vibrant text to dark-on-light so it reads in LIGHT mode.
+     In dark mode they must NOT apply (the vibrant colours are correct there), so gate them. */
+  html:not(.dark) .light-console [class~="text-blue-300"] { color: #1d4ed8; }
+  html:not(.dark) .light-console [class~="text-blue-200"], html:not(.dark) .light-console [class~="text-blue-100/70"] { color: rgba(30,64,175,.82); }
+  html:not(.dark) .light-console [class~="text-emerald-300"] { color: #047857; }
+  html:not(.dark) .light-console [class~="text-amber-300"], html:not(.dark) .light-console [class~="text-amber-200"] { color: #92400e; }
+  html:not(.dark) .light-console [class~="text-amber-100/60"], html:not(.dark) .light-console [class~="text-amber-100/70"] { color: rgba(120,53,15,.78); }
+  html:not(.dark) .light-console [class~="text-red-300"], html:not(.dark) .light-console [class~="text-red-200"] { color: #b91c1c; }
+  html:not(.dark) .light-console [class~="text-red-200/60"] { color: rgba(153,27,27,.78); }
 }
 
 .robot-stage__sky { position:absolute; inset:0; background:linear-gradient(#d8ebff 0 57%,#eef7ff 57%); }
@@ -80,4 +111,94 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .hover-lift:hover { transform:none; }
+}
+
+/* =====================================================================
+   THEMING OVERRIDE SHEET (unlayered — beats Tailwind's layered utilities)
+   The screens hardcode the light slate/blue palette (bg-white, text-slate-*,
+   border-slate-*, bg-blue-50 …) instead of semantic tokens. Two jobs here:
+   (1) LIGHT mode: push contrast up (the operator said text was hard to see);
+   (2) DARK mode: remap those same hardcoded utilities to a dark palette so the
+   whole console flips with the `.dark` class. Attribute selectors match the exact
+   class token, mirroring the existing `.light-console [class~=…]` technique.
+   ===================================================================== */
+
+/* ---- (1) LIGHT-mode contrast: darken the faint label/meta text one step ---- */
+html:not(.dark) [class~="text-slate-400"] { color: #5c6b82; }
+html:not(.dark) [class~="text-slate-500"] { color: #475569; }
+html:not(.dark) [class~="text-slate-600"] { color: #37465b; }
+/* the two smallest type sizes were a big part of "hard to see" — nudge them up */
+[class~="text-[9px]"]  { font-size: 10px; letter-spacing: .01em; }
+[class~="text-[10px]"] { font-size: 11px; }
+
+/* ---- (2) DARK-mode utility remaps ---- */
+/* surfaces */
+.dark [class~="bg-white"]      { background-color: hsl(222 26% 13%); }
+.dark [class~="bg-slate-50"]   { background-color: hsl(220 22% 15%); }
+.dark [class~="bg-slate-100"]  { background-color: hsl(220 20% 17%); }
+.dark [class~="bg-blue-50"]    { background-color: hsl(217 42% 17%); }
+.dark [class~="bg-blue-100"]   { background-color: hsl(217 40% 22%); }
+.dark [class~="bg-blue-50/40"] { background-color: hsl(217 42% 15%); }
+.dark [class~="bg-red-50"]     { background-color: hsl(0 42% 15%); }
+.dark [class~="bg-amber-50"]   { background-color: hsl(36 44% 14%); }
+.dark [class~="bg-emerald-50"] { background-color: hsl(158 40% 12%); }
+.dark [class~="bg-emerald-100"]{ background-color: hsl(158 38% 18%); }
+.dark [class~="bg-amber-100"]  { background-color: hsl(36 42% 20%); }
+.dark [class~="bg-red-100"]    { background-color: hsl(0 40% 20%); }
+/* text */
+.dark [class~="text-slate-900"]{ color: hsl(210 38% 95%); }
+.dark [class~="text-slate-800"]{ color: hsl(210 34% 92%); }
+.dark [class~="text-slate-700"]{ color: hsl(212 26% 84%); }
+.dark [class~="text-slate-600"]{ color: hsl(214 20% 74%); }
+.dark [class~="text-slate-500"]{ color: hsl(214 18% 66%); }
+.dark [class~="text-slate-400"]{ color: hsl(214 16% 60%); }
+.dark [class~="text-blue-800"] { color: hsl(212 92% 78%); }
+.dark [class~="text-blue-700"] { color: hsl(212 92% 76%); }
+.dark [class~="text-blue-600"] { color: hsl(212 92% 72%); }
+.dark [class~="text-red-900"]  { color: hsl(0 88% 80%); }
+.dark [class~="text-red-800"]  { color: hsl(0 86% 78%); }
+.dark [class~="text-red-800/75"] { color: hsla(0 86% 78% / .82); }
+.dark [class~="text-red-700"]  { color: hsl(0 84% 76%); }
+.dark [class~="text-red-600"]  { color: hsl(0 84% 72%); }
+.dark [class~="text-amber-900"]{ color: hsl(40 92% 70%); }
+.dark [class~="text-amber-800"]{ color: hsl(40 92% 68%); }
+.dark [class~="text-amber-700"]{ color: hsl(40 90% 66%); }
+.dark [class~="text-emerald-800"]{ color: hsl(154 62% 62%); }
+.dark [class~="text-emerald-700"]{ color: hsl(154 60% 60%); }
+/* borders */
+.dark [class~="border-slate-200"] { border-color: hsl(217 18% 26%); }
+.dark [class~="border-slate-100"] { border-color: hsl(217 16% 22%); }
+.dark [class~="border-slate-300"] { border-color: hsl(217 18% 30%); }
+.dark [class~="border-blue-200"]  { border-color: hsl(217 40% 34%); }
+.dark [class~="border-blue-400"]  { border-color: hsl(217 60% 48%); }
+.dark [class~="border-red-200"]   { border-color: hsl(0 40% 34%); }
+.dark [class~="border-red-300"]   { border-color: hsl(0 44% 40%); }
+.dark [class~="border-amber-200"] { border-color: hsl(36 38% 30%); }
+.dark [class~="border-emerald-200"] { border-color: hsl(158 34% 28%); }
+
+/* preview "MuJoCo environment" poster — the bright sky reads wrong on a dark canvas */
+.dark .robot-stage { background: #0d1524 !important; }
+.dark .robot-stage__sky { background: linear-gradient(#12233d 0 57%, #0d1a30 57%); }
+.dark .robot-stage__floor { background-image: linear-gradient(rgba(120,170,235,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(120,170,235,.16) 1px, transparent 1px); border-top-color: rgba(120,170,235,.22); }
+
+/* ---- robot state visualization (Safety panel) ---- */
+.robot-figure { transition: color .3s ease; }
+.robot-figure--thrash { animation: robot-thrash .4s ease-in-out infinite; }
+.robot-figure--perform .cute-robot__body { animation-duration: 1.4s; }
+.robot-figure--idle .cute-robot__arm--left,
+.robot-figure--idle .cute-robot__arm--right { animation: none; }
+.estop-pulse { animation: estop-pulse 1.6s ease-in-out infinite; }
+@keyframes robot-thrash {
+  0%   { transform: translateX(0) rotate(-6deg); }
+  25%  { transform: translateX(-3px) rotate(7deg); }
+  50%  { transform: translateX(3px) rotate(-8deg); }
+  75%  { transform: translateX(-2px) rotate(6deg); }
+  100% { transform: translateX(0) rotate(-6deg); }
+}
+@keyframes estop-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.45); }
+  50%     { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .robot-figure--thrash, .estop-pulse { animation: none !important; }
 }

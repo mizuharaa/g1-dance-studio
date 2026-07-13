@@ -341,6 +341,71 @@ def stop_run() -> dict:
             "detail": "STOP sent — the robot is damping (going soft); catch it on the tether."}
 
 
+def _pkill_deploy() -> list[str]:
+    """SIGTERM any stray deploy_runtime / show_run.sh processes that this module is not
+    tracking in ``_current`` (e.g. a run launched from a terminal, or a leftover after a
+    crash). SIGTERM — NEVER SIGKILL — so deploy_runtime's signal handler still damps the
+    robot on the way out (a SIGKILL would skip damping and leave the motors live). Returns
+    the list of cmdline patterns that matched at least one process. Best-effort: a missing
+    ``pkill`` binary is non-fatal (returns []). Isolated so tests monkeypatch it and never
+    signal real processes."""
+    signaled: list[str] = []
+    for pat in ("deploy_runtime", "show_run.sh"):
+        try:
+            rc = subprocess.run(
+                ["pkill", "-TERM", "-f", pat],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+        except OSError:
+            continue
+        if rc == 0:          # 0 == at least one process matched and was signaled
+            signaled.append(pat)
+    return signaled
+
+
+def emergency_kill() -> dict:
+    """Always-available EMERGENCY software stop ("E-STOP"): damp any app-launched policy
+    run NOW. Two passes: (1) SIGTERM the tracked show's whole process group, and (2) SIGTERM
+    any stray deploy_runtime / show_run.sh process not tracked here. Both use SIGTERM so
+    deploy_runtime's signal handler ALWAYS damps the robot soft — this module never SIGKILLs
+    a live-control process (that would skip damping and leave the motors energised).
+
+    HONEST SCOPE (CLAUDE.md deploy rule / 2026-07-03 safety review): this can only reach
+    processes THIS APP launched. The operator's hand-held remote B-damp — not this button —
+    remains the PRIMARY hard stop, and it is the ONLY stop for a robot being driven from the
+    remote/onboard 'ai' (which this app has no channel to command). The robot goes SOFT and
+    will sag; keep the remote in hand and tension on any tether.
+
+    Returns {stopped, tracked_stopped, strays_signaled, was_running, detail}."""
+    with _lock:
+        run = _current
+        proc = run.get("proc") if run else None
+        tracked_running = proc is not None and proc.poll() is None
+        tracked_stopped = False
+        err: str | None = None
+        if tracked_running:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                tracked_stopped = True
+            except (ProcessLookupError, PermissionError, OSError) as e:
+                err = str(e)
+    # pkill outside the lock (a subprocess call): catches anything ``_current`` misses.
+    strays = _pkill_deploy()
+    hit_something = tracked_stopped or bool(strays)
+    if hit_something:
+        detail = ("E-STOP sent — the app-launched policy is damping (going soft). "
+                  "If the robot is still moving it is being driven from the remote/onboard: "
+                  "use the remote B-damp or the power switch.")
+    elif err:
+        detail = (f"could not signal the tracked run ({err}); tried to stop any stray "
+                  "deploy process — if the robot is moving, use the remote B-damp NOW.")
+    else:
+        detail = ("No app-launched policy run is active. If the robot is moving it is being "
+                  "driven from the remote/onboard — stop it with the remote B-damp or the "
+                  "power switch.")
+    return {"stopped": hit_something, "tracked_stopped": tracked_stopped,
+            "strays_signaled": strays, "was_running": tracked_running, "detail": detail}
+
+
 def current_status() -> dict:
     """Status for GET /api/shows/runs/current: liveness + phase + last log lines."""
     run = _current

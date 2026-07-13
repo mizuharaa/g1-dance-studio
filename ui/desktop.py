@@ -64,8 +64,30 @@ def main() -> None:
     _wait_for_port("127.0.0.1", args.port)
 
     import webview
+
+    class DesktopBridge:
+        """Python functions exposed to the web app as ``window.pywebview.api``.
+
+        The bundled PySide6 QtWebEngine ships WITHOUT proprietary codecs (H.264/AAC), so
+        the H.264 .mp4 previews will not decode inside this window. ``open_external`` hands
+        a preview URL to the operator's real system browser (Chrome/Firefox — which HAVE
+        H.264) so previews are always watchable. ``is_desktop`` lets the frontend detect the
+        native shell and offer the button proactively instead of after a silent failure."""
+        def is_desktop(self) -> bool:
+            return True
+
+        def open_external(self, url: str) -> bool:
+            import webbrowser
+            # Only ever open http/https (the local engine's own preview URLs) — never a
+            # file:// path or a shell string.
+            if isinstance(url, str) and url.startswith(("http://", "https://")):
+                webbrowser.open(url)
+                return True
+            return False
+
     webview.create_window("G1 Dance Studio", f"http://127.0.0.1:{args.port}/",
-                          width=1280, height=860, min_size=(980, 640))
+                          width=1280, height=860, min_size=(980, 640),
+                          js_api=DesktopBridge())
     webview.start(gui="qt", debug=args.debug)
 
 

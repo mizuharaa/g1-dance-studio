@@ -2247,3 +2247,46 @@ human-supervised session (NOT autonomous — no ground motion has run):
 - VERIFIED against the real local server: `npm run build`; Playwright 7/7 at 1440/1024/768 including
   multipart upload, run-time STOP, exact typed confirmation, clickable video preview, and audit filters.
   Evidence: `docs/ui_revamp/show-mode-1280.png` and `preview-video-open.png` plus refreshed breakpoint shots.
+
+## 2026-07-13 — SAFETY UX + E-STOP + dark mode/contrast + video-preview fix (operator console).
+- CONTEXT: operator reported that when the robot is suspended/barely touching the ground and is
+  switched from damping into a policy/walk mode, it "tweaks out" — thrashes ~360° with all limbs
+  flying. Root cause is the balancer chasing a ground it can't reach (not a code bug). Console work
+  to mitigate + a software kill.
+- **Software E-STOP (E-Kill)**: new `show_runner.emergency_kill()` + `_pkill_deploy()` — SIGTERMs the
+  tracked show's process group AND any stray `deploy_runtime`/`show_run.sh` (SIGTERM only, so
+  deploy_runtime always DAMPS soft — never SIGKILL, which would skip damping and leave motors live).
+  Exposed at `POST /api/safety/estop`; `GET /api/safety/status` returns robot ping + run status.
+  HONEST scope (per the 2026-07-03 safety-review lesson): it can only reach app-launched processes;
+  the hand-held remote B-damp stays the PRIMARY hard stop and is the ONLY stop for remote/onboard
+  motion — the UI says so plainly. Always available: compact E-STOP in the top bar (every screen) +
+  a big one on the new Safety screen; the existing in-run "STOP SHOW" (`/stop`) is unchanged.
+- **Safety screen** (`ui/frontend/src/screens/safety.tsx`, nav "Safety & E-stop"): live robot-state
+  visualization (`components/robot-state.tsx` — coarse phase→state, colored ring + friendly robot,
+  red thrash animation on fall), pre-arm reminders headlined by the exact fix for today's failure
+  ("Feet flat and fully loaded on the ground BEFORE you arm — a suspended/barely-grounded robot will
+  thrash…"), honest CAN/CAN'T scope, and the live runtime log. The same ground-contact warning was
+  added to the Perform run gate. Sidebar Safety item shows a red pulse on fall / blue pulse when running.
+- **Dark mode + contrast** (`lib/theme.ts`, `index.html` FOUC-guard, top-bar sun/moon toggle,
+  persisted + system-default): Tailwind is already `darkMode:"class"` and shadcn is token-driven, so a
+  `.dark` variable block flips the primitives; the screens' hardcoded slate/white utilities are remapped
+  by an unlayered `.dark [class~=…]` sheet (40 rules) mirroring the existing `.light-console` technique.
+  Light-mode contrast bumped (muted-foreground darker, `text-slate-400/500/600` one step darker, the two
+  smallest type sizes nudged up) — addresses "text so hard to see". Existing `.light-console` overrides
+  gated to `html:not(.dark)`.
+- **Video preview bug FIXED — root cause found:** the desktop app is PySide6 6.11.1 **QtWebEngine**,
+  whose LGPL wheels ship WITHOUT H.264/AAC codecs, so the H.264 .mp4 previews play in Chrome (where the
+  Playwright evidence was captured) but not in the desktop window. Server serving/URLs/codecs were all
+  fine. Fix: `ui/desktop.py` exposes a pywebview `js_api` (`open_external` → system browser, which HAS
+  H.264); `PreviewPlayer` attempts inline playback and, on error/timeout, shows an "Open in browser"
+  fallback; the dialog footer always offers it. Applied to RobotPreview + the Simulation sim videos.
+- VERIFIED: `npm run build` clean; **Playwright 11/11** (7 existing + 4 new: dark-mode toggle+persist,
+  Safety screen + E-STOP POST, top-bar E-STOP, preview open-in-browser fallback) against a headless
+  server on :8744; dark/safety/light-contrast screenshots in `docs/ui_revamp/`. Backend: 4 new pytest
+  cases for `emergency_kill`/`safety_status` PASS. Made the existing show-mode test data-independent
+  (mocks a show-ready dance). The one existing show-mode failure was that test needing a show-ready dance.
+- PRE-EXISTING failures (NOT caused by this work; reproduce with my changes stashed): 3 stale
+  `_build_env` env-assert tests — `test_exit_stand_ignored_in_live`, `test_free_run_builds_free_env_and_standtail_args`,
+  `test_non_free_run_keeps_proven_default` — drifted when exit_stand/standtail were enabled for live shows.
+- ACTION FOR OPERATOR: the running desktop app (pid 7125) already serves the new UI (dist is read fresh),
+  but the new `/api/safety/*` routes need a **restart** — `pkill -f ui/desktop.py` then `scripts/dance-studio`.

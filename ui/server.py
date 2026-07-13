@@ -848,6 +848,27 @@ def stop_current_run() -> dict:
     return show_runner.stop_run()
 
 
+# ---- safety: always-available software E-STOP + robot state ----------------------
+
+@app.post("/api/safety/estop")
+def safety_estop() -> dict:
+    """EMERGENCY software stop, callable at any time (not just during a tracked show).
+    Damps any app-launched policy run — the tracked show AND any stray deploy_runtime /
+    show_run.sh — via SIGTERM so deploy_runtime always damps soft. This is the software
+    E-KILL: a SECOND stop beside the operator's physical remote B-damp, which remains the
+    PRIMARY hard stop and the only stop for a robot driven from the remote/onboard."""
+    return show_runner.emergency_kill()
+
+
+@app.get("/api/safety/status")
+def safety_status() -> dict:
+    """Cheap safety snapshot for the Safety panel: is PC2 reachable on the control net,
+    plus the live run status (phase / fall_detected / last log lines). robot_reachable is a
+    single 1 s ping — poll this sparingly."""
+    return {"robot_reachable": show_runner.robot_reachable(),
+            "run": show_runner.current_status()}
+
+
 # ---- venues (dance-area registry; drives the vet excursion limit) ----------------
 
 @app.get("/api/venues")

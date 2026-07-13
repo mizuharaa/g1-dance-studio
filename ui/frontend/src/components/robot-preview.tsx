@@ -1,9 +1,10 @@
-import { useState } from "react"
-import { Box, Expand, Play, VideoOff } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Box, ExternalLink, Expand, Play, VideoOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn, fmtDuration } from "@/lib/utils"
+import { openExternal } from "@/lib/desktop"
 
 export function CuteRobot({ className }: { className?: string }) {
   return (
@@ -30,10 +31,56 @@ export function CuteRobotMark({ className }: { className?: string }) {
   return <svg className={className} viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="7" y="8" width="26" height="22" rx="9" fill="currentColor" /><path d="M12 8V5M28 8V5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /><circle cx="15" cy="18" r="2.5" fill="white" /><circle cx="25" cy="18" r="2.5" fill="white" /><path d="M15 24c3 2 7 2 10 0" stroke="white" strokeWidth="2" strokeLinecap="round" /><path d="M4 18h3M33 18h3" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
 }
 
+/** Inline video player with a hard-codec fallback. The desktop shell's PySide6
+ *  QtWebEngine ships without an H.264 decoder, so the .mp4 previews (H.264) can't play
+ *  inline there. We attempt inline playback and, if it errors or never becomes playable,
+ *  surface an "open in your browser" button that hands the URL to the real system browser
+ *  (which has the codec) via the pywebview bridge. In a normal browser the video just plays
+ *  and the fallback never shows. `data-testid="preview-video"` stays mounted for tests. */
+export function PreviewPlayer({ url, autoPlay = true, className, testId = "preview-video" }: { url: string; autoPlay?: boolean; className?: string; testId?: string }) {
+  const [status, setStatus] = useState<"loading" | "playing" | "failed">("loading")
+  const statusRef = useRef(status)
+  statusRef.current = status
+  useEffect(() => {
+    setStatus("loading")
+    // If the embedded engine can't decode H.264 it often neither plays nor fires `error`
+    // promptly — treat "still loading after a beat" as unplayable and offer the browser.
+    const timer = window.setTimeout(() => {
+      if (statusRef.current === "loading") setStatus("failed")
+    }, 2_200)
+    return () => window.clearTimeout(timer)
+  }, [url])
+  return (
+    <div className={cn("relative", className)}>
+      <video
+        data-testid={testId}
+        src={url}
+        controls
+        autoPlay={autoPlay}
+        playsInline
+        className="max-h-[70vh] w-full rounded-lg bg-black"
+        onCanPlay={() => setStatus("playing")}
+        onPlaying={() => setStatus("playing")}
+        onError={() => setStatus("failed")}
+      />
+      {status === "failed" && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg bg-slate-950/92 p-6 text-center" data-testid="preview-codec-fallback">
+          <VideoOff className="h-7 w-7 text-slate-400" />
+          <div className="text-sm font-semibold text-white">This preview can’t play inside the app window</div>
+          <p className="max-w-sm text-xs leading-5 text-slate-400">The desktop window can’t decode this video’s codec (H.264). Open it in your system browser to watch it full quality.</p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button size="sm" onClick={() => openExternal(url)}><ExternalLink className="h-4 w-4" /> Open in browser</Button>
+            <Button size="sm" variant="outline" onClick={() => setStatus("loading")}>Try inline again</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function RobotPreview({ url, title, duration, compact = false, className }: { url?: string | null; title: string; duration?: number | null; compact?: boolean; className?: string }) {
   const [open, setOpen] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const available = Boolean(url) && !failed
+  const available = Boolean(url)
   const Stage = available ? "button" : "div"
   return <>
     <Stage data-testid={available ? "preview-open" : "preview-unavailable"} type={available ? "button" : undefined} onClick={available ? () => setOpen(true) : undefined} className={cn("robot-stage group relative w-full overflow-hidden rounded-xl border border-slate-200 bg-[#eaf4ff] text-left shadow-sm", available && "cursor-pointer hover-lift focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500", compact ? "h-32" : "h-56", className)}>
@@ -44,6 +91,6 @@ export function RobotPreview({ url, title, duration, compact = false, className 
       <div className="absolute left-3 top-3 flex items-center gap-2"><Badge variant="outline" className="border-white/80 bg-white/90 text-slate-700 shadow-sm"><Box className="mr-1 h-3 w-3 text-blue-600" />MuJoCo environment</Badge>{duration != null && <Badge variant="secondary" className="bg-slate-900 text-white">{fmtDuration(duration)}</Badge>}</div>
       <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded-lg border border-white/80 bg-white/90 p-2.5 shadow-lg backdrop-blur"><div className="min-w-0"><div className="truncate text-xs font-bold text-slate-900">{title}</div><div className="mt-0.5 text-[10px] text-slate-500">{available ? "Click to watch the robot simulation" : "Preview video not rendered yet"}</div></div><div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", available ? "bg-blue-600 text-white shadow-md transition-transform group-hover:scale-110" : "bg-slate-200 text-slate-500")}>{available ? <Play className="ml-0.5 h-4 w-4 fill-current" /> : <VideoOff className="h-4 w-4" />}</div></div>
     </Stage>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-w-5xl overflow-hidden border-slate-200 bg-white p-0 text-slate-900"><DialogHeader className="border-b border-slate-200 px-6 py-4"><DialogTitle className="flex items-center gap-2"><Expand className="h-4 w-4 text-blue-600" />{title}</DialogTitle><DialogDescription>Reference-aligned robot simulation preview. Review the full motion before approving training or performance.</DialogDescription></DialogHeader><div className="bg-slate-950 p-3 sm:p-5">{url && <video data-testid="preview-video" src={url} controls autoPlay playsInline className="max-h-[70vh] w-full rounded-lg bg-black" onError={() => setFailed(true)} />}</div><div className="flex items-center justify-between px-6 py-3 text-xs text-slate-500"><span>Use the timeline to inspect foot contact, balance, and sharp transitions.</span>{url && <Button asChild size="sm" variant="outline"><a href={url} target="_blank" rel="noreferrer">Open original</a></Button>}</div></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-w-5xl overflow-hidden border-slate-200 bg-white p-0 text-slate-900"><DialogHeader className="border-b border-slate-200 px-6 py-4"><DialogTitle className="flex items-center gap-2"><Expand className="h-4 w-4 text-blue-600" />{title}</DialogTitle><DialogDescription>Reference-aligned robot simulation preview. Review the full motion before approving training or performance.</DialogDescription></DialogHeader><div className="bg-slate-950 p-3 sm:p-5">{url && <PreviewPlayer url={url} />}</div><div className="flex items-center justify-between px-6 py-3 text-xs text-slate-500"><span>Use the timeline to inspect foot contact, balance, and sharp transitions.</span>{url && <Button size="sm" variant="outline" onClick={() => openExternal(url)}><ExternalLink className="h-4 w-4" /> Open in browser</Button>}</div></DialogContent></Dialog>
   </>
 }

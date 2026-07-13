@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EmptyState, PageHeader } from "@/components/console-ui"
+import { PreviewPlayer } from "@/components/robot-preview"
 import type { ConsoleData } from "@/hooks/use-console-data"
 import { api, type Dance } from "@/lib/api"
 import { cn, fmtDate, fmtPercent } from "@/lib/utils"
@@ -24,7 +25,6 @@ function pct(v?: number | null) {
 }
 
 function SimVideo({ v, tag }: { v: SimVersion; tag: string }) {
-  const [failed, setFailed] = useState(false)
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
@@ -37,9 +37,8 @@ function SimVideo({ v, tag }: { v: SimVersion; tag: string }) {
         </Badge>
       </div>
       <div className="bg-slate-950 p-2">
-        {v.url && !failed ? (
-          <video data-testid="sim-video" src={v.url} controls playsInline
-                 className="max-h-[62vh] w-full rounded-lg bg-black" onError={() => setFailed(true)} />
+        {v.url ? (
+          <PreviewPlayer url={v.url} autoPlay={false} testId="sim-video" />
         ) : (
           <div className="flex h-56 items-center justify-center text-xs text-slate-400">
             <VideoOff className="mr-2 h-4 w-4" /> video unavailable — re-render

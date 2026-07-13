@@ -5,8 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#070a11" />
     <title>G1 Operator Console</title>
-    <script type="module" crossorigin src="/static/assets/index-DNVcau_w.js"></script>
-    <link rel="stylesheet" crossorigin href="/static/assets/index-Btq2LWx2.css">
+    <script>
+      // Apply the saved/system theme before paint to avoid a flash of the wrong theme.
+      (function () {
+        try {
+          var t = localStorage.getItem("g1-theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          if (t === "dark") document.documentElement.classList.add("dark");
+          document.documentElement.style.colorScheme = t;
+        } catch (e) { /* no-op */ }
+      })();
+    </script>
+    <script type="module" crossorigin src="/static/assets/index-nFQUdWC1.js"></script>
+    <link rel="stylesheet" crossorigin href="/static/assets/index-DK-JykUl.css">
   </head>
   <body>
     <div id="root"></div>
