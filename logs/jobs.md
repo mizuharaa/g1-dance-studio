@@ -313,3 +313,17 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - Changes vs ankle policy: latency DR 0-80ms (was 0-20ms, commit 86110b9) + drift weight 1.0
 - Verify plan: gap_check gated at 40ms+push (was 20ms) + 60/80ms stress lines; heldout x3
 - tmux session 'train' on box; log $NB/train_lat.log
+
+## 2026-07-13 — V5 LATENCY-CURRICULUM RETRAIN LAUNCHED (thriller, clean motion)
+- Box: fresh GreenNode 4090, ssh `root@103.245.250.152:55792`, key `.secrets/greennode_rsa` (RSA).
+  Volume was EMPTY (g1dance-data gone) -> full re-provision done (mjlab_ready, isolated venv py3.11).
+  apt is DISABLED on this image; bootstrap used static tmux/ffmpeg. W&B: `wandb login` -> ~/.netrc.
+- Run: `train-thriller_v5fid-0713` (task Mjlab-Tracking-Flat-Unitree-G1-S2R-V5), driver
+  `$NB/cloud/retrain_v5_box.sh` (setsid/nohup, NO tmux on box), log `$NB/logs/train_v5.log`.
+  Motion: de-glitched `thriller_clean.npz` (jerk /21). Curriculum: s1 0-20ms 4000it -> s2 0-50ms
+  +3000 (resume s1) -> s3 0-60ms +3000 (resume s2). Resume flags VERIFIED present. ~1.1s/it (~3.5-4h).
+- Healthy start (~15min in): v5 arm-fidelity terms active (motion_arm_pos 0.167/ori 0.078);
+  motion_global_root_pos 0.06 (WATCH: must climb — lat80 failure was this stalling at 0.05).
+- GATES (auto-run at end): gap_check survival @40ms+push AND nominal drift <1m AND heldout >=99% (3 seeds).
+- RESUME IF SESSION DIES: check `$NB/logs/train_v5.log`; on "==== GATES"/"PULL artifacts" -> pull with
+  `bash scripts/retrain_pull.sh 103.245.250.152 55792` -> sign -> promote -> DELETE BOX (billing!).
