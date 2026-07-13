@@ -36,7 +36,7 @@ echo '@@TMUX@@'
 echo '@@STATUS@@'
 for f in /workspace/notebook-data/jobs/*.status.json; do [ -e "$f" ] || continue; echo "@@FILE $(basename "$f" .status.json)@@"; cat "$f" 2>/dev/null; echo; done
 echo '@@LOGS@@'
-for f in /workspace/notebook-data/jobs/*.log; do [ -e "$f" ] || continue; case "$(basename "$f")" in train*|*train*) echo "@@FILE $(basename "$f" .log)@@"; grep -E 'Learning iteration|Mean reward:|Mean episode length:|wandb.ai' "$f" 2>/dev/null | tail -10;; esac; done
+for f in /workspace/notebook-data/jobs/*.log; do [ -e "$f" ] || continue; case "$(basename "$f")" in train*|*train*) echo "@@FILE $(basename "$f" .log)@@"; grep -E 'Learning iteration|Mean reward:|Mean episode length:|Time elapsed|ETA:|Iteration time|wandb.ai' "$f" 2>/dev/null | tail -24;; esac; done
 """.strip()
 
 
@@ -67,10 +67,16 @@ def parse_gpu(line: str) -> dict | None:
     }
 
 
+def _hms_to_s(h: str, m: str, s: str) -> int:
+    return int(h) * 3600 + int(m) * 60 + int(s)
+
+
 def parse_job_log(name: str, text: str) -> dict:
-    """Pull latest iteration / max, reward, episode length, W&B url from a log tail."""
+    """Pull latest iteration / max, reward, episode length, ETA, elapsed, per-iter time
+    and W&B url from a log tail (rsl_rl on-policy runner format)."""
     info: dict = {"name": name, "iteration": None, "max_iteration": None,
-                  "mean_reward": None, "mean_episode_length": None, "wandb_url": None}
+                  "mean_reward": None, "mean_episode_length": None, "wandb_url": None,
+                  "eta_s": None, "elapsed_s": None, "iteration_time_s": None}
     for m in re.finditer(r"Learning iteration\s+(\d+)\s*/\s*(\d+)", text):
         info["iteration"], info["max_iteration"] = int(m.group(1)), int(m.group(2))
     rewards = re.findall(r"Mean reward:\s*([-+]?\d*\.?\d+)", text)
@@ -79,6 +85,17 @@ def parse_job_log(name: str, text: str) -> dict:
     eps = re.findall(r"Mean episode length:\s*([-+]?\d*\.?\d+)", text)
     if eps:
         info["mean_episode_length"] = float(eps[-1])
+    # rsl_rl prints "Time elapsed: H:MM:SS", "ETA: H:MM:SS" (current train() call — i.e.
+    # this curriculum STAGE), and "Iteration time: N.NNs". Take the most recent of each.
+    el = re.findall(r"Time elapsed:\s*(\d+):(\d+):(\d+)", text)
+    if el:
+        info["elapsed_s"] = _hms_to_s(*el[-1])
+    eta = re.findall(r"ETA:\s*(\d+):(\d+):(\d+)", text)
+    if eta:
+        info["eta_s"] = _hms_to_s(*eta[-1])
+    it = re.findall(r"Iteration time:\s*([\d.]+)\s*s", text)
+    if it:
+        info["iteration_time_s"] = float(it[-1])
     urls = re.findall(r"https?://(?:\w+\.)?wandb\.ai/\S+", text)
     if urls:
         info["wandb_url"] = urls[-1].rstrip(".,)")

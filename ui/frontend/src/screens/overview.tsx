@@ -11,7 +11,7 @@ import { InlineAlert, Metric, PageHeader, StatusBadge } from "@/components/conso
 import { RobotPreview } from "@/components/robot-preview"
 import type { ConsoleData } from "@/hooks/use-console-data"
 import { api, type Show } from "@/lib/api"
-import { fmtDate, fmtDuration, fmtMoney, fmtPercent, shortHash } from "@/lib/utils"
+import { fmtDate, fmtDuration, fmtHMS, fmtMoney, fmtPercent, shortHash } from "@/lib/utils"
 import { dancePreviewUrl } from "@/lib/preview"
 
 const STATES = [
@@ -152,7 +152,12 @@ export function OverviewScreen({ data, onPerform }: { data: ConsoleData; onPerfo
               <div className="rounded-lg border border-border bg-background/35 p-3">
                 <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold">{activeTraining?.name ?? "No active training"}</span><StatusBadge status={activeTraining ? "running" : "idle"} /></div>
                 <Progress value={activeTraining?.iteration && activeTraining.max_iteration ? activeTraining.iteration / activeTraining.max_iteration * 100 : 0} />
-                <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground"><span>{activeTraining?.iteration?.toLocaleString() ?? 0} / {activeTraining?.max_iteration?.toLocaleString() ?? "—"}</span><span>reward {activeTraining?.mean_reward?.toFixed(2) ?? "—"}</span></div>
+                <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground"><span>{activeTraining?.iteration?.toLocaleString() ?? 0} / {activeTraining?.max_iteration?.toLocaleString() ?? "—"} iters</span><span>reward {activeTraining?.mean_reward?.toFixed(2) ?? "—"}</span></div>
+                {activeTraining && <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-md border border-blue-500/30 bg-blue-500/[.07] px-2 py-1.5"><div className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">ETA (stage)</div><div className="mt-0.5 font-mono text-xs font-bold text-blue-300">{fmtHMS(activeTraining.eta_s)}</div></div>
+                  <div className="rounded-md border border-border bg-background/40 px-2 py-1.5"><div className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Running</div><div className="mt-0.5 font-mono text-xs font-bold">{fmtHMS(activeTraining.elapsed_s)}</div></div>
+                  <div className="rounded-md border border-border bg-background/40 px-2 py-1.5"><div className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Speed</div><div className="mt-0.5 font-mono text-xs font-bold">{activeTraining.iteration_time_s ? `${(1 / activeTraining.iteration_time_s).toFixed(2)} it/s` : "—"}</div></div>
+                </div>}
               </div>
             </CardContent>
           </Card>

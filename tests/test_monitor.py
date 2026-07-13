@@ -158,3 +158,23 @@ def test_done_status_is_finished_not_live():
                   [("train-thriller-a1", ITER_LOG)])
     j = monitor.parse_gather(raw)["jobs"][0]
     assert j["live"] is False and j["state"] == "done"
+
+def test_parse_job_log_eta_elapsed_itertime():
+    """ETA / elapsed / per-iteration time are parsed from the rsl_rl runner format."""
+    text = (
+        "Learning iteration 4545/7000\n"
+        "Mean reward: 49.77\n"
+        "Iteration time: 1.08s\n"
+        "Time elapsed: 0:10:03\n"
+        "ETA: 0:44:12\n"
+    )
+    j = monitor.parse_job_log("train-thriller_v5fid", text)
+    assert j["elapsed_s"] == 603          # 10m03s
+    assert j["eta_s"] == 2652             # 44m12s
+    assert j["iteration_time_s"] == 1.08
+    assert j["iteration"] == 4545 and j["max_iteration"] == 7000
+
+
+def test_parse_job_log_eta_fields_default_none():
+    j = monitor.parse_job_log("x", "Mean reward: 1.0\n")
+    assert j["eta_s"] is None and j["elapsed_s"] is None and j["iteration_time_s"] is None

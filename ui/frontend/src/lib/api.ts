@@ -98,7 +98,7 @@ export interface SystemStatus {
   reachable?: boolean
   stale?: boolean
   gpu?: { utilization_pct?: number; memory_used_mb?: number; memory_total_mb?: number; temperature_c?: number; name?: string; [key: string]: unknown } | null
-  jobs?: Array<{ name: string; iteration?: number; max_iteration?: number; mean_reward?: number; mean_episode_length?: number; wandb_url?: string }>
+  jobs?: Array<{ name: string; iteration?: number; max_iteration?: number; mean_reward?: number; mean_episode_length?: number; wandb_url?: string; progress?: number; eta_s?: number; elapsed_s?: number; iteration_time_s?: number }>
   cost?: { hours?: number; rate_vnd_per_hour?: number; accrued_vnd?: number; accrued_usd?: number; cap_vnd?: number; cap_fraction?: number; over_cap?: boolean }
   detail?: string
 }

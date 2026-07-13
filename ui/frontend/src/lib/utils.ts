@@ -21,6 +21,14 @@ export const fmtMoney = (amount?: number | null) => {
 export const fmtPercent = (value?: number | null, digits = 0) =>
   value == null ? "—" : `${(value * 100).toFixed(digits)}%`
 
+// Human duration from seconds: "1h 05m" / "12m 30s" / "45s". For ETA + elapsed.
+export const fmtHMS = (seconds?: number | null) => {
+  if (seconds == null) return "—"
+  const s = Math.max(0, Math.round(seconds))
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : m > 0 ? `${m}m ${String(sec).padStart(2, "0")}s` : `${sec}s`
+}
+
 export const fmtDate = (epoch?: number | null, withTime = true) => {
   if (!epoch) return "—"
   const date = new Date(epoch * 1000)
