@@ -153,11 +153,11 @@ export function OverviewScreen({ data, onPerform }: { data: ConsoleData; onPerfo
                 <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold">{activeTraining?.name ?? "No active training"}</span><StatusBadge status={activeTraining ? "running" : "idle"} /></div>
                 <Progress value={activeTraining?.iteration && activeTraining.max_iteration ? activeTraining.iteration / activeTraining.max_iteration * 100 : 0} />
                 <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground"><span>{activeTraining?.iteration?.toLocaleString() ?? 0} / {activeTraining?.max_iteration?.toLocaleString() ?? "—"} iters</span><span>reward {activeTraining?.mean_reward?.toFixed(2) ?? "—"}</span></div>
-                {activeTraining && <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-md border border-blue-500/30 bg-blue-500/[.07] px-2 py-1.5"><div className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">ETA (stage)</div><div className="mt-0.5 font-mono text-xs font-bold text-blue-300">{fmtHMS(activeTraining.eta_s)}</div></div>
+                {activeTraining && <><div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-md border border-blue-500/30 bg-blue-500/[.07] px-2 py-1.5"><div className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">ETA to finish</div><div className="mt-0.5 font-mono text-xs font-bold text-blue-300">{fmtHMS(activeTraining.total_eta_s ?? activeTraining.eta_s)}</div></div>
                   <div className="rounded-md border border-border bg-background/40 px-2 py-1.5"><div className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Running</div><div className="mt-0.5 font-mono text-xs font-bold">{fmtHMS(activeTraining.elapsed_s)}</div></div>
                   <div className="rounded-md border border-border bg-background/40 px-2 py-1.5"><div className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Speed</div><div className="mt-0.5 font-mono text-xs font-bold">{activeTraining.iteration_time_s ? `${(1 / activeTraining.iteration_time_s).toFixed(2)} it/s` : "—"}</div></div>
-                </div>}
+                </div>{(activeTraining.stage != null || activeTraining.eta_s != null) && <div className="mt-1.5 text-center text-[9px] text-muted-foreground">{activeTraining.stage != null && activeTraining.total_stages != null ? `stage ${activeTraining.stage}/${activeTraining.total_stages}` : ""}{activeTraining.eta_s != null ? `${activeTraining.stage != null ? " · " : ""}this stage ${fmtHMS(activeTraining.eta_s)} left` : ""}</div>}</>}
               </div>
             </CardContent>
           </Card>

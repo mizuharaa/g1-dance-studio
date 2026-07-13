@@ -200,6 +200,27 @@ def parse_gather(raw: str) -> dict:
 _last_good: dict = {}
 
 
+def augment_job_plan(job: dict, plan: dict) -> dict:
+    """Add whole-training fields from a `training_plan` config block:
+      total_eta_s = seconds to the ENTIRE curriculum finishing = remaining iters to the
+                    final target × current per-iter time + the fixed verify-chain seconds.
+                    (The per-stage `eta_s` from rsl_rl only covers the CURRENT stage.)
+      stage / total_stages = which curriculum stage we're in, from stage_boundaries.
+    Returns the job dict (mutated). No-ops gracefully when the plan or live values are absent."""
+    if not plan:
+        return job
+    it, itt = job.get("iteration"), job.get("iteration_time_s")
+    final = plan.get("final_target_iter")
+    if final and it and itt:
+        remaining = max(0, int(final) - int(it))
+        job["total_eta_s"] = round(remaining * float(itt) + float(plan.get("verify_seconds", 0)))
+    bounds = plan.get("stage_boundaries") or []
+    if bounds and it:
+        job["stage"] = next((i + 1 for i, b in enumerate(bounds) if it <= b), len(bounds))
+        job["total_stages"] = len(bounds)
+    return job
+
+
 def snapshot(timeout: int = 20) -> dict:
     """Read the box once and assemble the full System-panel payload.
 
@@ -220,6 +241,9 @@ def snapshot(timeout: int = 20) -> dict:
             raise RuntimeError((stderr or "gather failed").strip()[-200:])
         parsed = parse_gather(stdout)
         out.update(parsed)
+        plan = cfg.get("training_plan") or {}
+        for job in out.get("jobs", []):
+            augment_job_plan(job, plan)
         out["reachable"] = True
         out["detail"] = "ok"
         _last_good = {**out}
