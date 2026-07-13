@@ -32,7 +32,8 @@ from fastapi.staticfiles import StaticFiles
 from pipeline.config import DATA_DIR, STAGE_ORDER
 from pipeline import audio as audio_mod
 from pipeline import (body_models, cloud, monitor, policy_store, preshow, setlist,
-                      show_runner, shows, sim_preview, store, venue, video_quality, video_web)
+                      show_runner, shows, sim_preview, store, venue, video_edit,
+                      video_quality, video_web)
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -217,6 +218,16 @@ def _create_job(name: str, src: Path, *, move: bool = False) -> store.Job:
         shutil.copyfile(src, dest)
     job.log(f"input {kind}: {src.name} ({size} bytes)")
     if kind == "video":
+        dur = video_edit.probe_duration(dest)
+        if dur > video_edit.MAX_UNTRIMMED_S:
+            # Too long — gate for trimming (do NOT queue or score yet). The UI shows the trimmer;
+            # POST /trim cuts a <=4 min segment, then scores + queues it.
+            job.input["needs_trim"] = True
+            job.input["duration_s"] = round(dur, 1)
+            job.save()
+            job.log(f"video is {dur:.0f}s (> {video_edit.MAX_UNTRIMMED_S}s / 4 min) — "
+                    "select a <=4 min segment in the trimmer before processing")
+            return job
         _quality_check_async(job.dir, dest)     # scores the clip on the 1-10 rubric (video_quality)
     _job_queue.put(job.id)
     return job
@@ -303,6 +314,60 @@ def retry_job(job_id: str) -> dict:
     st.started_at = st.finished_at = None
     job.save()
     job.log(f"stage {cur}: reset by user — re-queued")
+    _job_queue.put(job.id)
+    return _job_dict(job)
+
+
+@app.get("/api/jobs/{job_id}/frame")
+def job_frame(job_id: str, t: float = 0.0) -> FileResponse:
+    """A single jpg frame at time `t` (seconds) from the job's input video — powers the trimmer
+    scrubber (the desktop webview can't play H.264 but renders jpg fine). Cached per 0.1 s."""
+    try:
+        job = store.load_job(job_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such job: {job_id}")
+    src = job.dir / "input.mp4"
+    if not src.exists():
+        raise HTTPException(404, "job has no input video")
+    tkey = max(0.0, round(float(t), 1))
+    cache = job.dir / "frames" / f"{tkey:.1f}.jpg"
+    if not cache.exists() and not video_edit.extract_frame(src, tkey, cache):
+        raise HTTPException(500, "could not extract a frame at that time")
+    return FileResponse(cache, media_type="image/jpeg")
+
+
+@app.post("/api/jobs/{job_id}/trim")
+def trim_job(job_id: str, payload: dict = Body(...)) -> dict:
+    """Cut the job's (too-long) input video down to the chosen <=4 min segment, then score +
+    queue it. Body: {start_s, length_s}. Only valid for a job flagged needs_trim."""
+    try:
+        job = store.load_job(job_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such job: {job_id}")
+    if not job.input.get("needs_trim"):
+        raise HTTPException(400, "this job does not need trimming")
+    dur = float(job.input.get("duration_s") or 0)
+    start = float(payload.get("start_s", 0))
+    length = float(payload.get("length_s", video_edit.MAX_UNTRIMMED_S))
+    if (start < 0 or length < video_edit.MIN_SEGMENT_S
+            or length > video_edit.MAX_UNTRIMMED_S + 1 or start + length > dur + 1.5):
+        raise HTTPException(400, f"invalid segment start={start:.0f}s length={length:.0f}s "
+                                 f"(video {dur:.0f}s, max {video_edit.MAX_UNTRIMMED_S}s)")
+    src = job.dir / "input.mp4"
+    trimmed = job.dir / "trimmed.mp4"
+    try:
+        video_edit.trim(src, trimmed, start, length)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(500, f"trim failed: {type(e).__name__}")
+    trimmed.replace(src)                                   # the segment IS the input now
+    shutil.rmtree(job.dir / "frames", ignore_errors=True)  # stale scrubber cache
+    (job.dir / "quality.json").unlink(missing_ok=True)     # re-score the segment, not the full clip
+    job.input.pop("needs_trim", None)
+    job.input["trimmed"] = {"start_s": round(start, 1), "length_s": round(length, 1)}
+    job.input["duration_s"] = round(video_edit.probe_duration(src), 1)
+    job.save()
+    job.log(f"trimmed to [{start:.0f}s, +{length:.0f}s]; scoring + queueing")
+    _quality_check_async(job.dir, src)
     _job_queue.put(job.id)
     return _job_dict(job)
 

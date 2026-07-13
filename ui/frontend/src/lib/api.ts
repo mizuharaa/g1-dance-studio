@@ -27,7 +27,7 @@ export interface PipelineJob {
   id: string
   name: string
   created_at: number
-  input?: { type?: string; source?: string }
+  input?: { type?: string; source?: string; needs_trim?: boolean; duration_s?: number; trimmed?: { start_s?: number; length_s?: number } }
   current_stage?: string | null
   stages: Record<string, JobStage>
   preview_url?: string

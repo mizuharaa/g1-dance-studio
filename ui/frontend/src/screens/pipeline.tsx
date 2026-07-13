@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Check, ChevronRight, CircleDashed, Clock3, FileVideo2, Gauge, LoaderCircle, Play, RotateCcw, ScrollText, UploadCloud, X } from "lucide-react"
+import { AlertTriangle, Check, ChevronRight, CircleDashed, Clock3, FileVideo2, Gauge, LoaderCircle, Play, RotateCcw, Scissors, ScrollText, UploadCloud, X } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,39 @@ function QualityGate({ q }: { q: VideoQuality }) {
       {!!q.blockers?.length && <InlineAlert className="mt-3" tone="danger" title="Blockers — a better clip will train much better" body={q.blockers.join(" · ")} />}
       {!!q.flags?.length && <div className="mt-2 text-[10px] text-amber-400">⚠ {q.flags.join(" · ")}</div>}
       <div className="mt-3 rounded-lg border border-border bg-background/25 p-3 text-xs text-muted-foreground">{q.recommendation}</div>
+    </CardContent>
+  </Card>
+}
+
+const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`
+const TRIM_MAX_S = 240   // 4:00 — matches video_edit.MAX_UNTRIMMED_S
+
+function TrimPanel({ job }: { job: PipelineJob }) {
+  const qc = useQueryClient()
+  const dur = job.input?.duration_s ?? 0
+  const [start, setStart] = useState(0)
+  const [length, setLength] = useState(Math.min(TRIM_MAX_S, dur))
+  const maxLen = Math.max(5, Math.min(TRIM_MAX_S, dur - start))
+  const len = Math.min(length, maxLen)
+  const end = start + len
+  const [thumb, setThumb] = useState({ s: 0, e: len })
+  useEffect(() => { const id = window.setTimeout(() => setThumb({ s: start, e: end }), 250); return () => window.clearTimeout(id) }, [start, end])
+  const trim = useMutation({
+    mutationFn: () => api.send<PipelineJob>(`/api/jobs/${job.id}/trim`, "POST", { start_s: start, length_s: len }),
+    onSuccess: () => { toast.success("Segment trimmed — pipeline started"); qc.invalidateQueries({ queryKey: ["jobs"] }) },
+    onError: (e: Error) => toast.error(e.message),
+  })
+  return <Card className="border-amber-400/60">
+    <CardHeader><div className="panel-kicker text-amber-500"><Scissors /> Trim required</div><CardTitle className="mt-2">Clip is {fmtTime(dur)} — pick a segment (max 4:00)</CardTitle><p className="mt-1 text-xs text-muted-foreground">Long clips are cut before training. Scrub with the sliders; the frames update as you move.</p></CardHeader>
+    <CardContent className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Start · {fmtTime(thumb.s)}</div><img src={`/api/jobs/${job.id}/frame?t=${thumb.s.toFixed(1)}`} alt="start frame" className="aspect-video w-full rounded-lg border border-border bg-black object-contain" /></div>
+        <div><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">End · {fmtTime(thumb.e)}</div><img src={`/api/jobs/${job.id}/frame?t=${thumb.e.toFixed(1)}`} alt="end frame" className="aspect-video w-full rounded-lg border border-border bg-black object-contain" /></div>
+      </div>
+      <div><div className="flex justify-between text-[11px] text-muted-foreground"><span>Start</span><span className="font-mono">{fmtTime(start)}</span></div><input type="range" min={0} max={Math.max(0, dur - 5)} step={0.5} value={start} onChange={(e) => setStart(Number(e.target.value))} className="mt-1 w-full accent-blue-500" data-testid="trim-start" /></div>
+      <div><div className="flex justify-between text-[11px] text-muted-foreground"><span>Length (max 4:00)</span><span className="font-mono">{fmtTime(len)}</span></div><input type="range" min={5} max={maxLen} step={0.5} value={len} onChange={(e) => setLength(Number(e.target.value))} className="mt-1 w-full accent-blue-500" data-testid="trim-length" /></div>
+      <div className="rounded-lg border border-border bg-background/25 p-2.5 text-center font-mono text-sm">Using {fmtTime(start)} → {fmtTime(end)} <span className="text-muted-foreground">({fmtTime(len)})</span></div>
+      <Button className="w-full" size="lg" disabled={trim.isPending} onClick={() => trim.mutate()} data-testid="trim-confirm"><Scissors /> {trim.isPending ? "Trimming…" : `Use this segment (${fmtTime(start)}–${fmtTime(end)})`}</Button>
     </CardContent>
   </Card>
 }
@@ -137,6 +170,7 @@ export function PipelineScreen({ data }: { data: ConsoleData }) {
         </Card>
 
         {selected ? <div className="space-y-4">
+          {selected.input?.needs_trim && <TrimPanel job={selected} />}
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 border-b border-border/70"><div><div className="panel-kicker"><Gauge /> Pipeline progress</div><CardTitle className="mt-2 text-lg">{selected.name}</CardTitle><p className="mt-1 font-mono text-[10px] text-muted-foreground">{selected.id}</p></div><StatusBadge status={selected.current_stage ? selected.stages[selected.current_stage]?.state : "done"} /></CardHeader>
             <CardContent className="pt-5">
