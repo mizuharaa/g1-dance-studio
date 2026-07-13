@@ -37,6 +37,8 @@ echo '@@STATUS@@'
 for f in /workspace/notebook-data/jobs/*.status.json; do [ -e "$f" ] || continue; echo "@@FILE $(basename "$f" .status.json)@@"; cat "$f" 2>/dev/null; echo; done
 echo '@@LOGS@@'
 for f in /workspace/notebook-data/jobs/*.log; do [ -e "$f" ] || continue; case "$(basename "$f")" in train*|*train*) echo "@@FILE $(basename "$f" .log)@@"; grep -E 'Learning iteration|Mean reward:|Mean episode length:|Time elapsed|ETA:|Iteration time|wandb.ai' "$f" 2>/dev/null | tail -24;; esac; done
+echo '@@PROC@@'
+ps -eo args= 2>/dev/null | grep -c '[t]rain_sim2real_v5\.py'
 """.strip()
 
 
@@ -142,11 +144,18 @@ def parse_gather(raw: str) -> dict:
     """Split the combined gather output into gpu / tmux / jobs sections."""
     gpu_txt, _, rest = raw.partition("@@TMUX@@")
     tmux_txt, _, rest = rest.partition("@@STATUS@@")
-    status_txt, _, logs_txt = rest.partition("@@LOGS@@")
+    status_txt, _, rest2 = rest.partition("@@LOGS@@")
+    logs_txt, _, proc_txt = rest2.partition("@@PROC@@")
 
     gpu = parse_gpu(gpu_txt.strip().splitlines()[0] if gpu_txt.strip() else "")
     sessions = [ln.split(":")[0] for ln in tmux_txt.strip().splitlines()
                 if ln.strip() and ln.strip() != "NONE" and ":" in ln]
+    # True process check — the runner uses nohup/setsid (no tmux on this box), so tmux-session
+    # liveness alone always reads "finished". A live train_sim2real proc means training is running.
+    try:
+        training_active = int(proc_txt.strip().splitlines()[0]) > 0
+    except (ValueError, IndexError):
+        training_active = False
 
     statuses: dict[str, dict] = {}
     parts = re.split(r"@@FILE (\S+)@@", status_txt)
@@ -162,7 +171,7 @@ def parse_gather(raw: str) -> dict:
         # trusted on its own: a SIGKILL'd job never writes its terminal status,
         # so a stale log/"running" lingers with no session (this is exactly what
         # made retired jobs show as "Active Training" forever).
-        return f"job-{name}" in sessions or name in sessions
+        return f"job-{name}" in sessions or name in sessions or training_active
 
     def _state(name: str, live: bool, st: dict) -> str:
         if live:
@@ -192,7 +201,8 @@ def parse_gather(raw: str) -> dict:
             jobs.append({"name": name, "state": "running", "live": True,
                          "running": True, "started_at": st.get("started_at")})
 
-    return {"gpu": gpu, "tmux_sessions": sessions, "jobs": jobs}
+    return {"gpu": gpu, "tmux_sessions": sessions, "jobs": jobs,
+            "training_active": training_active}
 
 
 # ---- live gather (cached, degrades gracefully) -------------------------------

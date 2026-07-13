@@ -364,6 +364,7 @@ class ExtractStage:
         box_video = f"{NB}/videos_in/{stem}.mp4"
         if not st.meta.get("pushed"):
             report(0.15, "uploading video to the GPU box")
+            _box_run(f"mkdir -p {NB}/videos_in", timeout=30)   # a fresh box may lack it -> scp "No such file"
             _push(clip, box_video)
             st.meta["pushed"] = True
             job.log(f"extract: pushed clip -> {box_video}")
