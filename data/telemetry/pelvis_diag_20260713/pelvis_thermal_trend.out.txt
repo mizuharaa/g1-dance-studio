@@ -1,0 +1,193 @@
+# Loaded 54 telemetry runs from /home/alois/g1-dance/data/telemetry
+
+======================================================================================================================
+1. PER-RUN SUMMARY  (motor temps in C; tau in Nm). end=last-tick temp, max=peak over run.
+   Columns focus on pelvis-area motors: waist_yaw/roll/pitch + hottest hip.
+======================================================================================================================
+file                                        dur_s   rows | body_max   body_hot_joint |   wY   wR   wP | hip_max
+----------------------------------------------------------------------------------------------------------------------
+20260704-233131_stage0_limp-hanging-zerocal.npz    180   9000 |       59 right_shoulder_pitch |   40   48   47 |      41
+20260706-094401_stage0_onboard-standby.npz    180   9000 |       52  left_ankle_roll |   37   44   43 |      41
+20260706-095023_ground-run-legodom.npz          5    250 |       47  left_ankle_roll |   38   44   43 |      41
+20260706-095534_ground-run-legodom.npz         12    607 |       47 right_shoulder_pitch |   38   44   43 |      39
+20260706-095920_ground-run-legodom.npz         15    750 |       48 right_shoulder_pitch |   38   44   44 |      39
+20260706-113411_ground-run-legodom.npz         16    815 |       54 left_shoulder_pitch |   37   44   43 |      38
+20260706-114256_ground-run-legodom.npz         30   1500 |       54 left_shoulder_pitch |   37   45   44 |      38
+20260706-114445_ground-run-legodom.npz         52   2589 |       54 left_shoulder_pitch |   37   46   46 |      38
+20260706-115004_ground-run-legodom.npz         52   2589 |       55 left_shoulder_pitch |   37   47   48 |      38
+20260706-115456_ground-run-legodom.npz         52   2589 |       55 left_shoulder_pitch |   37   48   48 |      38
+20260706-115959_stage0_post-session-watch.npz   1200  60000 |       55 left_shoulder_pitch |   37   48   47 |      38
+20260706-133246_ground-run-legodom.npz         27   1310 |       54 right_shoulder_pitch |   35   43   43 |      36
+20260706-133905_ground-run-legodom.npz         52   2589 |       56 right_shoulder_pitch |   40   47   47 |      41
+20260707-094630_ground-run-legodom.npz          5    250 |       57 left_shoulder_pitch |   39   47   46 |      41
+20260707-094723_ground-run-legodom.npz         15    750 |       57 left_shoulder_pitch |   39   47   46 |      41
+20260707-094827_ground-run-legodom.npz         18    903 |       57 left_shoulder_pitch |   39   47   46 |      41
+20260707-095014_ground-run-legodom.npz         53   2589 |       58 left_shoulder_pitch |   39   48   49 |      41
+20260707-095428_ground-run-legodom.npz         52   2589 |       58 left_shoulder_pitch |   39   49   50 |      40
+20260707-103403_ground-run-legodom.npz         53   2589 |       56 left_shoulder_pitch |   38   47   47 |      39
+20260707-112354_ground-run-legodom.npz         52   2589 |       57 right_shoulder_pitch |   38   46   47 |      39
+20260707-113910_ground-run-legodom.npz         52   2589 |       57 right_shoulder_pitch |   38   47   48 |      39
+20260707-122558_ground-run-legodom.npz          5    250 |       56 left_shoulder_pitch |   38   45   45 |      39
+20260707-123709_ground-run-legodom.npz         10    500 |       56 left_shoulder_pitch |   38   45   45 |      39
+20260707-130005_ground-run-legodom.npz         10    500 |       56 left_shoulder_pitch |   38   45   44 |      39
+20260707-130304_ground-run-legodom.npz         10    500 |       56 left_shoulder_pitch |   38   45   44 |      39
+20260707-133136_ground-run-legodom.npz         10    500 |       56 right_shoulder_pitch |   37   45   44 |      39
+20260707-133255_ground-run-legodom.npz         10    500 |       56 right_shoulder_pitch |   37   45   44 |      39
+20260707-134428_ground-run-legodom.npz         54   2709 |       56 right_shoulder_pitch |   37   45   47 |      38
+20260707-135541_ground-run-legodom.npz         55   2709 |       55 left_shoulder_pitch |   37   46   47 |      38
+20260707-162656_ground-run-legodom.npz         10    500 |       55 right_shoulder_pitch |   36   44   44 |      38
+20260707-162854_ground-run-legodom.npz         10    500 |       55 right_shoulder_pitch |   36   44   44 |      38
+20260707-163010_ground-run-legodom.npz          0      2 |       55 right_shoulder_pitch |   36   44   44 |      38
+20260707-163544_ground-run-legodom.npz         10    500 |       55 right_shoulder_pitch |   36   44   44 |      38
+20260707-163753_ground-run-legodom.npz         56   2709 |       55 right_shoulder_pitch |   36   46   46 |      38
+20260707-165419_ground-run-legodom.npz         10    500 |       55 left_shoulder_pitch |   37   46   45 |      38
+20260707-170725_ground-run-legodom.npz         10    500 |       56 right_shoulder_pitch |   37   45   45 |      38
+20260707-170846_ground-run-legodom.npz         55   2709 |       57 right_shoulder_pitch |   37   46   47 |      38
+20260707-171242_ground-run-legodom.npz         55   2709 |       57 right_shoulder_pitch |   37   48   48 |      38
+20260707-171920_ground-run-legodom.npz         56   2709 |       57 right_shoulder_pitch |   37   48   48 |      37
+20260707-172121_ground-run-legodom.npz         53   2589 |       57 right_shoulder_pitch |   37   49   50 |      38
+20260707-172354_ground-run-legodom.npz         55   2709 |       57 left_shoulder_pitch |   38   51   52 |      38
+20260707-172748_ground-run-legodom.npz         55   2709 |       57 left_shoulder_pitch |   38   51   52 |      38
+20260707-172942_ground-run-legodom.npz         55   2709 |       58 right_shoulder_pitch |   41   53   56 |      43
+20260707-173645_ground-run-legodom.npz         55   2709 |       57 left_shoulder_pitch |   39   52   53 |      39
+20260707-174428_ground-run-legodom.npz         55   2709 |       57 left_shoulder_pitch |   39   51   51 |      39
+20260708-184204_ground-run-legodom.npz         53   2589 |       55 right_shoulder_pitch |   36   44   46 |      37
+20260708-184431_ground-run-legodom.npz         53   2589 |       55 left_shoulder_pitch |   37   46   47 |      37
+20260708-192839_ground-run-legodom.npz         53   2589 |       55 left_shoulder_pitch |   37   45   46 |      38
+20260708-210858_ground-run-legodom.npz         29   1389 |       55 left_shoulder_pitch |   37   45   46 |      38
+20260708-212451_ground-run-legodom.npz         53   2600 |       55 left_shoulder_pitch |   37   47   47 |      38
+20260709-192744_ground-run-legodom.npz         45   2222 |       58 right_shoulder_pitch |   38   45   46 |      39
+20260710-140847_ground-run-legodom.npz         30   1478 |       56 left_shoulder_pitch |   38   47   47 |      40
+20260710-141415_ground-run-legodom.npz         53   2600 |       56 left_shoulder_pitch |   39   49   50 |      41
+20260710-145111_ground-run-legodom.npz         52   2600 |       57 left_shoulder_pitch |   39   49   49 |      43
+
+======================================================================================================================
+2. RUN-OVER-RUN CREEP  (peak temp per run, chronological) for pelvis-area motors.
+   Question: is any waist/hip motor trending hotter run-over-run (a developing bind/bearing issue)?
+   Only runs with dur>=25s included (comparable warmup).
+======================================================================================================================
+file                                        dur |  waist_yaw waist_roll waist_pitch L_hip_pitch L_hip_roll  L_hip_yaw R_hip_pitch R_hip_roll  R_hip_yaw
+----------------------------------------------------------------------------------------------------------------------
+20260704-233131_stage0_limp-hanging-zerocal.npz  180 |         40         48         47         39         39         39         39         40         41
+20260706-094401_stage0_onboard-standby.npz  180 |         37         44         43         37         41         36         36         37         38
+20260706-114256_ground-run-legodom.npz       30 |         37         45         44         36         35         35         36         37         38
+20260706-114445_ground-run-legodom.npz       52 |         37         46         46         36         35         35         36         37         38
+20260706-115004_ground-run-legodom.npz       52 |         37         47         48         36         36         35         36         37         38
+20260706-115456_ground-run-legodom.npz       52 |         37         48         48         36         36         35         36         37         38
+20260706-115959_stage0_post-session-watch.npz 1200 |         37         48         47         36         36         36         36         37         38
+20260706-133246_ground-run-legodom.npz       27 |         35         43         43         35         35         35         35         36         36
+20260706-133905_ground-run-legodom.npz       52 |         40         47         47         39         39         38         39         40         41
+20260707-095014_ground-run-legodom.npz       53 |         39         48         49         38         38         38         38         40         41
+20260707-095428_ground-run-legodom.npz       52 |         39         49         50         38         38         38         38         40         40
+20260707-103403_ground-run-legodom.npz       53 |         38         47         47         37         36         36         37         38         39
+20260707-112354_ground-run-legodom.npz       52 |         38         46         47         37         37         36         37         38         39
+20260707-113910_ground-run-legodom.npz       52 |         38         47         48         37         37         36         37         38         39
+20260707-134428_ground-run-legodom.npz       54 |         37         45         47         36         36         35         36         37         38
+20260707-135541_ground-run-legodom.npz       55 |         37         46         47         36         36         35         36         37         38
+20260707-163753_ground-run-legodom.npz       56 |         36         46         46         36         36         36         36         37         38
+20260707-170846_ground-run-legodom.npz       55 |         37         46         47         36         36         35         36         37         38
+20260707-171242_ground-run-legodom.npz       55 |         37         48         48         37         36         36         37         37         38
+20260707-171920_ground-run-legodom.npz       56 |         37         48         48         37         36         35         37         37         37
+20260707-172121_ground-run-legodom.npz       53 |         37         49         50         38         36         35         37         37         38
+20260707-172354_ground-run-legodom.npz       55 |         38         51         52         38         36         35         38         37         38
+20260707-172748_ground-run-legodom.npz       55 |         38         51         52         38         37         35         37         38         38
+20260707-172942_ground-run-legodom.npz       55 |         41         53         56         40         38         36         43         39         38
+20260707-173645_ground-run-legodom.npz       55 |         39         52         53         38         37         36         39         39         39
+20260707-174428_ground-run-legodom.npz       55 |         39         51         51         38         37         36         38         39         39
+20260708-184204_ground-run-legodom.npz       53 |         36         44         46         36         35         34         36         36         37
+20260708-184431_ground-run-legodom.npz       53 |         37         46         47         37         35         34         36         37         37
+20260708-192839_ground-run-legodom.npz       53 |         37         45         46         36         35         35         36         37         38
+20260708-210858_ground-run-legodom.npz       29 |         37         45         46         36         36         35         36         37         38
+20260708-212451_ground-run-legodom.npz       53 |         37         47         47         36         36         36         36         37         38
+20260709-192744_ground-run-legodom.npz       45 |         38         45         46         37         37         36         37         38         39
+20260710-140847_ground-run-legodom.npz       30 |         38         47         47         37         38         36         37         39         40
+20260710-141415_ground-run-legodom.npz       53 |         39         49         50         38         39         37         38         41         40
+20260710-145111_ground-run-legodom.npz       52 |         39         49         49         38         41         38         38         43         41
+----------------------------------------------------------------------------------------------------------------------
+TREND (peak temp: first long-run -> last long-run, and linear slope per run):
+  waist_yaw_joint            first=  40C  last=  39C  min=  35  max=  41  slope=+0.01 C/run
+  waist_roll_joint           first=  48C  last=  49C  min=  43  max=  53  slope=+0.05 C/run
+  waist_pitch_joint          first=  47C  last=  49C  min=  43  max=  56  slope=+0.09 C/run
+  left_hip_pitch_joint       first=  39C  last=  38C  min=  35  max=  40  slope=+0.02 C/run
+  left_hip_roll_joint        first=  39C  last=  41C  min=  35  max=  41  slope=+0.01 C/run
+  left_hip_yaw_joint         first=  39C  last=  38C  min=  34  max=  39  slope=-0.02 C/run
+  right_hip_pitch_joint      first=  39C  last=  38C  min=  35  max=  43  slope=+0.02 C/run
+  right_hip_roll_joint       first=  40C  last=  43C  min=  36  max=  43  slope=+0.03 C/run
+  right_hip_yaw_joint        first=  41C  last=  41C  min=  36  max=  41  slope=+0.00 C/run
+
+======================================================================================================================
+3. SUSTAINED-TORQUE / BIND DETECTOR  (per joint, over all runs).
+   A mechanical bind or rubbing shows as a joint holding high |tau| for a large fraction of ticks.
+   Reported: worst run's p95|tau| and %ticks>|5Nm| for each pelvis-area joint; plus body-wide worst.
+======================================================================================================================
+Top 12 (joint, run) by fraction of ticks holding |tau|>5 Nm (sustained load):
+  left_hip_roll_joint        frac>5Nm= 99.7%  p95|tau|=  25.7Nm   in 20260706-094401_stage0_onboard-standby.npz
+  right_hip_roll_joint       frac>5Nm= 99.6%  p95|tau|=   6.4Nm   in 20260706-094401_stage0_onboard-standby.npz
+  left_ankle_pitch_joint     frac>5Nm= 99.5%  p95|tau|=  12.5Nm   in 20260706-094401_stage0_onboard-standby.npz
+  right_knee_joint           frac>5Nm= 99.4%  p95|tau|=  16.3Nm   in 20260707-163544_ground-run-legodom.npz
+  right_ankle_pitch_joint    frac>5Nm= 99.3%  p95|tau|=   6.5Nm   in 20260706-094401_stage0_onboard-standby.npz
+  left_hip_yaw_joint         frac>5Nm= 98.9%  p95|tau|=   6.3Nm   in 20260706-094401_stage0_onboard-standby.npz
+  left_hip_pitch_joint       frac>5Nm= 98.9%  p95|tau|=   5.5Nm   in 20260706-094401_stage0_onboard-standby.npz
+  right_knee_joint           frac>5Nm= 97.0%  p95|tau|=  13.4Nm   in 20260707-133255_ground-run-legodom.npz
+  right_knee_joint           frac>5Nm= 96.8%  p95|tau|=  12.7Nm   in 20260707-133136_ground-run-legodom.npz
+  right_hip_pitch_joint      frac>5Nm= 96.8%  p95|tau|=   8.9Nm   in 20260707-163544_ground-run-legodom.npz
+  right_hip_roll_joint       frac>5Nm= 96.2%  p95|tau|=  14.4Nm   in 20260707-163544_ground-run-legodom.npz
+  left_knee_joint            frac>5Nm= 96.2%  p95|tau|=  10.9Nm   in 20260707-133136_ground-run-legodom.npz
+
+Pelvis-area joints specifically (worst run each):
+  waist_yaw_joint            worst frac>5Nm= 39.2%  p95|tau|=  15.5Nm   in 20260707-122558_ground-run-legodom.npz
+  waist_roll_joint           worst frac>5Nm= 72.0%  p95|tau|=  23.8Nm   in 20260707-122558_ground-run-legodom.npz
+  waist_pitch_joint          worst frac>5Nm= 76.4%  p95|tau|=  22.1Nm   in 20260707-122558_ground-run-legodom.npz
+  left_hip_pitch_joint       worst frac>5Nm= 98.9%  p95|tau|=   5.5Nm   in 20260706-094401_stage0_onboard-standby.npz
+  left_hip_roll_joint        worst frac>5Nm= 99.7%  p95|tau|=  25.7Nm   in 20260706-094401_stage0_onboard-standby.npz
+  left_hip_yaw_joint         worst frac>5Nm= 98.9%  p95|tau|=   6.3Nm   in 20260706-094401_stage0_onboard-standby.npz
+  right_hip_pitch_joint      worst frac>5Nm= 96.8%  p95|tau|=   8.9Nm   in 20260707-163544_ground-run-legodom.npz
+  right_hip_roll_joint       worst frac>5Nm= 99.6%  p95|tau|=   6.4Nm   in 20260706-094401_stage0_onboard-standby.npz
+  right_hip_yaw_joint        worst frac>5Nm= 57.6%  p95|tau|=  20.6Nm   in 20260707-122558_ground-run-legodom.npz
+
+======================================================================================================================
+4. LONG THERMAL SOAK (stage0 post-session-watch, ~20 min) — waist/hip steady-state + rise rate.
+   This is the best available proxy for how hot the LOWER TORSO gets under sustained standing load.
+======================================================================================================================
+
+-- 20260706-115959_stage0_post-session-watch.npz  (rows=60000, dur=1200s, purpose=stage-0 READ-ONLY measurement: obs staleness (audit §4#4), s)
+    waist_yaw_joint            start=  37C  end=  36C  peak=  37C  rise=  -1C  rate= -0.1C/min
+    waist_roll_joint           start=  48C  end=  46C  peak=  48C  rise=  -2C  rate= -0.1C/min
+    waist_pitch_joint          start=  47C  end=  45C  peak=  47C  rise=  -2C  rate= -0.1C/min
+    left_hip_roll_joint        start=  36C  end=  36C  peak=  36C  rise=  +0C  rate= +0.0C/min
+    right_hip_roll_joint       start=  37C  end=  36C  peak=  37C  rise=  -1C  rate= -0.0C/min
+    left_ankle_pitch_joint     start=  45C  end=  44C  peak=  45C  rise=  -1C  rate= -0.1C/min
+
+-- 20260704-233131_stage0_limp-hanging-zerocal.npz  (rows=9000, dur=180s, purpose=stage-0 READ-ONLY measurement: obs staleness (audit §4#4), s)
+    waist_yaw_joint            start=  40C  end=  40C  peak=  40C  rise=  +0C  rate= +0.0C/min
+    waist_roll_joint           start=  48C  end=  48C  peak=  48C  rise=  +0C  rate= +0.0C/min
+    waist_pitch_joint          start=  47C  end=  47C  peak=  47C  rise=  +0C  rate= +0.0C/min
+    left_hip_roll_joint        start=  39C  end=  39C  peak=  39C  rise=  +0C  rate= +0.0C/min
+    right_hip_roll_joint       start=  40C  end=  40C  peak=  40C  rise=  +0C  rate= +0.0C/min
+    left_ankle_pitch_joint     start=  48C  end=  48C  peak=  48C  rise=  +0C  rate= +0.0C/min
+
+-- 20260706-094401_stage0_onboard-standby.npz  (rows=9000, dur=180s, purpose=stage-0 READ-ONLY measurement: obs staleness (audit §4#4), s)
+    waist_yaw_joint            start=  37C  end=  37C  peak=  37C  rise=  +0C  rate= +0.0C/min
+    waist_roll_joint           start=  43C  end=  44C  peak=  44C  rise=  +1C  rate= +0.3C/min
+    waist_pitch_joint          start=  42C  end=  43C  peak=  43C  rise=  +1C  rate= +0.3C/min
+    left_hip_roll_joint        start=  37C  end=  41C  peak=  41C  rise=  +4C  rate= +1.3C/min
+    right_hip_roll_joint       start=  37C  end=  37C  peak=  37C  rise=  +0C  rate= +0.0C/min
+    left_ankle_pitch_joint     start=  41C  end=  42C  peak=  42C  rise=  +1C  rate= +0.3C/min
+
+======================================================================================================================
+5. BODY-WIDE HOTTEST MOTOR EVER RECORDED (across all runs) + context vs today.
+======================================================================================================================
+Top 10 hottest single-motor peaks in history:
+    59C  right_shoulder_pitch_joint  20260704-233131_stage0_limp-hanging-zerocal.npz
+    58C  right_shoulder_pitch_joint  20260709-192744_ground-run-legodom.npz
+    58C  right_shoulder_pitch_joint  20260707-172942_ground-run-legodom.npz
+    58C  left_shoulder_pitch_joint   20260707-095428_ground-run-legodom.npz
+    58C  left_shoulder_pitch_joint   20260707-095014_ground-run-legodom.npz
+    57C  right_shoulder_pitch_joint  20260707-172121_ground-run-legodom.npz
+    57C  right_shoulder_pitch_joint  20260707-171920_ground-run-legodom.npz
+    57C  right_shoulder_pitch_joint  20260707-171242_ground-run-legodom.npz
+    57C  right_shoulder_pitch_joint  20260707-170846_ground-run-legodom.npz
+    57C  right_shoulder_pitch_joint  20260707-113910_ground-run-legodom.npz
+
+NOTE: none of these is the IMU/pelvis electronics — the .npz has no IMU-temp channel.
+Today's LIVE scan: hottest MOTOR = left_ankle_pitch 64C; IMU(pelvis) = 80C (hotter than any motor).
