@@ -1,0 +1,38 @@
+[thermal-diag] READ-ONLY (subscribe only). iface=enp0s31f6. Reading rt/lowstate ...
+[thermal-diag] 15/15 samples. mode_machine=5 tick=619633
+  IMU temp: 80 C
+
+idx joint                     tC0  tC1  maxC  tau_Nm   q_deg     dq  lost  flag
+  0 left_hip_pitch_joint       33   32    33   -0.73     1.9  -0.00     ?  
+  1 left_hip_roll_joint        34   36    36    9.23     2.3  -0.01     ?  
+  2 left_hip_yaw_joint         32   31    32   -0.62    11.2  -0.02     ?  
+  3 left_knee_joint            33   33    33    3.78     6.0  -0.00     ?  
+  4 left_ankle_pitch_joint     49   64    64   12.54    -7.7   0.01     ?  warm
+  5 left_ankle_roll_joint      42   46    46    1.95     0.9  -0.00     ?  
+  6 right_hip_pitch_joint      33   32    33    1.01    -2.7  -0.01     ?  
+  7 right_hip_roll_joint       37   45    45  -16.26     1.9   0.03     ?  
+  8 right_hip_yaw_joint        35   36    36    4.31   -12.1   0.00     ?  
+  9 right_knee_joint           33   32    33   -1.05    10.5   0.00     ?  
+ 10 right_ankle_pitch_joint    43   47    47    6.67    -7.1   0.00     ?  
+ 11 right_ankle_roll_joint     42   42    42   -1.60    -2.3  -0.00     ?  
+ 12 waist_yaw_joint            34   33    34   -0.39    -0.9  -0.03     ?  
+ 13 waist_roll_joint           41   40    41    0.84    -0.2  -0.00     ?  
+ 14 waist_pitch_joint          40   41    41    3.06     1.0  -0.00     ?  
+ 15 left_shoulder_pitch_joint   44   44    44    1.19    20.1  -0.01     ?  
+ 16 left_shoulder_roll_joint   40   41    41    2.06    19.3  -0.00     ?  
+ 17 left_shoulder_yaw_joint    43   42    43    0.88    -5.3  -0.01     ?  
+ 18 left_elbow_joint           39   38    39   -0.50    52.2  -0.01     ?  
+ 19 left_wrist_roll_joint      42   41    42   -0.06     1.1   0.00     ?  
+ 20 left_wrist_pitch_joint     37   30    37   -0.26    -3.7  -0.00     ?  
+ 21 left_wrist_yaw_joint       38   30    38    0.19     0.5   0.00     ?  
+ 22 right_shoulder_pitch_joint   44   43    44    0.50    13.9  -0.00     ?  
+ 23 right_shoulder_roll_joint   40   40    40   -1.31   -14.0  -0.00     ?  
+ 24 right_shoulder_yaw_joint   44   43    44   -0.31     4.0  -0.01     ?  
+ 25 right_elbow_joint          39   38    39   -0.50    49.5   0.00     ?  
+ 26 right_wrist_roll_joint     40   38    40    0.00     2.9  -0.00     ?  
+ 27 right_wrist_pitch_joint    39   32    39   -0.22     0.5  -0.01     ?  
+ 28 right_wrist_yaw_joint      36   30    36    0.05    -4.6  -0.00     ?  
+
+No motor >=75C (hottest 64C).
+If you still smell burning with no hot motor, suspect electronics/connector/battery,
+not a winding -> power off and inspect PCBs / battery / wiring rather than the joints.
