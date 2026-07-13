@@ -48,8 +48,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Player preference order. Each name is resolved via shutil.which; the first that
 # exists wins. build_player_argv() knows the full-screen + screen-select flags per
-# player.
-PLAYERS = ("mpv", "vlc", "ffplay")
+# player. VLC is LAST resort: on this box it renders colourful static / logs "Too high
+# level of recursion" (2026-07-13). Prefer mpv, then ffplay. `SHOW_PLAYER` (env) forces
+# a specific one. Install the good player with:  sudo apt install -y mpv
+PLAYERS = ("mpv", "ffplay", "vlc")
 
 
 # ---- xrandr parsing (pure, unit-tested) ------------------------------------------------
@@ -106,12 +108,22 @@ def pick_display(monitors: list[Monitor], prefer: str | None = None) -> Monitor 
 
 
 # ---- player discovery + argv (pure, unit-tested) ---------------------------------------
-def find_player(players: tuple[str, ...] = PLAYERS, which=shutil.which) -> str:
-    """Return the first installed player name (preference order), else SystemExit."""
+def find_player(players: tuple[str, ...] = PLAYERS, which=shutil.which,
+                forced: str | None = None) -> str:
+    """Return the player to use. `forced` (or env SHOW_PLAYER) pins a specific player —
+    use it to force mpv/ffplay when the auto-pick would otherwise land on the buggy VLC.
+    Otherwise the first installed player in preference order wins, else SystemExit."""
+    forced = forced or os.environ.get("SHOW_PLAYER")
+    if forced:
+        if which(forced):
+            return forced
+        raise SystemExit(f"SHOW_PLAYER={forced!r} is not installed "
+                         f"(have: {', '.join(p for p in players if which(p)) or 'none'})")
     for p in players:
         if which(p):
             return p
-    raise SystemExit(f"no video player found — install one of: {', '.join(players)}")
+    raise SystemExit(f"no video player found — install one of: {', '.join(players)} "
+                     f"(recommended: sudo apt install -y mpv)")
 
 
 def build_player_argv(player: str, video, screen_index: int | None = None) -> list[str]:
@@ -129,12 +141,18 @@ def build_player_argv(player: str, video, screen_index: int | None = None) -> li
         argv.append(video)                              # mpv exits at EOF by default
         return argv
     if player == "vlc":
-        # --avcodec-hw=none forces SOFTWARE decode. On Intel iGPUs vlc's VA-API path
-        # hands the filter chain a hardware surface it can't read ("Unknown input chroma
-        # VAOP") and renders colourful static (2026-07-08 live run). Software decode is
-        # plenty for a pre-rendered side-by-side and always produces correct frames.
+        # VLC is the LAST-RESORT player (prefer mpv/ffplay). Two documented VLC bugs on
+        # this box, both defended against here:
+        #  * --avcodec-hw=none forces SOFTWARE decode. On Intel iGPUs vlc's VA-API path
+        #    hands the filter chain a hardware surface it can't read ("Unknown input chroma
+        #    VAOP") and renders colourful static (2026-07-08 live run).
+        #  * "Too high level of recursion" (2026-07-13): handing the file to an ALREADY
+        #    running VLC instance and the subtitle/OSD filter chain recurse. --no-one-instance
+        #    launches a fresh process; --no-spu/--no-sub-autodetect-file/--no-osd drop the
+        #    filters that recurse. A pre-rendered side-by-side needs none of them.
         argv = ["vlc", "--fullscreen", "--no-video-title-show", "--play-and-exit",
-                "--avcodec-hw=none"]
+                "--avcodec-hw=none", "--no-one-instance", "--no-osd", "--no-spu",
+                "--no-sub-autodetect-file"]
         if screen_index is not None:
             argv.append(f"--qt-fullscreen-screennumber={screen_index}")
         argv.append(video)
@@ -189,6 +207,10 @@ def resolve_playback(video, *, prefer_output: str | None = None,
     monitors = parse_monitors(xrandr_text)
     chosen = pick_display(monitors, prefer_output)
     player = find_player(players, which)
+    if player == "vlc":
+        print("[show_display] falling back to VLC, which can render colourful static / "
+              "'Too high level of recursion' on this box. For a clean show display install "
+              "mpv:  sudo apt install -y mpv", file=sys.stderr)
     screen_index = chosen.index if chosen is not None else None
     argv = build_player_argv(player, video, screen_index)
     return Playback(player=player, argv=argv, monitor=chosen, monitors=monitors)
