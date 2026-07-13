@@ -1,0 +1,19 @@
+{
+  "in_frames": 1329,
+  "out_frames": 1479,
+  "seconds": 49.3,
+  "vel_clamped_frames": 69,
+  "motion_quality": {
+    "outlier_frames_replaced": 133,
+    "jerk_peak_before": 101701.0,
+    "jerk_peak_after": 4806.0,
+    "jerk_p99_before": 5276.0,
+    "jerk_p99_after": 1174.0,
+    "spike_frames_before": 67,
+    "spike_frames_after": 4,
+    "dof_rms_delta_rad": 0.0327,
+    "dof_p99_delta_rad": 0.0602
+  },
+  "ground_shift_m": 0.0378,
+  "out": "data/motions/thriller/thriller_g1_clean.csv"
+}
