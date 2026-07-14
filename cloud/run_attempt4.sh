@@ -66,6 +66,13 @@ case "$RESUME_HELP" in
   *) die "no --agent.resume flag on this mjlab" ;;
 esac
 
+# STACK SMOKE TEST — the one gate --selfcheck can't do: proves the GPU physics
+# actually STEPS (catches mujoco-warp/warp/torch drift + GL/CUDA clashes) in ~2 min,
+# BEFORE committing to the ~3 h run. This is what would have caught the device-assert.
+say "stack smoke test (64-env/2-iter GPU — catches version/CUDA/GL breaks)"
+bash "$NB/cloud/smoke_test.sh" "$ENTRY" "$TASK" "$NPZ" \
+  || die "GPU physics smoke test FAILED — NOT starting the real run. Likely a mujoco-warp/warp/torch drift; reinstall from cloud/env_lock/requirements.lock.txt and retry."
+
 say "PREFLIGHT PASSED — starting v7 curriculum (~2.8 h)"
 MOTION="$NPZ" bash "$NB/cloud/train_v7_curriculum.sh"
 RC=$?
