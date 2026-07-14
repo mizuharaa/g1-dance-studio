@@ -46,6 +46,41 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-14: **Attempt 3 pipeline revamp — v6 "station-keeping" recipe + landmark/vet/cost
+  hardening (all laptop-side, no box spend yet).** Root-caused the v5 borderline result from
+  `exports/train-thriller_v5fid-0713/gap.json`: gate FAILED on drift_max **4.56 m** (limit 1.0),
+  nominal survival **92.2%** (limit 99%), ankle p95 16.4/21.5 (limit 15/20). The dance tracks
+  tightly (rr_mpkpe 0.08) and is latency/push robust (99.2% @40ms+push) — the ONE unsolved mode is
+  horizontal ROOT DRIFT (world mpkpe 0.50 vs root-rel 0.08 = right poses, sliding across the floor).
+  ROOT CAUSE in code: the tracking env terminates on VERTICAL anchor error only (`bad_anchor_pos_z_only`,
+  thr 0.25); there is NO XY drift termination, so an episode runs while the robot moonwalks metres —
+  v5 tried to fix it with reward weight alone (0.5→1.0), which can't pin a free-sliding DoF. **Fix is
+  a termination.** Built (all syntax/-tested laptop-side; box preflight will validate mjlab API):
+  - `cloud/sim2real_task_v6.py` — v5 verbatim (arm-fidelity + station-keeping + latency curriculum)
+    PLUS a new `anchor_drift_xy` termination (full XY norm, curriculum'd via `G1_DRIFT_TERM_M`
+    0.8→0.6→0.5 m) and ankle_torque_l2 −4e-4→−6e-4. Has `--selfcheck` (asserts every reward/term key
+    registered — fails in seconds, not after 5 h).
+  - `cloud/train_v6_curriculum.sh` — 3 latency+drift stages, robust NUMERIC checkpoint resume
+    (fixes the model_500>model_3999 lexical bug) with `assert_iter`, and a FIXED heldout_eval call
+    (v5 passed `$TASK` as a bogus positional and omitted the REQUIRED `--motion-file` → crash; now
+    `--motion-file` + unique `--output-file` per seed). Gate stays on the STOCK task = honest drift.
+  - `cloud/run_attempt3.sh` — one-command cost-minimal box orchestrator, TRAIN-ONLY (Thriller motion
+    exists ⇒ no GVHMR / no 3.7 GB body-model push / no extract spend). Preflights motion/GPU/disk/
+    selfcheck/resume-flags BEFORE any GPU spend, then curriculum+verify, then prints gate + accrued
+    cost + the DELETE step (box bills creation→deletion; deletion is what stops the meter).
+  - `pipeline/stages/cloud_motion.py` `_reencode_30fps` — landmark front-door: stop the uneven VFR
+    frame-drop (~15.5% on Thriller → judder/overshoot at the fast "hits"). Resolves ffmpeg via
+    imageio-ffmpeg; keeps every frame when source is ~30 CFR; even-CFR for VFR; opt-in
+    `G1_EXTRACT_INTERP=1` motion-interp; logs in→out drop % (no silent truncation).
+  - `pipeline/vet_motion.py` + `pipeline/stages/local_motion.py` — severe-quality backstop. Vet's
+    smoothness stays ADVISORY (runs pre-clean; prep de-glitches downstream). Added `severe_after_clean()`
+    HARD gate on the POST-clean show CSV in the retarget stage: refuses BEFORE the GPU train stage if
+    clean_motion couldn't get jerk<30k / spike<5% / vel_over<70%. Verified: cleaned Thriller (7.6k jerk)
+    PASSES, raw pre-filter motion (63k) BLOCKS. Tests green (motion_quality 4/4, vet 8/8).
+  NOTE this is attempt 3 of the ≤3 budget. Agent B's front-end (de-glitch clean_motion wired in
+  prep_motion, feasibility analysis) confirmed landed on main and is NOT the bottleneck — the
+  training recipe is (agent B's own Lane-E verdict, commit 5354863). Next: push, then ONE box session.
+
 - 2026-07-10: **Sim sandbox HONESTY fix — it under-represents the dance; not calibrated yet.**
   User caught that the policy "doesn't dance" in the Simulation tab. Diagnosed: (1) a tether hack
   (kp 150) I added PINNED the base -> crushed motion to 8%; (2) even free, the policy's joints

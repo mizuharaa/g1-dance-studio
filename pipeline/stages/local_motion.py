@@ -185,6 +185,21 @@ class RetargetStage:
         st.meta["ramp"] = make_deploy_csv(show_csv, deploy_csv)
         st.meta["show_csv"] = str(show_csv)
         st.meta["deploy_csv"] = str(deploy_csv)
+
+        # Post-clean HARD backstop (cost guard): the vet gate above runs on the
+        # RAW motion and only WARNS on glitch (prep de-glitches downstream). If
+        # clean_motion STILL couldn't get this motion under the severe floor,
+        # refuse now — before the human ever sees an "approve training" button —
+        # rather than pay for a 5 h GPU run on unfixable data. Safe on the
+        # cleaned Thriller (7.6k jerk); only a broken source trips it.
+        from ..vet_motion import severe_after_clean
+        severe = severe_after_clean(str(show_csv))
+        st.meta["severe_after_clean"] = severe
+        if severe:
+            raise RuntimeError(
+                "motion still severely glitchy/infeasible AFTER de-glitch "
+                f"({', '.join(severe)}) — fix the source clip or retarget; "
+                "refusing to spend GPU on it")
         job.log(f"retarget: deployable motion ready — {deploy_csv.name} "
                 f"({st.meta['ramp']['seconds']}s incl. 2.5s activation ramp)")
         report(1.0, "motion ready — review the preview, then approve training")

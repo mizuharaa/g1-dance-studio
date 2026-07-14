@@ -28,9 +28,11 @@ monkeypatch these; nothing here is allowed to touch the robot.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -292,16 +294,82 @@ export MUJOCO_GL=egl WANDB_MODE=disabled
 
 # ---- extract: video -> GVHMR (box) -> hmr4d_results.pt -----------------------------
 
+def _ffmpeg_bin() -> str:
+    """The pipeline's ffmpeg — the laptop has no system ffmpeg, so prefer the
+    imageio-ffmpeg bundle (same resolver as video_edit/video_web), then PATH."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:  # noqa: BLE001
+        return shutil.which("ffmpeg") or "ffmpeg"
+
+
+def _probe_source_fps(src: Path) -> tuple[float | None, bool, int | None]:
+    """(avg_fps, is_vfr, nb_frames) via ffprobe; (None, True, None) if it can't
+    tell — the caller then takes the safe even-CFR path. VFR = the source's
+    nominal rate (r_frame_rate) differs from its realized average (avg_frame_rate)."""
+    def _rate(s: str) -> float | None:
+        try:
+            n, _, d = s.partition("/")
+            return float(n) / float(d) if d and float(d) else float(n)
+        except Exception:  # noqa: BLE001
+            return None
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", "-of", "json",
+             "-show_entries", "stream=r_frame_rate,avg_frame_rate,nb_frames", str(src)],
+            capture_output=True, text=True, timeout=60)
+        st = json.loads(out.stdout)["streams"][0]
+        r, a = _rate(st.get("r_frame_rate", "")), _rate(st.get("avg_frame_rate", ""))
+        nb = int(st["nb_frames"]) if str(st.get("nb_frames", "")).isdigit() else None
+        avg = a or r
+        is_vfr = bool(r and a and abs(r - a) / max(r, a) > 0.02)
+        return avg, is_vfr, nb
+    except Exception:  # noqa: BLE001
+        return None, True, None
+
+
 def _reencode_30fps(src: Path, dst: Path) -> None:
-    """Normalize the clip to constant 30 fps (GVHMR + the 30 fps retarget contract;
-    the Thriller source was VFR and needed exactly this). Audio is dropped — music
-    is attached from the original file at the export stage."""
-    proc = subprocess.run(
-        ["ffmpeg", "-y", "-i", str(src), "-vf", "fps=30", "-an",
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", str(dst)],
-        capture_output=True, text=True, timeout=1800)
+    """Normalize the clip to 30 fps for the GVHMR + retarget contract, WITHOUT the
+    uneven frame drop the old blunt `-vf fps=30` caused on VFR sources (measured
+    ~15.5% frames dropped on Thriller -> timing judder + velocity overshoot at the
+    fast 'hits' -> worse landmarks; docs/retarget_fidelity.md). Strategy:
+      * source already ~30 fps CFR  -> re-encode with NO fps filter (zero drop).
+      * source high-fps CFR (>31)   -> honest even downsample to 30.
+      * source VFR / unknown        -> force CONSTANT-rate 30 (even timestamps,
+        deterministic) instead of the default vsync that dropped unevenly; set
+        G1_EXTRACT_INTERP=1 to motion-interpolate (preserve hits) if a source
+        still looks like it dropped fast frames.
+    Frame counts in->out are logged and a large unexpected drop warns loudly
+    (measurement discipline — never silently truncate). Audio is dropped; music
+    is attached from the original at export."""
+    ff = _ffmpeg_bin()
+    avg_fps, is_vfr, nb_in = _probe_source_fps(src)
+    interp = os.environ.get("G1_EXTRACT_INTERP") == "1"
+
+    vf, mode = ["fps=30"], ["-fps_mode", "cfr"]  # default: even CFR 30
+    if avg_fps is not None and not is_vfr and 29.0 <= avg_fps <= 31.0:
+        vf, mode = [], []                          # already ~30 CFR -> keep every frame
+    elif is_vfr and interp:
+        vf = ["minterpolate=fps=30:mi_mode=mci"]   # opt-in motion-compensated
+
+    cmd = [ff, "-y", "-i", str(src)]
+    if vf:
+        cmd += ["-vf", ",".join(vf)]
+    cmd += mode + ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", str(dst)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     if proc.returncode != 0 or not dst.exists():
         raise RuntimeError(f"ffmpeg 30 fps re-encode failed: {proc.stderr[-400:]}")
+
+    _, _, nb_out = _probe_source_fps(dst)
+    if nb_in and nb_out:
+        drop = 100.0 * (nb_in - nb_out) / nb_in
+        note = f"src {avg_fps or '?'}fps {'VFR' if is_vfr else 'CFR'} {nb_in}f -> 30fps {nb_out}f ({drop:+.1f}%)"
+        # a big drop that ISN'T a clean high-fps downsample is the judder failure mode.
+        if drop > 8.0 and not (avg_fps and avg_fps > 33.0):
+            print(f"[extract] WARN frame drop {note} — consider G1_EXTRACT_INTERP=1", file=sys.stderr)
+        else:
+            print(f"[extract] {note}", file=sys.stderr)
 
 
 class ExtractStage:
