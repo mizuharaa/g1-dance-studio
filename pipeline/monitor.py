@@ -37,7 +37,7 @@ echo '@@STATUS@@'
 for f in /workspace/notebook-data/jobs/*.status.json; do [ -e "$f" ] || continue; echo "@@FILE $(basename "$f" .status.json)@@"; cat "$f" 2>/dev/null; echo; done
 echo '@@LOGS@@'
 for f in /workspace/notebook-data/jobs/*.log; do [ -e "$f" ] || continue; case "$(basename "$f")" in train*|*train*) echo "@@FILE $(basename "$f" .log)@@"; grep -E 'Learning iteration|Mean reward:|Mean episode length:|Time elapsed|ETA:|Iteration time|wandb.ai' "$f" 2>/dev/null | tail -24;; esac; done
-[ -e /workspace/notebook-data/attempt3.out ] && { echo "@@FILE train-attempt3@@"; grep -E 'Learning iteration|Mean reward:|Mean episode length:|Time elapsed|ETA:|Iteration time|wandb.ai' /workspace/notebook-data/attempt3.out 2>/dev/null | tail -24; }
+AT=$(ls -t /workspace/notebook-data/attempt*.out 2>/dev/null | head -1); [ -n "$AT" ] && { echo "@@FILE train-$(basename "$AT" .out)@@"; grep -E 'Learning iteration|Mean reward:|Mean episode length:|Time elapsed|ETA:|Iteration time|wandb.ai' "$AT" 2>/dev/null | tail -24; }
 echo '@@PROC@@'
 ps -eo args= 2>/dev/null | grep -cE '[s]im2real_task_v[0-9]|[t]rain_sim2real'
 """.strip()
