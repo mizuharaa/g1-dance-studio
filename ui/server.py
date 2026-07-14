@@ -482,7 +482,7 @@ def _system_refresh_loop() -> None:
             _system_snapshot = monitor.snapshot()
         except Exception:  # snapshot() shouldn't raise, but never kill the thread
             pass
-        time.sleep(20)
+        time.sleep(8)  # box snapshot cadence (was 20) — training status feels live
 
 
 @app.get("/api/system")

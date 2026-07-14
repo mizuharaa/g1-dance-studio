@@ -24,6 +24,16 @@ TASK=Mjlab-Tracking-Flat-Unitree-G1-S2R-V6
 NPZ=${NPZ:-$NB/motions/thriller_clean.npz}
 CSV=${CSV:-$NB/motions/thriller_g1_clean.csv}
 
+# wandb: BOTH csv_to_npz and the trainer call wandb.init(). Export a whitespace-
+# stripped key so neither prompts/crashes ("No API key configured"); if there's
+# no key, force offline so wandb.init still runs (progress comes from the rsl_rl
+# logs, not wandb, so offline costs us nothing here).
+if [ -f "$NB/.wandb_key" ]; then
+  export WANDB_API_KEY=$(tr -d '[:space:]' < "$NB/.wandb_key")
+else
+  export WANDB_MODE=offline
+fi
+
 say() { printf '\n\033[1m== %s ==\033[0m %s\n' "$1" "$(date -Is)"; }
 die() { printf '\n\033[31m!! PREFLIGHT FAIL: %s\033[0m\n' "$1"; exit 1; }
 
@@ -46,9 +56,14 @@ fi
 FRAMES=$("$PY" - "$NPZ" <<'PY'
 import numpy as np, sys
 try:
-    d = np.load(sys.argv[1]); k = "fpos" if "fpos" in d else list(d.keys())[0]
-    print(len(d[k]))
-except Exception as e:
+    d = np.load(sys.argv[1])
+    # mjlab motion npz: joint_pos is (frames, 29). Fall back to the longest
+    # multi-row array (NOT the first key — that's 'fps', shape (1,)).
+    if "joint_pos" in d.files:
+        print(d["joint_pos"].shape[0])
+    else:
+        print(max((d[k].shape[0] for k in d.files if getattr(d[k], "ndim", 0) >= 2), default=0))
+except Exception:
     print(0)
 PY
 )
@@ -76,8 +91,15 @@ say "recipe selfcheck"
 
 # 5. resume flags exist (stages 2/3 resume; without them they'd silently restart)
 say "resume-flag check"
-"$PY" "$ENTRY" "$TASK" --help 2>/dev/null | grep -iq -- "--agent.resume" \
-  || die "no --agent.resume flag on this mjlab — fix train_v6_curriculum.sh resume args"
+# tyro prints --help to STDERR (hence 2>&1). Capture into a var and match with a
+# bash `case` glob — NOT `... | grep -q`, because under `set -o pipefail` grep -q
+# closes the pipe early, the python side dies with SIGPIPE (141), and pipefail
+# then reports the whole pipeline as failed even though the flag WAS found.
+RESUME_HELP=$("$PY" "$ENTRY" "$TASK" --help 2>&1 || true)
+case "$RESUME_HELP" in
+  *"--agent.resume"*) echo "  --agent.resume present" ;;
+  *) die "no --agent.resume flag on this mjlab — fix train_v6_curriculum.sh resume args" ;;
+esac
 echo "  --agent.resume present"
 
 # 6. wandb key (offline is fine; just warn)

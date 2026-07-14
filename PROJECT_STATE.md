@@ -46,6 +46,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-14: **Attempt 3 TRAINING LAUNCHED + LIVE** on a fresh box (103.245.250.152:57240,
+  Network Volume at /workspace, NB=/workspace/notebook-data). v6 curriculum running: stage 1/3
+  (0-20 ms delay, drift<0.8 m, 4000 iters), GPU ~49%, reward climbing. Getting here fixed a chain
+  of issues, all committed: (a) run_attempt3.sh — export WANDB_API_KEY before csv_to_npz; npz frame
+  check reads `joint_pos` not `fps`; resume-flag check via bash `case` not `grep -q` (pipefail+SIGPIPE
+  false-failed it). (b) train_v6_curriculum.sh — MUJOCO_GL=egl set ONLY for the verify chain, NOT
+  training (egl GL context collides with Warp CUDA → illegal-memory-access at the first 4096-env reset).
+  (c) **THE big one — physics-lib version regression:** bare `pip install mjlab` left deps unpinned and
+  pulled mujoco-warp 3.10.0.2 + warp-lang 1.15.0, which device-side-assert (CUDA 710) at env reset.
+  mjlab v1.5.0's uv.lock pins **mujoco-warp==3.10.0.1 + warp-lang==1.14.0 + torch cu128**; pinning those
+  fixed it (64-env smoke trained; 4096 now iterating). 20_training.sh now pins them so a fresh box works.
+  (d) monitor.py now detects the v6 process (`sim2real_task_v[0-9]`) + reads attempt3.out, and the app
+  refresh was sped up (backend snapshot 20→8 s, frontend poll 20→4 s) — dashboard shows the live run.
+  ETA ~2-5 h through 3 stages + verify. Then pull, sign, DELETE THE BOX.
+
 - 2026-07-14: **Attempt 3 pipeline revamp — v6 "station-keeping" recipe + landmark/vet/cost
   hardening (all laptop-side, no box spend yet).** Root-caused the v5 borderline result from
   `exports/train-thriller_v5fid-0713/gap.json`: gate FAILED on drift_max **4.56 m** (limit 1.0),

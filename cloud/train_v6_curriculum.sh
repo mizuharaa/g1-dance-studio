@@ -13,7 +13,7 @@
 set -euo pipefail
 
 export NB=${NB:-/workspace/notebook-data}
-[ -f "$NB/.wandb_key" ] && export WANDB_API_KEY=$(cat "$NB/.wandb_key")
+[ -f "$NB/.wandb_key" ] && export WANDB_API_KEY=$(tr -d '[:space:]' < "$NB/.wandb_key")
 PY=$NB/envs/mjlab/bin/python
 ENTRY=$NB/cloud/sim2real_task_v6.py
 TASK=Mjlab-Tracking-Flat-Unitree-G1-S2R-V6
@@ -59,6 +59,11 @@ G1_CMD_DELAY_MAX_LAG=12 G1_OBS_DELAY_MAX_LAG=3  G1_DRIFT_TERM_M=0.5 \
     --agent.resume True --agent.load-run "$R2" --agent.load-checkpoint "$C2"
 
 echo "===== VERIFY CHAIN  $(date -Is) ====="
+# Verify RENDERS (gap_check/heldout), so it needs a GL backend — but TRAINING must
+# NOT have one: MUJOCO_GL=egl during the 4096-env Warp training collides with the
+# CUDA context and throws "illegal memory access" at the first reset. So egl is set
+# HERE only, after training (matches the v5-proven split: no GL to train, egl to verify).
+export MUJOCO_GL=egl
 read -r R3 C3 <<< "$(resolve s3)"; assert_iter "$C3" 9900
 CKPT="$LOGDIR/$R3/$C3"; mkdir -p "$EXP"; echo "  final ckpt: $CKPT"
 "$PY" "$NB/cloud/export_policy.py"  "$CKPT" "$MOTION" "$EXP"

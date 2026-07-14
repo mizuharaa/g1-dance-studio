@@ -9,7 +9,7 @@ export function useConsoleData() {
   const jobs = useQuery({ queryKey: ["jobs"], queryFn: () => api.get<PipelineJob[]>("/api/jobs"), refetchInterval: 5_000 })
   const shows = useQuery({ queryKey: ["shows"], queryFn: () => api.get<Show[]>("/api/shows"), refetchInterval: 7_500 })
   const setlists = useQuery({ queryKey: ["setlists"], queryFn: () => api.get<SetList[]>("/api/setlists"), refetchInterval: 15_000 })
-  const system = useQuery({ queryKey: ["system"], queryFn: () => api.get<SystemStatus>("/api/system"), refetchInterval: 20_000 })
+  const system = useQuery({ queryKey: ["system"], queryFn: () => api.get<SystemStatus>("/api/system"), refetchInterval: 4_000 })
   const venues = useQuery({ queryKey: ["venues"], queryFn: () => api.get<VenueResponse>("/api/venues"), refetchInterval: 30_000 })
   const phases = useQuery({ queryKey: ["show-phases"], queryFn: () => api.get<{ phases: ShowPhase[] }>("/api/show-phases"), staleTime: 300_000 })
   const run = useQuery({

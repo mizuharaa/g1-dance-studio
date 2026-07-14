@@ -94,6 +94,22 @@ if [ "${1:-}" = "mjlab" ]; then
     fi
     log "installing mjlab (isolated: pulls consistent torch/numpy/scipy/matplotlib)"
     if "$VENV_MJ/bin/python" -m pip install -q mjlab; then
+        # CRITICAL (2026-07-14): bare `pip install mjlab` leaves deps UNPINNED, so it
+        # pulls whatever is newest — which broke training with mujoco-warp 3.10.0.2 +
+        # warp-lang 1.15.0 (device-side assert / CUDA error 700 at the first env reset).
+        # mjlab v1.5.0's uv.lock pins mujoco-warp==3.10.0.1 + warp-lang==1.14.0 + torch
+        # from the cu128 index. Pin them back to the TESTED combo, or a fresh box dies.
+        log "pinning physics libs to mjlab v1.5.0 lock (mujoco-warp 3.10.0.1 / warp 1.14.0)"
+        "$VENV_MJ/bin/python" -m pip install -q \
+            "mujoco-warp==3.10.0.1" "warp-lang==1.14.0" \
+            --extra-index-url https://pypi.nvidia.com \
+            || log "WARNING: physics-lib pin failed — training may crash at reset"
+        # torch: mjlab needs the cu128 (CUDA 12.8) build; the default index gives cu130
+        # (CUDA 13), which Warp 1.14 can't interop with. Force the cu128 wheel.
+        "$VENV_MJ/bin/python" -c 'import torch,sys; sys.exit(0 if "cu128" in torch.__version__ else 1)' 2>/dev/null \
+            || "$VENV_MJ/bin/python" -m pip install -q --force-reinstall "torch>=2.7.0" \
+                 --index-url https://download.pytorch.org/whl/cu128 \
+            || log "WARNING: torch cu128 pin failed"
         # This GreenNode image is compute-only: no GL runtime and no NVIDIA EGL
         # (NVIDIA_DRIVER_CAPABILITIES unset). mjlab imports PyOpenGL EGL at load, so
         # install the GLVND loaders (libEGL.so.1, libGL.so.1, ...). They land in
