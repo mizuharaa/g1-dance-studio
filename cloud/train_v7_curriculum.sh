@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Attempt 4 (v7) — v6 station-keeping + ankle smoothness, 12k-iter curriculum.
-# Prefer cloud/run_attempt4.sh (preflights the v7 --selfcheck first).
-# Stages (latency + drift band, same as v6; stage 3 extended 3k->5k for the tail):
+# Attempt 4 (v7) — v6 station-keeping + the PROVEN ankle pair, 12k-iter curriculum,
+# BEST-checkpoint selection. Prefer cloud/run_attempt4.sh (preflights v7 --selfcheck).
+# Stages (latency + drift band; stage 3 extended 3k->5k and tightened 0.5->0.4 for the tail):
 #   1. 0-20 ms, drift<0.8 m, 4000 iters        (fresh)
 #   2. 0-50 ms, drift<0.6 m, +3000 (resume s1)
-#   3. 0-60 ms, drift<0.5 m, +5000 (resume s2)   <-- more time on the hard band
+#   3. 0-60 ms, drift<0.4 m, +5000 (resume s2)   <-- more time + tighter band on the hard sections
+# Then screen the last 6 checkpoints -> export the WINNER -> gap_check + heldout.
 set -euo pipefail
 
 export NB=${NB:-/workspace/notebook-data}
@@ -38,16 +39,33 @@ G1_CMD_DELAY_MAX_LAG=10 G1_OBS_DELAY_MAX_LAG=2  G1_DRIFT_TERM_M=0.6 \
   "$PY" "$ENTRY" "$TASK" "${COMMON[@]}" --agent.max-iterations 3000 --agent.run-name "${RUN}-s2" \
     --agent.resume True --agent.load-run "$R1" --agent.load-checkpoint "$C1"
 
-echo "===== STAGE 3/3  0-60 ms, drift<0.5 m, +5000 (resume s2)  $(date -Is) ====="
+echo "===== STAGE 3/3  0-60 ms, drift<0.4 m, +5000 (resume s2)  $(date -Is) ====="
 read -r R2 C2 <<< "$(resolve s2)"; echo "  resume run=$R2 ckpt=$C2"; assert_iter "$C2" 6900
-G1_CMD_DELAY_MAX_LAG=12 G1_OBS_DELAY_MAX_LAG=3  G1_DRIFT_TERM_M=0.5 \
+G1_CMD_DELAY_MAX_LAG=12 G1_OBS_DELAY_MAX_LAG=3  G1_DRIFT_TERM_M=0.4 \
   "$PY" "$ENTRY" "$TASK" "${COMMON[@]}" --agent.max-iterations 5000 --agent.run-name "${RUN}-s3" \
     --agent.resume True --agent.load-run "$R2" --agent.load-checkpoint "$C2"
 
 echo "===== VERIFY CHAIN  $(date -Is) ====="
 export MUJOCO_GL=egl   # verify renders/needs GL; training above must NOT (Warp CUDA clash)
 read -r R3 C3 <<< "$(resolve s3)"; assert_iter "$C3" 11900
-CKPT="$LOGDIR/$R3/$C3"; mkdir -p "$EXP"; echo "  final ckpt: $CKPT"
+S3DIR="$LOGDIR/$R3"; mkdir -p "$EXP"
+echo "  final stage run dir: $S3DIR (last ckpt $C3)"
+
+# BEST-checkpoint selection (v6 blindly shipped the last ckpt -> low episode length).
+# Screen the last 6 checkpoints on the 2 gate-critical conditions, export the winner.
+echo "  screening last 6 checkpoints for the best gate fit..."
+"$PY" "$NB/cloud/pick_checkpoint.py" --python "$PY" \
+    --gap-check "$NB/cloud/sim_gap_check.py" --rundir "$S3DIR" \
+    --motion-file "$MOTION" --last 6 --num-envs 64 --workdir "$EXP/screen" \
+    > "$EXP/pick.log" 2>&1 || true
+cat "$EXP/pick.log"
+CKPT=$(grep '^WINNER ' "$EXP/pick.log" | tail -1 | sed 's/^WINNER //')
+if [ ! -f "$CKPT" ]; then
+  echo "  !! picker produced no winner — falling back to last ckpt $C3"
+  CKPT="$S3DIR/$C3"
+fi
+echo "  SELECTED ckpt: $CKPT"
+
 "$PY" "$NB/cloud/export_policy.py"  "$CKPT" "$MOTION" "$EXP"
 "$PY" "$NB/cloud/sim_gap_check.py" --checkpoint "$CKPT" --motion-file "$MOTION" \
     --num-envs 128 --output-file "$EXP/gap.json"
@@ -56,4 +74,6 @@ for S in 90001 90011 90021; do
       --seed "$S" --num-envs 256 --output-file "$EXP/heldout_${S}.json" \
     || echo "  !! heldout seed $S failed (gap.json is the hard gate)"
 done
-echo "===== DONE $(date -Is) — gap.json + heldout in $EXP ====="
+echo "===== DONE $(date -Is) — gap.json + heldout in $EXP (selected $CKPT) ====="
+echo "  Gate PASS iff: nominal survival>=99%, drift_max<=1.0 m, 40ms+push survival>=95%,"
+echo "  ankle p95<=15/20 Nm. Then pull to laptop, sign, DELETE THE BOX."

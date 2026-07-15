@@ -46,6 +46,47 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-15: **ATTEMPT 4 (v7) LAUNCHED + LIVE** (user extended the ≤3 budget by one after
+  reviewing the v6 diagnosis). Same box (103.245.250.152:57240). Stage 1/3 iterating (GPU 51%,
+  reward climbing from cold start). **Diagnosis that drove v7:** the v6 gate's three failures
+  are ONE root cause — a per-section falls breakdown shows 6/10 nominal falls in 25-36s (rest
+  scattered), the ankles SATURATE (hit the 50 Nm cap) at the same 13-18s/25-36s passages, and
+  the 1.67 m drift is a TAIL (mean only 0.15 m) made of those same near-fall episodes. Verified
+  the motion itself is CLEAN/feasible there (fastest joints ~8.4-8.5 rad/s < 9.4 limit; an
+  earlier "16× velocity" scare was MY probe bug — `np.diff(x, 0)` diffs zero times, needed
+  `axis=0`; corrected diff matches stored joint_vel, corr 0.992). So v7 is a pure RL-recipe fix,
+  no re-clean. **v7 deltas (merged the prior session's v7 draft with the stronger evidence):**
+  (1) the PROVEN ankle pair — ankle_torque_l2 -6e-4→**-1e-3** AND action_rate_l2 -0.20→**-0.25**
+  (the exact 2026-07-08 96da66 config that measured ankle p95 **10.7 Nm** at mpkpe 0.154, 100%
+  survival — v6's timid -6e-4 alone left it at 17.7); (2) stage-3 drift band 0.5→**0.4 m** and
+  **+5000 iters (12k total)** for the survival tail; (3) **BEST-checkpoint selection** — v6
+  blindly exported model_9997 (a low mean-ep-len 388 point in an oscillating late reward);
+  new cloud/pick_checkpoint.py screens the last 6 checkpoints on the 2 gate-critical conditions
+  and exports the winner (pure eval, zero training risk — the a2 iter-1500>iter-3999 lesson).
+  Selfcheck + resume-flag + 64-env GPU smoke test all PASSED on the real mjlab before spend.
+  Files: cloud/sim2real_task_v7.py, cloud/train_v7_curriculum.sh, cloud/pick_checkpoint.py,
+  cloud/run_attempt4.sh (all pushed to box, committed on laptop). ETA ~4 h train + ~30 min
+  verify. On done: pull → sign → **DELETE THE BOX**. **BOX STILL BILLING** the whole time —
+  it was idle ~19 h (~$13 wasted) before this launch; do not leave it idle again after verify.
+
+- 2026-07-15: **Attempt 3 (v6) FINISHED — GATE FAILED; box still idle-billing; ≤3 attempt
+  budget now EXHAUSTED → paused for user.** Training completed 2026-07-14 07:39 UTC (~4.6 h,
+  all 3 stages + verify). Artifacts PULLED to `exports/train-thriller_v6sk-0714/`
+  (policy.onnx, gap.json, heldout_9000{1,11,21}.json) — safe on laptop. **Honest gate (stock
+  task) = FAIL:** nominal survival 92.2% (need ≥99%), drift_max **1.67 m** (need ≤1.0),
+  ankle p95 17.7/nominal + 18.5-21/push (need ≤15/20). PASSES: 40ms+push survival 99.2%,
+  ankle_mean, rr_mpkpe 0.088 (tracks tightly), thermal RMS. NOTE the 3-seed heldout eval
+  reads 100% nominal / 99.2% push — but that's on the trained clean motion; the STOCK-task
+  gap gate is the honest one and it exposes the same drift mode as v5. **PROGRESS vs v5:** the
+  new `anchor_drift_xy` termination cut drift **4.56 m → 1.67 m** (−63%, the ONE unsolved
+  failure mode is now much smaller) but still over the 1.0 m bar; survival stalled ~92% and
+  ankle p95 still a hair hot. So v6 = real movement in the right direction, still short of gate.
+  **URGENT: the GPU box has been idle but STILL BILLING since 07-14 07:39 (~19 h idle ≈ 343k VND
+  ≈ $13 wasted; box lifetime ~23 h ≈ 426k VND). DELETE is user's call + console-only (Chrome
+  pilot + user reCAPTCHA) — awaiting the user.** Attempt 3 of ≤3 is spent ⇒ no more autonomous
+  training without the user extending the budget. Deployable fallback remains the promoted
+  ankle-penalty Thriller (data/policies/thriller/, already gantry/live-tested).
+
 - 2026-07-14: **Attempt 3 TRAINING LAUNCHED + LIVE** on a fresh box (103.245.250.152:57240,
   Network Volume at /workspace, NB=/workspace/notebook-data). v6 curriculum running: stage 1/3
   (0-20 ms delay, drift<0.8 m, 4000 iters), GPU ~49%, reward climbing. Getting here fixed a chain

@@ -336,3 +336,19 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   pins both explicitly. Killed the model_500 run, cleaned aborted s2/s3 dirs, relaunched:
   stage 2 now resumes 2026-07-13_05-25-45_..._s1 / model_3999.pt (VERIFIED in proc args + log).
   Log: $NB/logs/resume_v5.log. Monitor from laptop: `bash scripts/train_watch.sh 103.245.250.152 55792`.
+
+## 2026-07-15 03:13 UTC — ATTEMPT 4 (v7) LAUNCHED (extended budget)
+- Box: root@103.245.250.152:57240, key .secrets/greennode_rsa. Run: train-thriller_v7ank-0715.
+- Task Mjlab-Tracking-Flat-Unitree-G1-S2R-V7. Driver: cloud/run_attempt4.sh (detached,
+  attempt4.out). Curriculum: s1 0-20ms/drift0.8/4000 -> s2 0-50ms/drift0.6/+3000 ->
+  s3 0-60ms/drift0.4/+5000 (12k total). MUJOCO_GL unset for train, egl for verify.
+- v7 deltas vs v6 (all evidence-backed): ankle_torque_l2 -6e-4->-1e-3 AND action_rate_l2
+  -0.20->-0.25 (the proven 96da66 pair = ankle p95 10.7 Nm); stage-3 drift 0.5->0.4 + more iters;
+  BEST-checkpoint selection via cloud/pick_checkpoint.py (screens last 6 ckpts, exports winner).
+- Preflight PASSED: motion 2464 frames, GPU 0%, disk 134G, v7 --selfcheck PASS (ankle -0.001,
+  action_rate -0.25), resume-flag present, 64-env GPU smoke test PASS. Confirmed iterating (iter 6,
+  GPU 51%).
+- WATCH: motion_global_root_pos must climb; survival tail is the hard gate (need >=99% nominal).
+- RESUME IF SESSION DIES: tail $NB/attempt4.out; on "==== DONE" -> pull
+  `scp -P 57240 -i .secrets/greennode_rsa root@103.245.250.152:/workspace/notebook-data/exports/train-thriller_v7ank-0715/* exports/train-thriller_v7ank-0715/`
+  -> read gap.json gate -> sign -> DELETE BOX (billing!). This is attempt 4 (budget extended by 1).

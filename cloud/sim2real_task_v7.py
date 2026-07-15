@@ -1,27 +1,40 @@
-"""Sim2real recipe v7 — attempt 4. v6 (station-keeping) + targeted fixes for the
-TWO checks v6 still missed, WITHOUT altering the choreography:
+"""Sim2real recipe v7 — attempt 4 (user extended the <=3 budget by one). v6
+station-keeping + a targeted fix for the TWO checks v6 still missed, WITHOUT
+touching the choreography.
 
-  v6 result (gap.json): drift SOLVED (nominal mean 0.15 m, clean-rollout 0.02 m over
-  the full dance; was 4.56 m in v5), latency/push robust, held-out survival 100%.
-  Still failed: nominal survival 92.2% (need >=99%) and ankle p95 17.7/21.8 Nm
-  (need <=15/20). Those two are coupled — on the hardest segments the policy drives
-  the ankles to the 50 Nm effort cap to hold position, saturates, and ~8% of episodes
-  tip over.
+v6 result (exports/train-thriller_v6sk-0714/gap.json), read per-section:
+  * drift moved a LOT (v5 4.56 m -> v6 1.67 m) via the new XY drift termination,
+    but STILL failed the <=1.0 m gate. It is a TAIL: nominal mean drift is only
+    0.15 m — the 1.67 m max is a handful of near-fall episodes, not a global bias.
+  * nominal survival 92.2% (need >=99%): 6 of 10 falls sit in 25-36s, the rest
+    scattered; the first to collapse under latency stress is 13-18s.
+  * ankle p95 17.7/21.8 Nm (need <=15/20): the ankles SATURATE (hit the 50 Nm
+    effort cap) at those SAME 13-18s / 25-36s passages.
+  => all three failures are ONE root cause: on the 1-2 most dynamic passages
+     (verified feasible — fastest joints ~8.4-8.5 rad/s, under the 9.4 limit) the
+     policy drives the ankles to the cap to hold station, saturates, ~8% of full
+     49 s rollouts tip, and the tippers are also the drifters. Fix the saturation
+     on those passages and survival + ankle + the drift tail move together.
 
-v7 deltas on top of v6:
-  1. ANKLE SMOOTHNESS: raise the global action-rate penalty (-0.20 -> -0.28). v6's
-     ankle_torque_l2 bump alone didn't clear p95; penalising the RATE of action change
-     smooths the target stream, cutting the torque spikes that drive p95 AND the
-     saturation that precedes the falls. Arm-fidelity terms stay weight 1.0 so the
-     modest action-rate bump doesn't dull the gestures.
-  2. MORE ITERS FOR THE TAIL: the curriculum extends stage 3 (0-60 ms, drift<0.5 m)
-     from +3000 to +5000 (10k -> 12k total) — more time on the hardest band to firm
-     up the survival tail the extra reward pressure exposes.
+v7 deltas on top of v6 (each evidence-backed, not a guess):
+  1. ANKLE PENALTY -6e-4 -> -1e-3  AND  action-rate -0.20 -> -0.25.  This is the
+     EXACT pair the 2026-07-08 ankle-penalty policy (96da66) used, which measured
+     ankle p95 = 10.7 Nm (well under 15) at mpkpe 0.154 m and 100% survival — i.e.
+     proven to cut saturation WITHOUT over-smoothing the gestures. v6's -6e-4 alone
+     was too timid (17.7 Nm). Arm-fidelity terms stay weight 1.0 to keep the arms crisp.
+  2. (launcher) stage-3 drift band 0.5 -> 0.4 m and +5000 iters (12k total) — more
+     time on the hardest band with a slightly tighter reset to pull in the drift tail.
+  3. (launcher) BEST-checkpoint selection, not blind-last. v6 auto-exported model_9997
+     whose mean episode length (388) was a low point in an oscillating late reward; a
+     neighbouring checkpoint survives better. train_v7_curriculum.sh screens the last
+     ~6 checkpoints with a cheap gap_check and exports the winner. Pure eval, zero
+     training risk — the single highest-leverage change for the survival gate.
 
-Everything else = v6 verbatim (drift-XY termination @0.5 m, arm terms, station-keeping
-reward, latency curriculum, obs 160-dim -> deploy runtime unchanged).
+Everything else = v6/v5 verbatim (XY drift termination, arm terms, station-keeping
+reward, latency curriculum, obs 160-dim -> deploy runtime unchanged). The gate stays
+on the STOCK task (no drift termination) = the honest drift measurement.
 
-PREFLIGHT: python cloud/sim2real_task_v7.py --selfcheck   (asserts the keys before the run)
+PREFLIGHT: python cloud/sim2real_task_v7.py --selfcheck   (asserts keys + weights)
 Launch:    cloud/train_v7_curriculum.sh  (via cloud/run_attempt4.sh)
 """
 
@@ -42,13 +55,15 @@ from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 TASK_ID = "Mjlab-Tracking-Flat-Unitree-G1-S2R-V7"
 
-# global action-rate penalty (smoother targets -> lower ankle p95 + less saturation)
-ACTION_RATE_W = float(os.environ.get("G1_ACTION_RATE_W", "-0.28"))
+# The 2026-07-08-proven ankle pair (measured ankle p95 10.7 Nm together).
+ANKLE_TORQUE_L2_W = float(os.environ.get("G1_ANKLE_TORQUE_L2_W", "-1e-3"))
+ACTION_RATE_W = float(os.environ.get("G1_ACTION_RATE_W", "-0.25"))
 
 
 def _apply_v7(cfg):
-  v6._apply_v6(cfg)                                    # all v6 deltas
-  cfg.rewards["action_rate_l2"].weight = ACTION_RATE_W  # v7: was -0.20
+  v6._apply_v6(cfg)                                       # all v6 deltas
+  cfg.rewards["ankle_torque_l2"].weight = ANKLE_TORQUE_L2_W   # v6 was -6e-4 (too timid)
+  cfg.rewards["action_rate_l2"].weight = ACTION_RATE_W        # v6 was -0.20
   return cfg
 
 
@@ -66,9 +81,10 @@ register_mjlab_task(
 
 
 def _selfcheck() -> int:
+  """Assert attempt 4's wiring on THIS mjlab. Cheap preflight (seconds, not 6 h)."""
   cfg = _make(train=True, play=False)
   ok = True
-  for k in ("action_rate_l2", "ankle_torque_l2", "motion_global_root_pos",
+  for k in ("ankle_torque_l2", "action_rate_l2", "motion_global_root_pos",
             "motion_arm_pos", "motion_arm_ori"):
     present = k in cfg.rewards
     ok &= present
@@ -77,8 +93,16 @@ def _selfcheck() -> int:
   present = "anchor_drift_xy" in cfg.terminations
   ok &= present
   print(f"  termin.  {'anchor_drift_xy':<24} {'OK' if present else 'MISSING'}")
-  print(f"  action_rate_l2 w : {cfg.rewards['action_rate_l2'].weight}  (v6 was -0.20)")
-  print(f"  drift threshold  : {v6.DRIFT_TERM_M} m")
+  # assert the proven values actually landed (a silent inherit of v6's -6e-4 would
+  # quietly re-run the failing recipe).
+  ankle_ok = abs(cfg.rewards["ankle_torque_l2"].weight - (-1e-3)) < 1e-9
+  rate_ok = abs(cfg.rewards["action_rate_l2"].weight - (-0.25)) < 1e-9
+  ok &= ankle_ok and rate_ok
+  print(f"  ankle_torque_l2 w : {cfg.rewards['ankle_torque_l2'].weight}  "
+        f"{'OK (-1e-3 proven)' if ankle_ok else '!! expected -1e-3'}")
+  print(f"  action_rate_l2 w  : {cfg.rewards['action_rate_l2'].weight}  "
+        f"{'OK (-0.25 proven)' if rate_ok else '!! expected -0.25'}  (v6 was -0.20)")
+  print(f"  drift threshold   : {v6.DRIFT_TERM_M} m")
   print("SELFCHECK", "PASS" if ok else "FAIL")
   return 0 if ok else 1
 
