@@ -46,6 +46,42 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-15: **ROBOT HARDWARE FAULT — burnt DC-DC converter (deploy BLOCKER = the "robot
+  repaired first" gate).** Foul/acrid burnt smell from the upper-back/torso power+compute bay,
+  localized by disassembly to the DC-DC buck-converter stage on the power board (the 1000µF/25V
+  Rubycon RVT caps + the 15µH "150"-marked power inductors that step the ~48 V battery bus down to
+  the compute/logic rails; Jetson Orin/PC2 sits under the finned heatsink on the green carrier
+  board). Photo (ibb.co/fVnz87GG) inspected: no single component visibly charred → likely
+  early-stage thermal failure (overheated inductor and/or degrading electrolytic) or hidden under
+  the harness. Red flag: the LEFT "150" inductor is wrapped in fabric tape at its base (heat-trap)
+  with faint top discoloration. Probable trigger = downstream overcurrent (possibly a cable
+  pinched in the 2026-07-09 fall) or under-cooled sustained load. STATUS: powered OFF, battery
+  DISCONNECTED, not repowered (avoid cascade to Jetson). Support-ticket text drafted for the user;
+  needs Unitree to ID/replace the power board. Robot-day/gantry blocked until repaired + root cause
+  found. Training track is unaffected (all sim/cloud).
+
+- 2026-07-15: **ATTEMPT 4 (v7) FINISHED — GATE FAILED; NOT better overall; ≤4 budget spent →
+  paused for strategy.** Pulled to exports/train-thriller_v7ank-0715/ (gap.json, policy.onnx,
+  pick.log, screen/). Winner = iter 10000 (best of the last 6 ckpts; checkpoint-picker worked —
+  it rejected the LAST ckpt which had COLLAPSED to 3% survival; the +5000 extension to 12k was
+  actively harmful, late training diverged). **v7 vs v6 = a TRADE, not progress:** drift SOLVED
+  (1.67→0.81 m, PASSES for the first time) but survival REGRESSED (92.2→85.9%) and latency
+  robustness BROKE (40ms+push 98.4%→87.5%; v6's strength). Ankle p95 ~same (17.7→16.5, still
+  fails). The proven ankle pair + 0.4 m drift term over-constrained the policy → more brittle.
+  **KEY REALIZATION after 4 attempts:** nominal survival is stuck ~86-92% across v5/v6/v7 and the
+  falls ALWAYS land in 13-18s + 25-36s, where the ankles SATURATE (hit the 50 Nm hard limit).
+  This is NOT a reward-tuning problem — at those 2 beats the choreography demands faster
+  weight-shifts than the ankle motors can deliver; no reward weight adds torque. **NEXT (recommended,
+  not yet started):** (1) STOP re-rolling reward weights; do SURGICAL motion softening/retiming of
+  ONLY the 13-18s & 25-36s beats to bring peak ankle demand under 50 Nm (validate via
+  tools/motion_feasibility.py + sim sandbox BEFORE GPU spend; different from the global 1.5x that
+  already failed). (2) Roll back over-constraint: keep v6's latency balance + drift REWARD but use a
+  LOOSER 0.5 m drift termination and STOP stage 3 at ~10k (not 12k). (3) Robot is DOWN (DC-DC fault)
+  so zero deploy urgency — do the motion work laptop-side, rethink with user before next box session.
+  **BOX STILL BILLING — recommend DELETE now** (artifacts pulled; motion fix is laptop-side;
+  re-provision ~1 h if a v8 train is wanted). Did NOT render a "success" preview — policy fails
+  ~14%, would misrepresent; offered an honest reference-vs-policy sandbox diagnostic instead.
+
 - 2026-07-15: **ATTEMPT 4 (v7) LAUNCHED + LIVE** (user extended the ≤3 budget by one after
   reviewing the v6 diagnosis). Same box (103.245.250.152:57240). Stage 1/3 iterating (GPU 51%,
   reward climbing from cold start). **Diagnosis that drove v7:** the v6 gate's three failures
