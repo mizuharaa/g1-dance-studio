@@ -46,6 +46,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-16: **WAVE 2 landing — grounding fix + Agent D done (Agent E still running).**
+  GROUNDING: foot-float was grounding present-but-BROKEN (single global z-offset vs the retarget's
+  ~163 mm vertical drift). New per-frame contact grounding → float 78.63%→0.00%, no penetration,
+  root-height 0.7085 m preserved, no jitter. Output data/motions/thriller/thriller_g1_grounded.csv.
+  AGENT D (hip-strategy): **design target 1.8× slowdown** (vs B's 2.5× ankle-only → ~88 s not ~123 s).
+  HARD CAVEAT: no mild slowdown is feasible ankle-only (2.0× peaks 62 Nm) → 1.8× works ONLY if the policy
+  learns hip-strategy = the bet the reward deltas must win (unverifiable without GPU). Candidate A =
+  1.8× repaired+grounded motion + 4 training-only ZERO-deploy deltas vs v7: (1) ankle_torque_l2 → soft
+  barrier >~35 Nm; (2) per-channel ankle action-rate penalty; (3) slacken waist-tracking to 0.5 inside the
+  two beats (frees trunk counter-rotation); (4) lower ankle effort_limit_sim to the ~40 Nm velocity-derated
+  envelope (Agent 0's torque-speed finding). kp/kd UNTOUCHED. Slowdown is one env var so v8 can walk
+  1.8→2.0→2.5× if the gate needs it. Memo: experiments/actuation_design_v8.md. NEXT: draft
+  cloud/sim2real_task_v8.py = 155-dim no-state-est obs + delete leg_odometry + candidate A + 1.8×
+  repaired+grounded motion, then GPU wave (A calibration + F train).
+
 - 2026-07-16: **AGENT 0 (upstream audit) DONE — found a ROOT-CAUSE architecture defect**
   (experiments/upstream_alignment_report.md). ⭐ **THE actor observation contract is likely WRONG:**
   Unitree's current first-party upstream task is `Unitree-G1-Tracking-No-State-Estimation`, whose
