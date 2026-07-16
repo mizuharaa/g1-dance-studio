@@ -46,6 +46,68 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-16: **AGENT 0 (upstream audit) DONE — found a ROOT-CAUSE architecture defect**
+  (experiments/upstream_alignment_report.md). ⭐ **THE actor observation contract is likely WRONG:**
+  Unitree's current first-party upstream task is `Unitree-G1-Tracking-No-State-Estimation`, whose
+  actor obs DELIBERATELY DROPS `base_lin_vel` and `motion_anchor_pos_b` — those are **privileged
+  CRITIC-ONLY terms** (asymmetric actor-critic; cross-checked in unitree_rl_lab's PolicyCfg vs
+  PrivilegedCfg). **We fed critic-only terms into the ACTOR** (our 160-dim actor), then built a
+  leg-odometry estimator + DR to FAKE base_lin_vel on the real robot. This is simultaneously (1) the
+  root of our "state-estimation hole" (§3.4) and (2) a prime cause of the SUSPECTED-HALLUCINATED gate
+  (§3.2): the actor consumes an input the GATE gets free from sim truth but DEPLOY must invent →
+  gate is optimistic by construction. **FIX = adopt the upstream 155-dim no-state-estimation actor
+  obs** (port the CONFIG into our mjlab 1.5.0 — do NOT pip-install upstream: it pins mjlab==1.2.0/
+  warp 3.5.0 vs our known-good 1.5.0/3.10.0.1). Requires a v8 retrain on the new actor. DELETE:
+  `pipeline/leg_odometry.py`, `legodom_like_base_lin_vel`, `build_obs_odom`, obs-delay DR on those
+  terms. kp/kd/effort/joint_map already MATCH upstream (same armatures) → trust, no change.
+  Retargeting NOT inheritable (upstream csv_to_npz expects clean G1-space CSV, pure kinematic replay)
+  → our whole GVHMR→GMR→grounding/vet front end + degrade-to-limits philosophy stays 100% ours
+  (validates Agent B's full scope). **BONUS (for Agents B/D/F):** Isaac models a torque–SPEED-CURVE
+  actuator (ankle torque DERATES with joint speed); mjlab uses a FLAT 50 Nm clamp → our sim is
+  likely OPTIMISTIC about ankle torque at the fast beats (real ankle has <50 Nm available exactly
+  where we fall) — candidate explanation for the ankle wall AND further gate optimism. License clean
+  (Apache-2.0). CAVEAT: unitree_rl_mjlab clone hung on sandbox net → read via raw-GitHub WebFetch;
+  confirm the obs-contract details empirically before deleting code.
+
+- 2026-07-16: **REVAMP ORCHESTRATION STARTED** (executing G1_dance_revamp_prompt_pack.md as
+  orchestrator). Seeded `experiments/REGISTRY.md` (calibration anchor = thriller_csv_ankle_penalty
+  ~70% IRL; baseline-to-beat = thriller_v7ank 85.9%). Dependency graph: Agent 0 (upstream audit)
+  gates the analytical agents; A/B → D → F(train); C/E parallel. **Launched now (no-GPU, parallel):**
+  Agent 0 = upstream alignment audit (does Unitree's official unitree_rl_mjlab/unitree_rl_lab let us
+  INHERIT/DELETE custom code? is there a No-State-Estimation obs variant that closes the base_lin_vel
+  leak? → experiments/upstream_alignment_report.md); UI agent = Simulation/Comparison/Landmark revamp
+  (fix "video not displaying after retrain" on the Sim tab; big side-by-side reference|policy;
+  NEW same-environment color-coded overlay (reference ghost vs policy, one scene); landmark overlay on
+  uploaded video). **BLOCKED on user provisioning a GreenNode box (console-only, their reCAPTCHA):**
+  Agent A (gate calibration — run the ~70%-IRL anchor through the current gate to tie gate%↔real%),
+  Agent E-primary (faithful box render), Agent F (v8 training). Next after Agent 0 lands: dispatch
+  Agent B (motion feasibility — inverse-dynamics detection + graceful-degradation repair: GLOBAL
+  SLOWDOWN FIRST, then track-to-limit-clamp, then missing-DOF substitution; target ankle ≤40 Nm).
+  Governing motion philosophy (user-decided): never command motion that saturates/damages/destabilizes;
+  a slower safe 90% dance beats a fast one that falls at 15s.
+
+- 2026-07-16: **PIPELINE-TRUST + MIGRATION HANDOFF written** →
+  `docs/HANDOFF_pipeline-trust-and-migration.md` (for a Fable-5 brainstorm session).
+  Captures the user's escalation after v7: (1) sim preview "looks worse/offset" — DIAGNOSED
+  as the menagerie-vs-mjlab model mismatch (sandbox `tools/sim_sandbox.py` uses
+  `third_party/mujoco_menagerie/unitree_g1/scene.xml`, NOT the mjlab training model → known
+  under-representation, an artifact not proof the policy is bad); (2) **user suspects the gate
+  numbers are hallucinated/uncalibrated** — flagged as FIRST-CLASS: gate scores in the same
+  mjlab sim it trains in, has NO independent cross-check (sim2sim was abandoned), and is never
+  tied to the one real datapoint (thriller_csv_ankle_penalty did ~70% IRL). Proposed trust chain:
+  run that old policy through the current gate to calibrate, replay real `--mode read` obs through
+  sim; (3) motion pipeline "floaty/impossible" — separated into 3 distinct causes (source-motion
+  kinematic error vs sandbox-model artifact vs policy behavior); (4) **MIGRATION unlock: the new
+  dev PC HAS a GPU** → removes the no-GPU constraint that forced GreenNode+mjlab-over-IsaacLab.
+  Recommend mjlab-LOCAL first (fast, no billing, no idle-box waste), evaluate Isaac Lab as a
+  parallel fidelity + independent-cross-check experiment; gated on the new PC's `nvidia-smi`;
+  (5) kp/kd caution (SIM gains ARE deploy gains — not a free knob); (6) NEW UI ask: landmark/pose
+  overlay on the uploaded video, side-by-side with the robot preview, for garbage-in debugging;
+  (7) user also asked to relax the survival bar 99%→~95% — defensible for a first show but
+  MEANINGLESS until the gate is trustworthy (calibrate to reality first). v7 preview rendered:
+  `data/previews/v7_thriller_reference_vs_policy.mp4` (open with `xdg-open`; it's a disk file,
+  not streamed into chat).
+
 - 2026-07-15: **ROBOT HARDWARE FAULT — burnt DC-DC converter (deploy BLOCKER = the "robot
   repaired first" gate).** Foul/acrid burnt smell from the upper-back/torso power+compute bay,
   localized by disassembly to the DC-DC buck-converter stage on the power board (the 1000µF/25V
