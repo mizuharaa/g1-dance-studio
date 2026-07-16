@@ -9,8 +9,9 @@ the clock all faked:
     indented mode lines ignored) and display selection — EXTERNAL when a non-primary
     output is connected, the primary/default when only the laptop panel is (the dev
     state; the external attaches at show time);
-  * player discovery in preference order (mpv > vlc > ffplay) and the exact full-screen
-    argv each player gets, including the per-player screen-select flag;
+  * player discovery in preference order (mpv > ffplay > vlc — VLC is last resort) plus
+    the SHOW_PLAYER override, and the exact full-screen argv each player gets, including
+    the per-player screen-select flag;
   * --at-epoch: play() sleeps until the tick0 wall-clock instant before spawning, so it
     aligns with pipeline/show_audio's cue (mock clock);
   * abort: a live player is terminated on stop (the wrapper SIGTERMs us on runtime STOP).
@@ -98,6 +99,12 @@ def _clear_live():
     sd._LIVE.clear()
 
 
+@pytest.fixture(autouse=True)
+def _no_show_player_env(monkeypatch):
+    """find_player reads SHOW_PLAYER from the env — keep the default-order tests hermetic."""
+    monkeypatch.delenv("SHOW_PLAYER", raising=False)
+
+
 # ---- xrandr parsing --------------------------------------------------------------------
 def test_parse_dev_only_primary_panel():
     mons = sd.parse_monitors(DEV_XRANDR)
@@ -156,9 +163,33 @@ def test_find_player_preference_order():
     assert sd.find_player(which=which_of("ffplay")) == "ffplay"
 
 
+def test_find_player_demotes_vlc_below_ffplay():
+    # VLC is last resort: when both ffplay and vlc are present, ffplay wins.
+    assert sd.find_player(which=which_of("ffplay", "vlc")) == "ffplay"
+
+
 def test_find_player_none_installed_is_actionable():
     with pytest.raises(SystemExit, match="no video player"):
         sd.find_player(which=which_of())
+
+
+def test_show_player_env_override_forces_installed_player(monkeypatch):
+    monkeypatch.setenv("SHOW_PLAYER", "vlc")
+    # even though mpv is present and preferred, the override forces vlc
+    assert sd.find_player(which=which_of("mpv", "vlc")) == "vlc"
+
+
+def test_show_player_override_not_installed_is_actionable(monkeypatch):
+    monkeypatch.setenv("SHOW_PLAYER", "mpv")
+    with pytest.raises(SystemExit, match="SHOW_PLAYER='mpv' is not installed"):
+        sd.find_player(which=which_of("vlc"))
+
+
+def test_vlc_argv_has_recursion_defenses():
+    # the "Too high level of recursion" / colourful-static defenses must be present
+    argv = sd.build_player_argv("vlc", "/v.mp4", screen_index=1)
+    for flag in ("--avcodec-hw=none", "--no-one-instance", "--no-spu"):
+        assert flag in argv, f"missing VLC defense flag {flag}"
 
 
 # ---- argv construction -----------------------------------------------------------------
