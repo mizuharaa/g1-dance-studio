@@ -42,6 +42,12 @@ from pathlib import Path
 
 import numpy as np
 
+# Deploy-side safety guards (additive, fail-safe = damp). See pipeline/deploy_guards.py
+# and docs/DEPLOY_SAFETY_GUARDS.md. Kept in a separate module so the pure guard logic
+# is unit-testable without the SDK, and so this runtime's proven paths are untouched
+# except at the explicit call sites below.
+from pipeline import deploy_guards as guards
+
 # Set by a motion mode once the LowCmd publisher is up: (pub, low_cmd, crc, mode_machine,
 # meta). The signal handler + clean-exit use it to GUARANTEE the robot ends DAMPED (soft)
 # on ANY exit path — normal end, Ctrl-C, or an external SIGTERM/kill.
@@ -357,6 +363,10 @@ class Meta:
         # over any hard-coded layout so the runtime auto-adapts to the trained obs.
         self.obs_terms = (m.get("actor_obs_terms_in_order") or m.get("obs_terms_in_order")
                           or m.get("obs_terms"))
+        # A FREE-STAND ground policy that NEEDS real foot contact sets this true, so the
+        # suspension/contact gates (deploy_guards) apply. The PROVEN gantry policy leaves
+        # it unset -> feet-off is intentional/in-distribution and the gates stay inert.
+        self.requires_ground_contact = bool(m.get("requires_ground_contact", False))
         # joint position limits from the model would be ideal; use a safe default band
         # around the reference range if not present.
         self.q_lo = self.default - np.deg2rad(140)
@@ -1104,6 +1114,48 @@ def _check_start_near_default(q0, meta):
             f"(nothing was released).")
 
 
+def _check_stable_contact(sub, meta):
+    """ENTRY GATE (guards 1 & 2): before releasing onboard, confirm STABLE bilateral
+    foot contact for a short debounce window — so we never hand off / release balance
+    while the robot is SUSPENDED (the entry-fall condition). Called BEFORE
+    _release_motion_service(), so a refusal leaves the robot safely self-balanced.
+
+    ONLY enforced for a policy that sets `requires_ground_contact` (a free-stand ground
+    policy). The PROVEN feet-off gantry policy leaves the flag unset -> this is a no-op,
+    so the gantry validation flow is untouched. ALLOW_SUSPENDED=1 force-permits a flagged
+    policy to run suspended for deliberate gantry validation (loud warning).
+
+    CONTACT SIGNAL: there is NO foot-force sensor on the G1 (unitree_hg LowState) — this
+    uses the SUPPORT-TORQUE proxy (tau_est on the weight-bearing leg joints; see
+    deploy_guards). SUSPENSION_TAU_MIN is UNVALIDATED and MUST be calibrated on the gantry.
+    """
+    if not guards.policy_requires_ground_contact(meta):
+        return  # gantry / non-ground-contact policy: gate inert (proven path untouched)
+    if guards.allow_suspended():
+        print("!! ALLOW_SUSPENDED=1 — SKIPPING the stable-contact entry gate for a "
+              "ground-contact-required policy. DELIBERATE gantry validation only; the "
+              "robot may be suspended. Remote in hand.")
+        return
+    est = guards.ContactEstimator(meta.joint_order)
+    n = max(est.confirm_ticks + 5, 15)
+    for _ in range(n):
+        _q, _dq, _quat, _gyro, msg = read_state(sub, timeout_s=0.5)
+        est.sample(tau_est=guards.tau_est_from_msg(msg, meta.n))
+        if est.stable_contact():
+            print(f"   entry contact gate PASS: support torque "
+                  f"{est.last.get('support_torque', float('nan')):.1f} Nm >= "
+                  f"{est.tau_min:.1f} Nm, stable {est.confirm_ticks} ticks.")
+            return
+        time.sleep(1.0 / CONTROL_HZ)
+    st = est.last.get("support_torque", float("nan"))
+    raise SystemExit(
+        f"REFUSED: no STABLE bilateral foot contact before entry (support torque "
+        f"{st:.1f} Nm < {est.tau_min:.1f} Nm over {n} samples) — the robot appears "
+        f"SUSPENDED / not bearing weight. Releasing onboard balance now is the entry-fall "
+        f"condition. Stand the robot on its feet first (or set ALLOW_SUSPENDED=1 for a "
+        f"deliberate gantry test). Onboard balance untouched (nothing was released).")
+
+
 def _fall_signal(R_base, h_est, h0, ref_dz):
     """(is_fall_this_tick, reason) — the raw per-tick fall condition, NOT yet debounced.
     Topple: pelvis uprightness R_base[2,2] < FALL_UPRIGHT_MIN. Height collapse: the torso sits
@@ -1176,6 +1228,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None, exit_mode="damp"):
     global _DAMP_CTX
     _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
     _install_damp_on_signals()
+    watchdog = guards.DampingWatchdog(lambda: _damp_burst(30)).start()  # guard 5: independent
     dt = 1.0 / CONTROL_HZ
     kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
     n_ticks = ref.T if not max_secs else min(ref.T, int(max_secs * CONTROL_HZ))
@@ -1214,6 +1267,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None, exit_mode="damp"):
             last_target = action_to_target(meta, action)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
             telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
+            watchdog.beat()  # guard 5: heartbeat — a missed beat -> independent damp
             clock.tick(t0)   # absolute-deadline pacing; raises -> damp on 2*dt overrun
         # CLEAN full completion. OPT-IN: hand off STANDING instead of damping (guarded).
         if exit_mode == "stand":
@@ -1228,6 +1282,7 @@ def mode_run(meta, session, ref, iface, watch, max_secs=None, exit_mode="damp"):
     except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
         print(f"\nSTOP: {e} -> damping")
     finally:
+        watchdog.stop()   # guard 5: stop the independent watchdog before the normal damp
         _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
         telem.extra["tick_timing"] = clock.report()   # into the run npz (report never raises)
     _finalize_and_exit(0)   # guarantee soft + exit promptly (DDS teardown can hang)
@@ -1311,12 +1366,14 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
     mode_machine = int(msg0.mode_machine)
     _check_start_upright(quat0)   # refuse a non-upright start BEFORE releasing onboard (stays safe)
     _check_start_near_default(q0, meta)  # refuse a far-from-ready start (entry-fall guard, pre-release)
+    _check_stable_contact(sub, meta)  # guards 1&2: refuse to release if SUSPENDED (ground-contact policy)
     # ENTRY HANDOFF: pre-arm the publisher + damp context + signal handler BEFORE releasing
     # onboard, so there is zero setup latency in the unheld release window (fall risk untethered).
     pub, low_cmd, crc = _lowcmd_setup()
     global _DAMP_CTX
     _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
     _install_damp_on_signals()
+    watchdog = guards.DampingWatchdog(lambda: _damp_burst(30)).start()  # guard 5: independent
     dt = 1.0 / CONTROL_HZ
     kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
     _release_motion_service()
@@ -1336,6 +1393,12 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
     telem = _TELEM = Telemetry("ground-run", meta)
     clock = TickClock()
     _acap = action_cap_vector(meta, GROUND_MAX_ACTION)
+    # Guard 3 (action clamp + rate limit) params + guard 1/2 (contact) estimator.
+    _rl_lo, _rl_hi = guards.joint_pos_limits(meta)
+    _rl_step = guards.rate_limit_step(meta, dt)
+    _cest = guards.ContactEstimator(meta.joint_order)
+    _need_contact = (guards.policy_requires_ground_contact(meta)
+                     and not guards.allow_suspended())
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
     try:
@@ -1349,6 +1412,12 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
         for tick in range(n_ticks):
             t0 = time.perf_counter()
             q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
+            # GUARD 1: ground-contact-required policy -> damp on debounced mid-run contact loss
+            # (support-torque proxy; no foot-force sensor on the G1).
+            _cest.sample(tau_est=guards.tau_est_from_msg(msg, meta.n))
+            if _need_contact and _cest.lost_contact():
+                watchdog.raise_fault("foot contact lost mid-run")
+                raise RuntimeError(f"foot contact lost at tick {tick} -> damp")
             obs, _ = build_obs_ground(meta, ref, q, dq, imu_quat, gyro, last_action, tick, obs_order)
             if not np.all(np.isfinite(obs)):
                 raise RuntimeError(f"non-finite obs at tick {tick}")
@@ -1358,9 +1427,12 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
                 raise RuntimeError(f"bad action at tick {tick} ({meta.joint_order[j]} "
                                    f"|a|={abs(action[j]):.2f} > cap {_acap[j]:.1f})")
             last_action = action
-            last_target = action_to_target(meta, action)
+            # GUARD 3: clamp to per-joint range + rate-limit the per-tick target change.
+            last_target, _nrl, _ncl = guards.clamp_and_rate_limit(
+                action_to_target(meta, action), last_target, _rl_lo, _rl_hi, _rl_step)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
             telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
+            watchdog.beat()  # guard 5: heartbeat — a missed beat -> independent damp
             clock.tick(t0)   # absolute-deadline pacing; raises -> damp on 2*dt overrun
         # CLEAN full completion. OPT-IN: hand off STANDING instead of damping (guarded).
         if exit_mode == "stand":
@@ -1374,6 +1446,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
     except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
         print(f"\nSTOP: {e} -> damping")
     finally:
+        watchdog.stop()   # guard 5: stop the independent watchdog before the normal damp
         _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
         telem.extra["tick_timing"] = clock.report()   # into the run npz (report never raises)
     _finalize_and_exit(0)
@@ -1404,11 +1477,13 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="
                          "mode depends on is not being published. NO-GO.")
     q0, _, _, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
+    _check_stable_contact(sub, meta)  # guards 1&2: refuse to release if SUSPENDED (ground-contact policy)
     _release_motion_service()
     pub, low_cmd, crc = _lowcmd_setup()
     global _DAMP_CTX
     _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
     _install_damp_on_signals()
+    watchdog = guards.DampingWatchdog(lambda: _damp_burst(30)).start()  # guard 5: independent
     dt = 1.0 / CONTROL_HZ
     kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
     n_ticks = min(ref.T, int(max_secs * CONTROL_HZ))
@@ -1420,6 +1495,12 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="
     telem = _TELEM = Telemetry("ground-run-odom", meta)
     clock = TickClock()
     _acap = action_cap_vector(meta, GROUND_MAX_ACTION)
+    # Guard 3 (action clamp + rate limit) params + guard 1/2 (contact) estimator.
+    _rl_lo, _rl_hi = guards.joint_pos_limits(meta)
+    _rl_step = guards.rate_limit_step(meta, dt)
+    _cest = guards.ContactEstimator(meta.joint_order)
+    _need_contact = (guards.policy_requires_ground_contact(meta)
+                     and not guards.allow_suspended())
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
     odom_pos0 = None
@@ -1463,6 +1544,16 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="
                 pdt = max(1e-3, t0 - prev_t)
                 v_world = (pos - prev_pos) / pdt
             prev_pos, prev_t = pos.copy(), t0
+            # GUARD 4: refuse an implausible onboard estimate (NaN / out-of-range base velocity).
+            _ok, _why = guards.check_estimate_valid(base_lin_vel=v_world)
+            if not _ok:
+                watchdog.raise_fault(f"estimator invalid: {_why}")
+                raise RuntimeError(f"estimator invalid at tick {tick}: {_why} -> damp")
+            # GUARD 1: ground-contact-required policy -> damp on debounced mid-run contact loss.
+            _cest.sample(tau_est=guards.tau_est_from_msg(msg, meta.n))
+            if _need_contact and _cest.lost_contact():
+                watchdog.raise_fault("foot contact lost mid-run")
+                raise RuntimeError(f"foot contact lost at tick {tick} -> damp")
             obs, _ = build_obs_odom(meta, ref, q, dq, imu_quat, gyro, last_action, tick,
                                     robot_disp, v_world)
             if not np.all(np.isfinite(obs)):
@@ -1473,9 +1564,12 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="
                 raise RuntimeError(f"bad action at tick {tick} ({meta.joint_order[j]} "
                                    f"|a|={abs(action[j]):.2f} > cap {_acap[j]:.1f})")
             last_action = action
-            last_target = action_to_target(meta, action)
+            # GUARD 3: clamp to per-joint range + rate-limit the per-tick target change.
+            last_target, _nrl, _ncl = guards.clamp_and_rate_limit(
+                action_to_target(meta, action), last_target, _rl_lo, _rl_hi, _rl_step)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, meta.kp, meta.kd, meta)
             telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
+            watchdog.beat()  # guard 5: heartbeat — a missed beat -> independent damp
             clock.tick(t0)   # absolute-deadline pacing; raises -> damp on 2*dt overrun
         # CLEAN full completion. OPT-IN: hand off STANDING instead of damping (guarded).
         if exit_mode == "stand":
@@ -1489,6 +1583,7 @@ def mode_ground_run_odom(meta, session, ref, iface, watch, max_secs, exit_mode="
     except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
         print(f"\nSTOP: {e} -> damping")
     finally:
+        watchdog.stop()   # guard 5: stop the independent watchdog before the normal damp
         _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
         telem.extra["tick_timing"] = clock.report()   # into the run npz (report never raises)
     _finalize_and_exit(0)
@@ -1551,12 +1646,14 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
     mode_machine = int(msg0.mode_machine)
     _check_start_upright(quat0)   # refuse a non-upright start BEFORE releasing onboard (stays safe)
     _check_start_near_default(q0, meta)  # refuse a far-from-ready start (entry-fall guard, pre-release)
+    _check_stable_contact(sub, meta)  # guards 1&2: refuse to release if SUSPENDED (ground-contact policy)
     # ENTRY HANDOFF: pre-arm the publisher + damp context + signal handler BEFORE releasing
     # onboard, so there is zero setup latency in the unheld release window (fall risk untethered).
     pub, low_cmd, crc = _lowcmd_setup()
     global _DAMP_CTX
     _DAMP_CTX = (pub, low_cmd, crc, mode_machine, meta)
     _install_damp_on_signals()
+    watchdog = guards.DampingWatchdog(lambda: _damp_burst(30)).start()  # guard 5: independent
     dt = 1.0 / CONTROL_HZ
     kp_a, kd_a = meta.kp * APPROACH_KP_SCALE, meta.kd * APPROACH_KP_SCALE
     _release_motion_service()
@@ -1595,6 +1692,12 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
     telem = _TELEM = Telemetry("ground-run-legodom", meta)
     clock = TickClock()
     _acap = action_cap_vector(meta, GROUND_MAX_ACTION)
+    # Guard 3 (action clamp + rate limit) params + guard 1/2 (contact) estimator.
+    _rl_lo, _rl_hi = guards.joint_pos_limits(meta)
+    _rl_step = guards.rate_limit_step(meta, dt)
+    _cest = guards.ContactEstimator(meta.joint_order)
+    _need_contact = (guards.policy_requires_ground_contact(meta)
+                     and not guards.allow_suspended())
     try:
         _ramp_to_pose(pub, low_cmd, crc, mode_machine, q0, meta.default, 4.0, kp_a, kd_a, meta)
         _hold(pub, low_cmd, crc, mode_machine, meta.default, 0.6, kp_a, kd_a, meta)
@@ -1610,6 +1713,19 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
             R_base = quat_wxyz_to_mat(imu_quat)
             v_body, h_est, _ = legodom.estimate(q, dq, R_base, gyro)
             v_world = R_base @ v_body
+            # GUARD 4: refuse to fly the policy on an implausible estimate (NaN / out-of-range
+            # base velocity / off-body height) -> raise fault + damp.
+            _ok, _why = guards.check_estimate_valid(base_lin_vel=v_body, height=h_est)
+            if not _ok:
+                watchdog.raise_fault(f"estimator invalid: {_why}")
+                raise RuntimeError(f"estimator invalid at tick {tick}: {_why} -> damp")
+            # GUARD 1: for a ground-contact-required policy, damp if foot contact is lost
+            # mid-run (debounced). Support-torque proxy (no foot-force sensor on the G1).
+            _cest.sample(tau_est=guards.tau_est_from_msg(msg, meta.n))
+            if _need_contact and _cest.lost_contact():
+                watchdog.raise_fault("foot contact lost mid-run")
+                raise RuntimeError(f"foot contact lost at tick {tick} (support torque "
+                                   f"{_cest.last.get('support_torque', float('nan')):.1f} Nm) -> damp")
             ref_disp = ref.at(tick)[2] - ref.apos[0]
             # debounced physical-state fall trigger (topple OR choreography-relative height
             # collapse) -> on a confirmed trip, damp + soft handoff to onboard
@@ -1627,13 +1743,17 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
                 raise RuntimeError(f"bad action at tick {tick} ({meta.joint_order[j]} "
                                    f"|a|={abs(action[j]):.2f} > cap {_acap[j]:.1f})")
             last_action = action
-            last_target = action_to_target(meta, action)
+            # GUARD 3: clamp to per-joint range + rate-limit the per-tick target change
+            # (deploy-side backstop against thrashing; raw target from the policy action).
+            last_target, _nrl, _ncl = guards.clamp_and_rate_limit(
+                action_to_target(meta, action), last_target, _rl_lo, _rl_hi, _rl_step)
             # Gravity-comp feedforward at the COMMANDED pose, in the current torso frame (IMU),
             # so the legs hold the pose at trained gains without the ankle-cooking gain boost.
             tau_ff = (GRAVITY_FF_SCALE * legodom.gravity_comp(last_target, R_base)
                       if GRAVITY_FF else None)
             _send_cmd(pub, low_cmd, crc, mode_machine, last_target, kp_pol, kd_pol, meta, tau_ff=tau_ff)
             telem.add(tick, q, dq, msg, imu_quat, gyro, action, last_target)
+            watchdog.beat()  # guard 5: heartbeat — a missed beat -> independent damp
             clock.tick(t0)   # absolute-deadline pacing; raises -> damp on 2*dt overrun
         # CLEAN full completion. OPT-IN: hand off STANDING instead of damping. Hold at the
         # SAME boosted policy-phase gains (kp_pol/kd_pol) just used so there is no gain
@@ -1649,6 +1769,7 @@ def mode_ground_run_legodom(meta, session, ref, iface, watch, max_secs, exit_mod
     except BaseException as e:  # noqa: BLE001 - ANY failure -> immediate damp
         print(f"\nSTOP: {e} -> damping")
     finally:
+        watchdog.stop()   # guard 5: stop the independent watchdog before the normal damp
         _damp(pub, low_cmd, crc, mode_machine, meta, secs=1.0)
         telem.extra["tick_timing"] = clock.report()   # into the run npz (report never raises)
     _finalize_and_exit(0)
