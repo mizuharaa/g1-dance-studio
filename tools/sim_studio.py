@@ -33,7 +33,17 @@ import mujoco  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 
 import pipeline.deploy_runtime as D  # noqa: E402
-from tools.sim_sandbox import run_sandbox, tracking_report, SCENE  # noqa: E402
+from tools.sim_sandbox import run_sandbox, tracking_report, SCENE, is_faithful  # noqa: E402
+
+
+def _banner(model_path):
+    """Model-aware honest caveat for the preview footer. Softer (blue-grey) on the
+    faithful training model; loud amber on the non-faithful menagerie model."""
+    if is_faithful(model_path):
+        return ("PREVIEW on the mjlab TRAINING model — armatures + gains matched to training. "
+                "Faithful to what was trained; still not the real robot.", (150, 190, 235))
+    return ("SIM NOT ON THE TRAINING MODEL (menagerie) — under-represents the trained policy "
+            "(washed-out / frozen).", (230, 170, 90))
 
 H, W = 480, 380
 
@@ -122,11 +132,10 @@ def render_studio(left: dict, right: dict, out_path: Path, meta, model_path: Pat
             dr_.text((x0, 18), f"dances {rec['achieved']*100:.0f}% of the motion"
                      + (f"  FELL@{rec['fell_at']}" if rec.get("fell_at") else ""),
                      fill=(120, 220, 120) if rec["achieved"] > 0.85 else (240, 200, 90))
-        # uncalibrated-sim caveat, bottom strip
+        # model-fidelity caveat, bottom strip
+        _msg, _col = _banner(model_path)
         dr_.rectangle([0, 2 * H - 16, 2 * W, 2 * H], fill=(0, 0, 0))
-        dr_.text((6, 2 * H - 14),
-                 "SIM NOT YET CALIBRATED to the training model — under-represents hardware "
-                 "(reference | policy)", fill=(230, 170, 90))
+        dr_.text((6, 2 * H - 14), _msg + "  (reference | policy)", fill=_col)
         im.save(tmp / f"f{k:05d}.png")
     rL.close(); rR.close()
     _encode(tmp, out_path)
@@ -193,10 +202,9 @@ def render_overlay(left: dict, right: dict, out_path: Path, meta, model_path: Pa
         fell = right.get("fell_at")
         if fell and k >= fell:
             d.text((OW // 2 - 60, 14), f"POLICY FELL @ {fell}", fill=(250, 130, 90))
+        _msg, _col = _banner(model_path)
         d.rectangle([0, OH - 18, OW, OH], fill=(0, 0, 0))
-        d.text((6, OH - 15),
-               "OVERLAY - same scene, color-coded. SIM NOT YET CALIBRATED to the training "
-               "model; under-represents hardware.", fill=(230, 170, 90))
+        d.text((6, OH - 15), "OVERLAY - same scene, color-coded. " + _msg, fill=_col)
         im.save(tmp / f"f{k:05d}.png")
     r.close()
     _encode(tmp, out_path)
@@ -214,9 +222,13 @@ def main() -> int:
     ap.add_argument("--overlay-out", type=Path, default=None,
                     help="also render the SAME-SCENE color-coded overlay to this mp4")
     ap.add_argument("--model", type=Path, default=SCENE,
-                    help="MuJoCo scene xml (parameterized so a faithful mjlab model can be swapped in)")
+                    help="MuJoCo scene xml (default = faithful mjlab-aligned training model)")
+    ap.add_argument("--menagerie", action="store_true",
+                    help="use the (non-faithful) menagerie model instead of the faithful one")
     ap.add_argument("--report", type=Path, default=None, help="write a small json summary")
     args = ap.parse_args()
+    from tools.sim_sandbox import MENAGERIE
+    args.model = MENAGERIE if args.menagerie else args.model
 
     meta = D.Meta(args.dance / "policy_meta.json")
     if args.dance_b:                              # POLICY(before) | POLICY(after)
@@ -226,8 +238,9 @@ def main() -> int:
                                 model_path=args.model)
     else:                                         # REFERENCE(intended) | POLICY(actual)
         left = _kinematic_reference(args.dance, args.steps)
+        _plabel = "POLICY (mjlab training model)" if is_faithful(args.model) else "POLICY (menagerie — uncalibrated)"
         right = _policy_rollout(args.dance, args.steps, args.latency_ms, args.tether_kp,
-                                "POLICY (sim — uncalibrated)", model_path=args.model)
+                                _plabel, model_path=args.model)
     print(f"left  {left['kind']}: achieved {left['achieved']*100:.0f}%")
     print(f"right {right['kind']}: achieved {right['achieved']*100:.0f}%"
           + (f"  fell@{right.get('fell_at')}" if right.get('fell_at') else ""))

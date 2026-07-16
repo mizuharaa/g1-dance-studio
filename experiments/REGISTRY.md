@@ -55,6 +55,39 @@ slowdown fixes torque but not grounding; `motion_triage.py` correctly still tags
 repaired motion as a source error on the floaty-feet axis. Fix belongs in
 grounding/retarget (per-contact grounding + `retarget_gvhmr.dof_aware_postprocess`).
 
+## Hip-strategy slowdown (Agent D — actuation/control)
+
+**Recommended slowdown factor: 1.8× (design target; band 1.7×–1.9×), NOT 2.5×.**
+Agent B's 2.5× is the pure-ANKLE-strategy floor. Moving balance load onto the
+hips/torso (far more effort headroom: hip-roll 139, hip-pitch 88 Nm vs ankle ~40)
+lets a much milder slowdown suffice. `tools/actuation_hip_strategy.py` (raw:
+`experiments/motion_feasibility/thriller_hip_strategy.json`) reproduces Agent B's
+ankle-only curve exactly (max 173.7 vs 173.58 @1.0×; 40.0 vs 39.4 @2.5×) then adds a
+bounded-flywheel hip-assist model: mildest factor keeping sustained ankle p95 ≤ 40 Nm
+with brief peaks ≤ 50 Nm hard clamp = **1.7× (moderate trunk authority) to 1.9×
+(conservative)**. No mild slowdown is feasible ankle-only (2.0× still peaks 62 Nm), so
+1.8× is deliberately feasible *only if the policy uses hips* — the v8 reward deltas
+(soft-barrier ankle penalty, waist-tracking slack at the beats, velocity-honest ankle
+clamp) induce that. Repaired 1.8× reference:
+`experiments/motion_feasibility/thriller_g1_repaired_1p8x.csv` (sha256 `03883369cea9…`,
+style 1.000; ankle-only p95 40.3 / max 73.8 — needs hips). Fallbacks 2.0× then 2.5×
+(one env var `G1_SLOWDOWN`). Full memo + ranked configs: `experiments/actuation_design_v8.md`.
+
+**RESOLVED 2026-07-16 (grounding agent) — per-frame foot-contact grounding.**
+Root cause: grounding was PRESENT-BUT-BROKEN (not orphaned). `grounding.ground_motion`
+applied a single GLOBAL z-offset (planting only the one lowest instant), so the
+retarget's slow vertical drift (~163 mm range over the clip) left the support foot
+floating everywhere else. New `grounding.ground_motion_per_frame` removes that drift
+(short Savitzky-Golay ground line + flight guard + no-penetration residual lift) so
+the support foot sits on z≈0 every frame; wired into retarget intake
+(`stages/local_motion.py`) and show-prep (`prep_motion.py`); vet's global grounding
+left intact (idempotent). Before→after on `thriller_g1_clean.csv` (source sha
+`d9e4fc2dc39fbdbc`, UNCHANGED): **floaty_feet 78.63% → 0.00%** (`motion_triage`
+floaty check now PASSES; verdict stays A only for the un-related torque axis),
+penetration 0 mm (no regression), root-above-foot 0.7085 m preserved EXACTLY, root-z
+peak jerk 438→420 (no jitter). Grounded output: `data/motions/thriller/thriller_g1_grounded.csv`
+(sha `e4b6c4dfef2543cd`). Script + raw before/after: `experiments/grounding_fix/`.
+
 ## New runs (appended by agents)
 
 _(none yet — Agent F appends v8 here)_

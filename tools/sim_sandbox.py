@@ -32,8 +32,38 @@ import onnxruntime as ort  # noqa: E402
 import pipeline.deploy_runtime as D  # obs builder / inference / target / PD contract  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-SCENE = ROOT / "third_party/mujoco_menagerie/unitree_g1/scene.xml"
+# Two candidate preview models (see experiments/g1_model_reconciliation.md):
+#  * FAITHFUL — the official Unitree G1 MJCF (correct hardware inertias, same source
+#    as the mjlab training model) with per-joint ARMATURE patched to the mjlab/
+#    BeyondMimic values and XML joint damping/frictionloss zeroed (mjlab impedance-
+#    actuator convention). This MATCHES the training dynamics: the trained policy
+#    dances at ~full amplitude on it and falls at the gate's hard beats, instead of
+#    the washed-out ~7%-amplitude behaviour it shows on menagerie. Built by
+#    tools/assets/g1_faithful/build (armatures from pipeline.g1_limits.ARMATURE).
+#  * MENAGERIE — mujoco_menagerie G1. A DIFFERENT model (re-derived inertias, flat
+#    0.01 armature, friction 0.6): it does NOT match training and under-represents
+#    the dance (policy freezes). Kept only as a fallback / comparison.
+FAITHFUL = ROOT / "tools/assets/g1_faithful/g1_mjlab_faithful.xml"
+MENAGERIE = ROOT / "third_party/mujoco_menagerie/unitree_g1/scene.xml"
+SCENE = FAITHFUL if FAITHFUL.exists() else MENAGERIE      # default = faithful preview
 CONTROL_HZ = 50.0
+
+
+def is_faithful(model_path) -> bool:
+    """True if model_path is the faithful mjlab-aligned training model (not menagerie)."""
+    try:
+        return Path(model_path).resolve() == FAITHFUL.resolve()
+    except Exception:
+        return False
+
+
+def model_caveat(model_path) -> str:
+    """Honest one-line fidelity caveat for the model actually in use."""
+    if is_faithful(model_path):
+        return ("PREVIEW on the mjlab TRAINING model (per-joint armatures + gains "
+                "matched to training). Faithful to what was trained; still NOT the real robot.")
+    return ("menagerie model != mjlab training model -> sim UNDER-represents the trained "
+            "policy (it looks washed-out / frozen). NOT the training model.")
 SIM_DT = 0.005
 DECIM = 4                       # 50 Hz control over 200 Hz sim
 
@@ -176,16 +206,22 @@ def main():
                          "base and SUPPRESS the dance — keep 0 for an honest amplitude read")
     ap.add_argument("--out", type=Path, default=None, help="render mp4 (optional)")
     ap.add_argument("--report", type=Path, default=None, help="write tracking report json")
+    ap.add_argument("--model", type=Path, default=SCENE,
+                    help="MuJoCo scene xml (default = faithful mjlab-aligned training model)")
+    ap.add_argument("--menagerie", action="store_true",
+                    help="use the (non-faithful) menagerie model instead of the faithful one")
     args = ap.parse_args()
+    model_path = MENAGERIE if args.menagerie else args.model
 
     out, model, meta = run_sandbox(args.dance, args.steps, args.latency_ms,
-                                   tether_kp=args.tether_kp)
+                                   xml=model_path, tether_kp=args.tether_kp)
     rep = tracking_report(out)
     print(f"== sandbox {args.dance.name}  latency={args.latency_ms}ms  steps={len(out['q'])} ==")
     print(f"  fell_at_tick: {rep['fell_at_tick']}  (None = stayed up)")
     print(f"  AMPLITUDE (how much it DANCES vs reference): {rep['amplitude_ratio_overall']*100:.0f}%  <- headline")
     print(f"  (tracking-error fraction {rep['achieved_fraction_overall']*100:.0f}% — closeness, not motion)")
-    print(f"  NOTE: menagerie model != mjlab training model -> sim UNDER-represents hardware.")
+    print(f"  MODEL: {model_path.name}")
+    print(f"  NOTE: {model_caveat(model_path)}")
     if args.report:
         import json
         args.report.parent.mkdir(parents=True, exist_ok=True)
