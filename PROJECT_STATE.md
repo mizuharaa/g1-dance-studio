@@ -69,6 +69,21 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   (Apache-2.0). CAVEAT: unitree_rl_mjlab clone hung on sandbox net → read via raw-GitHub WebFetch;
   confirm the obs-contract details empirically before deleting code.
 
+- 2026-07-16: **UI REVAMP (Agent C) DONE + committed.** (1) FIXED "video not displaying after
+  retrain" — real bug in `pipeline/sim_preview.py`: `_sha8()` keyed the preview version off
+  `dance.policy_sha256`, which `attach_policy()` deliberately clears → EVERY retrain collapsed to one
+  `nopolicy.mp4` that `render_async` saw as already-present and never re-rendered. Now hashes the
+  actual `policy.onnx` file (distinct per policy). (2) Simulation tab: bigger players, 3-view toggle,
+  clear "left=intended / right=actual" labels. (3) ⭐ NEW same-scene color-coded OVERLAY
+  (`tools/sim_studio.py render_overlay()` + `--overlay-out/--model`): reference=green ghost,
+  policy=blue, one mujoco scene, caveat banner, model path parameterized for the mjlab swap —
+  VERIFIED by an independent overlay smoke render (green+blue figures overlaid). (4) Landmark preview
+  (`tools/landmark_overlay.py` projects SMPL-X onto the source video; `/api/dances/{id}/landmark`;
+  time-locked dual player) — renderer proven on smoke, but shows "unavailable" for CURRENT dances
+  because no existing dance references a job with retained GVHMR extract artifacts; lights up on the
+  next video-sourced dance. `npm run build` passes; dist rebuilt. Model path is a PARAMETER so
+  Agent E can later swap menagerie→mjlab for a faithful preview.
+
 - 2026-07-16: **REVAMP ORCHESTRATION STARTED** (executing G1_dance_revamp_prompt_pack.md as
   orchestrator). Seeded `experiments/REGISTRY.md` (calibration anchor = thriller_csv_ankle_penalty
   ~70% IRL; baseline-to-beat = thriller_v7ank 85.9%). Dependency graph: Agent 0 (upstream audit)
