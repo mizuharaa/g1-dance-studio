@@ -1,18 +1,24 @@
-# G1 Dance Pipeline
+# G1 Dance Pipeline — agent guide
 
-**Before doing anything in this project, read `PROJECT_STATE.md`** — it is the single
-source of truth (mission, decisions, current phase, next actions, resume protocol).
-This is a multi-day project across laptop reboots; sessions are stateless, that file is not.
+**Resume protocol: read `docs/PROJECT_STATE.md` first.** It is the single source of
+truth (mission, decision log, current phase, next actions). Sessions are stateless;
+that file is not. Update it after every meaningful step. Cloud job state lives in
+`logs/jobs.md`. New to the project? `docs/FIELD_GUIDE.txt` explains everything.
 
 Rules:
-- Update `PROJECT_STATE.md` (status, decision log, next actions) after every meaningful step.
-- Commit early and often to the local git repo; messages describe pipeline progress.
+- Commit early and often; messages describe pipeline progress.
 - Never modify `~/robot/` (working teleop setup) — read-only reference.
-- Long GPU jobs run in the cloud and outlive reboots: record job IDs in `logs/jobs.md`.
-- Robot safety: never send low-level commands to the real robot unless the motion passed
-  MuJoCo verification AND the user confirmed the robot is secured (gantry/clear space,
-  e-stop in hand). The deploy stage must always require an explicit human confirmation.
-- Measurement discipline (2026-07-05 audit lesson — a mis-indexed sim reading drove a day
-  of wrong conclusions): never label a finding DECISIVE without an independent cross-check
-  or a replication; commit every measurement script AND its raw output (logs/ or
-  data/telemetry/) so load-bearing numbers have durable provenance.
+- Long GPU jobs run in the cloud and outlive reboots: record them in `logs/jobs.md`.
+  GreenNode bills creation→deletion — DELETE idle boxes, never leave them running.
+- Robot safety: never send low-level commands unless the motion passed sim
+  verification AND the user confirmed the robot is secured (gantry/clear space,
+  damping remote in hand). Deploy always requires explicit human confirmation.
+  This robot has NO hardware e-stop — only the remote's B-damp and the power switch.
+- Measurement discipline: never label a finding decisive without an independent
+  cross-check; commit every measurement script AND its raw output (`experiments/`
+  or `data/telemetry/`) so load-bearing numbers have durable provenance.
+- Pinned training env: `cloud/env_lock/requirements.lock.txt`
+  (mjlab==1.5.0, mujoco-warp==3.10.0.1, warp-lang==1.14.0, torch cu128).
+  `MUJOCO_GL=egl` only for render/verify, never during training.
+
+Local-only working notes (gitignored, not part of the repo): `local/`.

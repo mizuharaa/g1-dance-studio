@@ -25,3 +25,5 @@ data/jobs/*
 data/venues/
 data/policy_store/
 data/setlists/*/run.json
+local/
+.pytest_cache/
