@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Clapperboard, GitCompare, Layers, Loader2, Play, ScanFace, SquareStack, VideoOff } from "lucide-react"
+import { Clapperboard, Film, GitCompare, Layers, Loader2, Play, ScanFace, SquareStack, VideoOff } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,13 +15,14 @@ interface SimVersion {
   sha: string
   url: string | null
   overlay_url?: string | null
+  vs_original_url?: string | null
   achieved?: number | null
   created_at?: number | null
   policy_sha256?: string | null
   status: string
 }
 
-type ViewMode = "sbs" | "overlay" | "landmark"
+type ViewMode = "sbs" | "overlay" | "vsoriginal" | "landmark"
 
 function pct(v?: number | null) {
   return v == null ? "—" : fmtPercent(v)
@@ -193,6 +194,7 @@ export function SimulationScreen({ data }: { data: ConsoleData }) {
             <SegToggle value={view} onChange={(v) => setView(v as ViewMode)} options={[
               { id: "sbs", label: "Side by side", icon: SquareStack },
               { id: "overlay", label: "Overlay", icon: Layers },
+              { id: "vsoriginal", label: "vs Original", icon: Film },
               { id: "landmark", label: "Landmarks", icon: ScanFace },
             ]} />
             {view === "sbs" && ready.length >= 2 && (
@@ -260,6 +262,24 @@ export function SimulationScreen({ data }: { data: ConsoleData }) {
                 </>} />
             ) : (
               <Unavailable text="Overlay not in this version — click Re-render to produce it." />
+            )
+          )}
+
+
+          {/* ---- VS ORIGINAL (real dancer footage | robot) ---- */}
+          {view === "vsoriginal" && (
+            !cur ? (
+              <EmptyState title="No simulation yet"
+                body='Render a simulation first — the vs-Original view pairs it with the source video.' />
+            ) : cur.vs_original_url ? (
+              <VideoFrame url={cur.vs_original_url} autoPlay={false}
+                label={<><span className="text-rose-600">Original dancer (source video)</span> <span className="text-slate-300">|</span> <span className="text-blue-700">Robot</span></>}
+                caption={<>
+                  <b>Left = the real dancer from the uploaded video. Right = the robot performing the same choreography.</b>{" "}
+                  Timing alignment is approximate (the robot's motion includes a standing lead-in).
+                </>} />
+            ) : (
+              <Unavailable text="No vs-Original comparison for this policy yet — it's generated for dances with source footage." />
             )
           )}
 

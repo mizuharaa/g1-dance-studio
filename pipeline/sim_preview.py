@@ -67,17 +67,26 @@ def list_sims(dance_id: str) -> list[dict]:
     d = _sim_dir(dance_id)
     if d.exists():
         for j in sorted(d.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+            # ONLY the version meta `<sha8>.json`. A bare *.json glob also matched
+            # `<sha>.report.json`, fabricating a bogus newest "version" whose
+            # `<sha>.report.mp4` doesn't exist -> the UI auto-selected it -> blank
+            # player (2026-07-16 "video showing nothing" bug).
+            sha = j.stem
+            if "." in sha or not (d / f"{sha}.mp4").exists():
+                continue
             try:
                 meta = json.loads(j.read_text())
             except Exception:
                 meta = {}
-            sha = j.stem
             overlay = d / f"{sha}.overlay.mp4"
+            vs_orig = d / f"{sha}.vs_original.mp4"
             out.append({
                 "sha": sha,
                 "url": f"/previews/sim/{dance_id}/{sha}.mp4",
                 "overlay_url": (f"/previews/sim/{dance_id}/{sha}.overlay.mp4"
                                 if overlay.exists() else None),
+                "vs_original_url": (f"/previews/sim/{dance_id}/{sha}.vs_original.mp4"
+                                    if vs_orig.exists() else None),
                 "achieved": meta.get("right_achieved"),
                 "created_at": meta.get("created_at"),
                 "policy_sha256": meta.get("policy_sha256"),
