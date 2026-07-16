@@ -46,6 +46,28 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-16: **NO-GPU REVAMP COMPLETE — v8 recipe drafted, reviewed, committed; ready for the
+  GPU wave.** Agent E (faithful preview) done: assembled the faithful mjlab model (official G1 MJCF +
+  mjlab armatures + zeroed damping) as the sandbox default → same v7 policy shows 7% (menagerie) vs
+  96–118% amplitude + falls ~20.7 s (faithful) = the laptop preview now AGREES with the gate
+  (corroborates it's not hallucinated); model-diff in experiments/g1_model_reconciliation.md.
+  **v8 recipe** (cloud/sim2real_task_v8.py + train_v8_curriculum.sh + run_attempt5.sh) drafted by a
+  focused agent, **reviewed by orchestrator** (verified motion_body_pos/ori is the real base reward
+  key so waist-slack REPLACES not duplicates; ANKLE_JOINT_NAMES/ankle_torque_l2 exist in base; obs
+  split uses real actor/critic groups). Contents: Agent 0's asymmetric obs (drop base_lin_vel +
+  motion_anchor_pos_b from actor → 154-dim, keep in critic) + Agent D candidate A (1.8× repaired+
+  grounded motion via G1_SLOWDOWN; ankle soft-barrier relu(|τ|−35)² @−5e-3 replacing global L2;
+  per-channel ankle action-rate @−0.05; waist-slack ×0.5 at the two beats; velocity-honest ankle
+  effort clamp 50→40 Nm + widened DR). kp/kd untouched, drift curriculum kept. py_compile+bash -n
+  pass; mjlab isn't local so the BOX selfcheck+64-env smoke test is the runtime gate. HONEST BET:
+  1.8× is feasible ONLY if the policy learns hip-strategy — unverifiable without GPU; fallbacks
+  2.0/2.5× are one env var. Deploy-wave TODO (delete leg_odometry once actor is 154-dim) documented,
+  no deploy code touched. **NEXT = THE GPU WAVE (first real GPU need):** Agent A (calibrate the gate
+  by running thriller_csv_ankle_penalty ≈70%-IRL through it → trusted bar) + Agent F (train v8,
+  candidate A @1.8×, best-checkpoint export, calibrated gate). BLOCKED ON USER DECISION: train on the
+  NEW PC's GPU (needs `nvidia-smi` — could retire GreenNode entirely, no billing) vs a GreenNode box
+  (console + reCAPTCHA). $0 compute spent across the whole revamp so far.
+
 - 2026-07-16: **WAVE 2 landing — grounding fix + Agent D done (Agent E still running).**
   GROUNDING: foot-float was grounding present-but-BROKEN (single global z-offset vs the retarget's
   ~163 mm vertical drift). New per-frame contact grounding → float 78.63%→0.00%, no penetration,
