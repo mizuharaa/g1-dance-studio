@@ -1,0 +1,22 @@
+{
+  "reference": "data/motions/thriller/thriller_g1_clean.csv",
+  "rollout": null,
+  "verdict": "A_SOURCE_MOTION_ERROR",
+  "owns_the_fix": "Agent B (this layer): grounding / prep / motion_repair / DOF-aware retarget",
+  "why": "The REFERENCE itself is infeasible before any physics/policy. Repair it (global slowdown for torque; grounding + retarget for floaty feet) before spending GPU. Failing checks: feet float 78.63% > 30.0%; ankle demand over headroom 47.53% > 20.0% (peak 173.58 Nm)",
+  "evidence": {
+    "floaty_feet_pct": 78.63,
+    "ankle_over_headroom_pct": 47.53,
+    "jerk_spike_pct": 0.07,
+    "pos_worst_violation_rad": 0.0121,
+    "ankle_tau_max_nm": 173.58
+  },
+  "policy_track_error_rad": null,
+  "thresholds": {
+    "floaty_feet_pct": 30.0,
+    "ankle_over_headroom_pct": 20.0,
+    "jerk_spike_pct": 5.0,
+    "pos_viol_rad": 0.05,
+    "track_diverge_rad": 0.3
+  }
+}

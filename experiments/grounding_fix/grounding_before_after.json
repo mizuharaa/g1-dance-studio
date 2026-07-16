@@ -1,0 +1,40 @@
+{
+  "source": "data/motions/thriller/thriller_g1_clean.csv",
+  "grounded_output": "data/motions/thriller/thriller_g1_grounded.csv",
+  "frames": 1479,
+  "global_grounding_shift_m": -0.0198,
+  "per_frame_grounding_info": {
+    "mode": "per_frame",
+    "drift_removed_mm": 163.0,
+    "mean_shift_m": 0.0718,
+    "resid_lift_mm": 8.2,
+    "flight_frames": 0
+  },
+  "before_global_grounding": {
+    "floaty_feet_pct": 78.63,
+    "lower_foot_z_max_m": 0.211,
+    "lower_foot_z_mean_m": 0.1298,
+    "penetration_min_contact_m": 0.0,
+    "penetration_frames_below_-2mm_pct": 0.0,
+    "root_above_lower_foot_mean_m": 0.7085,
+    "root_z_mean_m": 0.8383,
+    "root_z_peak_jerk_rad_s3": 438.3
+  },
+  "after_per_frame_grounding": {
+    "floaty_feet_pct": 0.0,
+    "lower_foot_z_max_m": 0.0839,
+    "lower_foot_z_mean_m": 0.0465,
+    "penetration_min_contact_m": 0.0,
+    "penetration_frames_below_-2mm_pct": 0.0,
+    "root_above_lower_foot_mean_m": 0.7085,
+    "root_z_mean_m": 0.7549,
+    "root_z_peak_jerk_rad_s3": 420.1
+  },
+  "checks": {
+    "float_reduced": true,
+    "float_target_met_<2pct": true,
+    "no_new_penetration": true,
+    "root_above_foot_preserved": true,
+    "no_jitter_spike": true
+  }
+}

@@ -10,8 +10,10 @@ Steps, in order:
   1. Residual joint-velocity clamp: cap per-frame deltas at LIMIT_FRACTION of
      3π rad/s (GMR's use_velocity_limit handles most of it; this catches leftovers),
      then a 3-frame moving average ONLY on frames that were touched.
-  2. FK ground-height correction: subtract the trajectory-wide minimum body height
-     (any geom) so the lowest contact point sits on z=0.
+  2. Per-frame FK ground correction: remove the retarget's slow vertical drift so
+     the SUPPORT (lower) foot sits on z≈0 in every frame — not just the single
+     lowest instant (the old trajectory-wide offset left the foot floating >0.10 m
+     in most frames: the §3.3 'floaty feet' defect). See grounding.ground_motion_per_frame.
   3. Prepend: PAD_IN seconds of static standing, then BLEND_IN seconds
      standing -> first dance pose (linear joints, slerp base quat, base z ramp).
   4. Append: BLEND_OUT seconds last pose -> standing, then HOLD_OUT seconds of
@@ -109,8 +111,10 @@ def prep(in_csv: Path, out_csv: Path) -> dict:
     dof, touched = _clamp_joint_velocities(motion[:, 7:])
     motion[:, 7:] = dof
 
-    zmin = _min_height_fk(motion, model)
-    motion[:, 2] -= zmin
+    # Per-frame foot-contact grounding (support foot on z≈0 every frame), replacing
+    # the old single trajectory-wide offset that left the foot floating (§3.3).
+    from .grounding import ground_motion_per_frame
+    motion, ground_info = ground_motion_per_frame(motion, model)
 
     stand_in = _standing_row(model, motion[0])
     stand_out = _standing_row(model, motion[-1])
@@ -131,7 +135,8 @@ def prep(in_csv: Path, out_csv: Path) -> dict:
         "seconds": round(full.shape[0] / FPS, 1),
         "vel_clamped_frames": touched,
         "motion_quality": clean_info,
-        "ground_shift_m": round(-zmin, 4),
+        "ground_shift_m": ground_info["mean_shift_m"],   # back-compat key (mean per-frame shift)
+        "grounding": ground_info,
         "out": str(out_csv),
     }
     print(info)
