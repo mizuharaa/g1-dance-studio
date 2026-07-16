@@ -1,0 +1,24 @@
+{
+  "id": "20260716-d16288c5",
+  "name": "Thriller \u2014 v6 (attempt 3)",
+  "created_at": 1784186537.0437934,
+  "updated_at": 1784186537.045418,
+  "status": "draft",
+  "duration_s": null,
+  "motion_csv": null,
+  "policy_path": "data/policies/thriller_v6sk/policy.onnx",
+  "preview": null,
+  "vet": null,
+  "sim_exam": null,
+  "source_job": null,
+  "notes": "",
+  "policy_sha256": null,
+  "incident": null,
+  "audio": null,
+  "repeatability": {
+    "consecutive_clean": 0,
+    "total_runs": 0,
+    "last_run_at": null,
+    "history": []
+  }
+}

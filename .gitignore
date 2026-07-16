@@ -27,3 +27,4 @@ data/policy_store/
 data/setlists/*/run.json
 local/
 .pytest_cache/
+experiments/**/_tmp_*

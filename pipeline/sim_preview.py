@@ -111,6 +111,37 @@ def render_async(dance) -> dict:
     return {"status": "rendering", "sha": sha}
 
 
+def render_sync(dance) -> dict:
+    """Render the dance's CURRENT policy in the FOREGROUND (blocks until done).
+
+    render_async() spawns a daemon thread, which is right for the long-lived web
+    server but wrong for a short-lived CLI/pull process: the interpreter exits the
+    moment the pull script returns and the daemon thread is killed mid-render, so
+    no mp4 is ever written. Pull/finalize paths (pipeline.publish_policy) call this
+    instead so the render actually completes before the process ends. Idempotent:
+    if the version already exists it is reused, not re-rendered."""
+    sha = _sha8(dance)
+    key = (dance.id, sha)
+    mp4 = _sim_dir(dance.id) / f"{sha}.mp4"
+    if mp4.exists():
+        overlay = _sim_dir(dance.id) / f"{sha}.overlay.mp4"
+        return {"status": "ready", "sha": sha,
+                "url": f"/previews/sim/{dance.id}/{sha}.mp4",
+                "overlay_url": (f"/previews/sim/{dance.id}/{sha}.overlay.mp4"
+                                if overlay.exists() else None)}
+    with _lock:
+        _status[key] = "rendering"
+    _render(dance, sha)
+    st = _status.get(key, "ready")
+    if st == "ready":
+        overlay = _sim_dir(dance.id) / f"{sha}.overlay.mp4"
+        return {"status": "ready", "sha": sha,
+                "url": f"/previews/sim/{dance.id}/{sha}.mp4",
+                "overlay_url": (f"/previews/sim/{dance.id}/{sha}.overlay.mp4"
+                                if overlay.exists() else None)}
+    return {"status": st, "sha": sha}
+
+
 def _render(dance, sha: str) -> None:
     key = (dance.id, sha)
     try:

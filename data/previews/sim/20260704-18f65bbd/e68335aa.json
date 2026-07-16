@@ -1,0 +1,1 @@
+{"label": "Thriller", "policy_sha256": "e68335aa2c82f94063469f6c0cf40d5d5873aea275c6e49515f42510c64140e4", "created_at": 1784187353.178197, "kind": "reference_vs_policy", "left_kind": "REFERENCE (intended)", "left_achieved": 1.0, "right_kind": "POLICY (mjlab training model)", "right_achieved": 0.9459215184288012, "right_fell_at": null}
