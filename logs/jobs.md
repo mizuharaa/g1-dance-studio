@@ -368,3 +368,18 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - NEXT: reconcile audit fixes into recipe -> re-push cloud/ -> motion prep (ground->repair1.8x->
   csv_to_npz) -> preflight (v8 --selfcheck + 64-env smoke) -> launch v8 curriculum + Agent A gate
   calibration (run thriller_csv_ankle_penalty through the gate) in the SAME session. DELETE box when done.
+
+## 2026-07-16 08:21 UTC — V8 (ATTEMPT 5) TRAINING LIVE
+- Box root@103.245.250.152:46659. Run via cloud/run_attempt5.sh detached -> attempt5.out.
+- Env FIXED to known-good (mjlab 1.5.0 + mujoco-warp 3.10.0.1 + warp-lang 1.14.0 + torch cu128);
+  provisioning pin bug fixed (20_training.sh pinned bare mjlab -> pulled 1.5.1; now ==1.5.0).
+- Preflight caught 2 issues at $0 GPU: (1) mjlab version drift; (2) missing G1 MJCF (pushed
+  third_party/unitree_mujoco/.../g1 36MB). Motion prep OK: ground->repair1.8x->csv_to_npz ->
+  thriller_grounded_repaired_1p8x.npz (4435 frames). selfcheck PASS (154/frame x hist5 = 770-flat
+  actor, critic privileged, ankle clamp 40Nm, 1.8x). 64-env smoke PASS. Stage 1/3 iterating (GPU 50%).
+- Recipe: history + teacher-student obs + Agent D candidate A (ankle soft-barrier, ankle action-rate,
+  waist slack at beats, effort clamp) on the 1.8x grounded+repaired motion. Curriculum 3 stages + verify.
+- STILL OWED (this session): Agent A gate CALIBRATION — run thriller_csv_ankle_penalty (~70% IRL)
+  through the gate for the trusted bar; run AFTER training (avoid GPU sharing). Then judge v8 vs the
+  calibrated bar. Pull artifacts, sign, DELETE BOX (billing!).
+- Deploy-safety guards committed (5 guards, 30 tests) — staged for next robot-day (robot down).
