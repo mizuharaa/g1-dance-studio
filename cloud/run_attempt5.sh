@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ATTEMPT 5 (v8) — one-command, cost-minimal box orchestrator for the v-chain revamp.
-# Layers Agent 0's asymmetric 154-dim no-state-estimation actor + Agent D's CANDIDATE A
+# Layers the teacher-student obs design (privileged-critic teacher + history-stacked
+# deployable actor, 154/frame x history 5 = 770-dim) + Agent D's CANDIDATE A
 # actuation deltas (1.8x feasible reference, velocity-honest ankle clamp, ankle
 # soft-barrier, ankle action-rate, waist slack). Launch ON THE BOX, detached, WITHOUT
 # MUJOCO_GL (egl collides with Warp CUDA at the 4096-env reset; the curriculum sets egl
@@ -94,7 +95,7 @@ AVAIL_GB=$(df -BG "$NB" | awk 'NR==2{gsub("G","",$4); print $4}')
 [ "${AVAIL_GB:-0}" -ge 5 ] || die "low disk (${AVAIL_GB}G)"
 echo "  disk free: ${AVAIL_GB}G"
 
-say "recipe selfcheck (asserts 154-dim actor, asymmetric split, ankle clamp, slowdown)"
+say "recipe selfcheck (asserts 154/frame + 770-flat actor history, asymmetric split, ankle clamp, slowdown)"
 G1_SLOWDOWN="$G1_SLOWDOWN" "$PY" "$ENTRY" --selfcheck || die "v8 --selfcheck failed (see output above — likely the asymmetric actor/critic split or a reward key)"
 
 say "resume-flag check"
@@ -137,10 +138,20 @@ cat <<EOF
 
 ======================= COST / TEARDOWN =======================
 Box bills creation->deletion. Pull artifacts, then DELETE the instance to stop it.
-  1. bash scripts/retrain_pull.sh <IP> <PORT>   2. sign   3. DELETE in console.
-Reminder: v8 actor obs is 154-dim (estimator-free). After signing, the DEPLOY wave
-deletes the dead odometry path (pipeline/leg_odometry.py + deploy_runtime.build_obs_odom)
-— see the TODO in cloud/sim2real_task_v8.py. Do NOT touch deploy code in this wave.
+  1. TAG=thriller_v8s2r NAME="Thriller — v8" bash scripts/retrain_pull.sh <IP> <PORT>
+     2. sign   3. DELETE in console.
+AUTO-PUBLISH: step 1 (retrain_pull.sh) now calls  python -m pipeline.publish_policy \$DST
+after the scp. That ALWAYS (a) registers/updates a dance for the pulled policy and
+(b) renders its honest sim preview (faithful mjlab model) — so the run shows up on the
+frontend (Dance & Stats + Simulation) with no manual attach. It never blocks the pull:
+a render failure is logged and the dance stays registered for on-demand re-render. This
+is what closes the v6/v7 "no sim video" gap for EVERY future run. TAG picks the policy
+dir + export glob; NAME is the dance label.
+Reminder: v8 actor obs is 154/frame x history 5 = 770-dim flattened (estimator-free +
+history-stacked). DEPLOY must maintain a rolling 5-frame history buffer — see the DEPLOY
+CONTRACT block in cloud/sim2real_task_v8.py. After signing, the DEPLOY wave also deletes
+the dead odometry path (pipeline/leg_odometry.py + deploy_runtime.build_obs_odom). Do NOT
+touch deploy code in this wave.
 ===============================================================
 EOF
 exit $RC

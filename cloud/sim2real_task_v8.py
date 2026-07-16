@@ -4,6 +4,40 @@ This layers TWO committed design memos onto the proven v7 recipe, WITHOUT touchi
 the choreography-independent v7 machinery that already works (drift termination was
 SOLVED in v6/v7 — it is kept verbatim here).
 
+============================================================================
+TEACHER-STUDENT OBS ARCHITECTURE  (USER DECISION, 2026-07-16)
+============================================================================
+The v8 observation design is a TEACHER-STUDENT (asymmetric actor-critic) split
+with an OBSERVATION HISTORY on the student. This supersedes the earlier
+"just drop base_lin_vel to a flat 154-dim actor" plan; the user explicitly chose
+history + teacher-student instead. Rationale:
+
+  * CRITIC = the TEACHER. It is used ONLY during training (never deployed), so
+    privileged sim-truth is fine and desirable. It KEEPS every privileged term the
+    base task provides — base_lin_vel, motion_anchor_pos_b, body_pos/body_ori, full
+    state — as a single-frame full-state observation. We do NOT strip or stack the
+    critic. A well-informed critic gives a low-variance value signal that trains the
+    (deployable) student faster and better.
+
+  * ACTOR = the STUDENT. This is the ONLY network that deploys. It must observe ONLY
+    deployable quantities, so it still DROPS the two privileged terms (base_lin_vel,
+    motion_anchor_pos_b — both need an unmeasurable base state estimate). Instead of
+    being fed an explicit, unmeasurable velocity, the student now gets a short
+    OBSERVATION HISTORY (default length 5, env var G1_OBS_HISTORY) of its deployable
+    terms, so it can IMPLICITLY infer velocity / contact state from the temporal
+    sequence. This is the standard blind-humanoid recipe (history in lieu of an
+    explicit velocity estimate) and is the core v8 change.
+
+FEASIBILITY — mjlab supports this NATIVELY (no custom wrapper):
+  mjlab 1.5.0's ObservationGroupCfg exposes `history_length: int | None` (group-level,
+  applies to every term in that group) and `flatten_history_dim: bool = True`;
+  ObservationTermCfg exposes the same per-term. The ObservationManager keeps a
+  per-term CircularBuffer and, when flattened, reshapes it into the concatenated obs.
+  Setting `cfg.observations["actor"].history_length = 5` after the privileged-term
+  drop stacks EXACTLY the six remaining deployable terms — no wrapper, no base-task
+  edit. (Confirmed against the mjlab v1.5.0 observation_manager source; the CRITIC
+  group is left at history_length=None so the teacher stays single-frame full-state.)
+
 CITED MEMOS (read these before editing this file):
   * experiments/upstream_alignment_report.md  (Agent 0, upstream-alignment audit)
       -> the OBSERVATION-CONTRACT change: our actor carried two PRIVILEGED terms that
@@ -13,21 +47,29 @@ CITED MEMOS (read these before editing this file):
          Asymmetric actor-critic: the critic still sees them from clean sim truth during
          training; the deployed actor never observes them, so there is nothing to fake
          on the robot (kills the leg-odometry sim/real divergence on the actor's input).
+         v8 EXTENDS this from a bare drop to drop + student obs history (user decision).
   * experiments/actuation_design_v8.md  (Agent D, actuation/control) — CANDIDATE A:
       the feasible-reference + hip-strategy-shaping bet. Train on the 1.8x repaired
       reference and add the actuation deltas that induce the policy to move balance
-      load off the ankles onto the hips/torso.
+      load off the ankles onto the hips/torso. (These reward deltas are UNCHANGED by
+      the history redesign — obs and reward are orthogonal.)
 
 ============================ DELTAS vs v7 (each one) ============================
 
-OBS (Agent 0):
-  0. DROP base_lin_vel + motion_anchor_pos_b from the ACTOR observation group; leave
+OBS (Agent 0 drop + USER history decision):
+  0a. DROP base_lin_vel + motion_anchor_pos_b from the ACTOR observation group; leave
      them in the CRITIC group (the base mjlab tracking task exposes SEPARATE "actor"
      and "critic" ObservationGroupCfgs — verified in
      third_party/mjlab_mdp_ref/tracking_env_cfg.py, and the g1 env cfg even ships a
      `has_state_estimation=False` switch that drops exactly these two). This is a CLEAN
      asymmetric split on the engine we already run — no base-task edit required.
-     ACTOR OBS DIM: 160 - 6 = 154  (NOT 160, NOT ~155 — see note below).
+     ACTOR PER-FRAME DIM: 160 - 6 = 154 deployable channels (see note below).
+  0b. ADD an OBSERVATION HISTORY on the ACTOR group only: history_length=G1_OBS_HISTORY
+     (default 5), flatten_history_dim=True. The six remaining deployable actor terms
+     (command, motion_anchor_ori_b, base_ang_vel, joint_pos, joint_vel, actions) are
+     each stacked over the last 5 control steps and flattened into the actor input.
+     FLATTENED ACTOR OBS DIM: 154 * 5 = 770  (154 per-frame x history 5). The CRITIC is
+     NOT stacked (history_length=None) — it stays single-frame full-state (the teacher).
 
 ACTUATION (Agent D, CANDIDATE A §2 shared-prereq + reward deltas):
   1. Train on the 1.8x REPAIRED + GROUNDED reference. G1_SLOWDOWN (default 1.8;
@@ -61,23 +103,53 @@ KEPT VERBATIM from v7/v6/v5:
   * kp/kd UNTOUCHED (Agent 0: they match upstream and ARE the deploy gains; raising kp
     raises peak ankle torque = the v7 failure).
 
---------------------------- NOTE: 154 vs "~155" ---------------------------
-Agent 0's audit reports upstream's No-State-Estimation actor as 155-dim. That 155 = our
-154 + 1, because UPSTREAM's motion command carries one extra element (a phase/time
-scalar): 160 - 6 (dropped) + 1 (command 58->59) = 155. OUR MotionCommand emits a 58-dim
-command, and neither memo authorises changing the command manager, so we do NOT fabricate
-that +1. The correct target for OUR contract is 154, which is exactly what
-pipeline/deploy_runtime.py already expects for the estimator-free ("ground") layout and
-what the existing No-State-Estimation ground task exports. --selfcheck asserts 154.
+--------------------- NOTE: 154 PER-FRAME vs upstream "~155" ---------------------
+Agent 0's audit reports upstream's No-State-Estimation actor as 155-dim PER FRAME. That
+155 = our 154 + 1, because UPSTREAM's motion command carries one extra element (a
+phase/time scalar): 160 - 6 (dropped) + 1 (command 58->59) = 155. OUR MotionCommand emits
+a 58-dim command, and neither memo authorises changing the command manager, so we do NOT
+fabricate that +1. OUR per-frame actor contract is 154. With the history stack (length 5)
+the FLATTENED actor input the network sees is 154*5 = 770. Upstream's No-State-Estimation
+actor is single-frame (no history) — the history is OUR addition, so we do not compare the
+770 flattened dim against upstream's 155. --selfcheck asserts per-frame==154 AND
+flattened==154*G1_OBS_HISTORY, computed from the live config (never hardcoded).
+
+======================= DEPLOY CONTRACT (deploy wave MUST satisfy) =======================
+The deployed actor now consumes a HISTORY-STACKED observation. deploy_runtime.py (owned by
+the deploy-safety agent — NOT edited here) MUST be updated to feed it correctly. Exact spec:
+
+  * PER-FRAME vector (154 dims), in this term order (actor group dict order after the drop):
+        command(58), motion_anchor_ori_b(6), base_ang_vel(3), joint_pos(29),
+        joint_vel(29), actions(29)                                      -> 154
+    (base_lin_vel and motion_anchor_pos_b are GONE — never build/estimate them.)
+  * HISTORY BUFFER: maintain a rolling buffer of the last N=G1_OBS_HISTORY (=5) per-frame
+    vectors, updated once per 50 Hz control step, oldest->newest.
+  * FLATTEN LAYOUT (matches mjlab flatten_history_dim=True, term-major then frame-major):
+    for EACH term, concatenate its 5 frames oldest->newest, THEN concatenate the terms:
+        [ command_t-4..command_t0 (58*5=290),
+          motion_anchor_ori_b_t-4..t0 (6*5=30),
+          base_ang_vel_t-4..t0 (3*5=15),
+          joint_pos_t-4..t0 (29*5=145),
+          joint_vel_t-4..t0 (29*5=145),
+          actions_t-4..t0 (29*5=145) ]                                  -> 770
+    i.e. NOT frame-major ([frame_t-4 all-terms, frame_t-3 all-terms, ...]). It is per-term
+    history blocks. Getting this wrong feeds the policy transposed garbage — silent, no crash.
+  * WARMUP: mjlab's CircularBuffer pads with the first observation until it fills, so at
+    episode start every history slot = the first frame. Deploy must do the same (fill the
+    buffer with the first obs at reset), NOT zero-pad, or the first ~5 steps diverge from sim.
+  * ORDERING CAVEAT (verify on the box): the exact per-term flatten order (oldest-first vs
+    newest-first) is asserted from the mjlab v1.5.0 source but was NOT runtime-verified here
+    (mjlab isn't installed locally). The box smoke test should dump one real actor obs and
+    confirm dim==770 and the layout before signing a deploy build.
 
 ------------------- DEPLOY-WAVE TODO (do NOT do it here) -------------------
-Once a v8 policy trains on the 154-dim actor and is signed, the deploy wave should DELETE
-the now-dead honest-odometry path (Agent 0 P0 item): pipeline/leg_odometry.py and
+Once a v8 policy trains on the history-stacked actor and is signed, the deploy wave should
+DELETE the now-dead honest-odometry path (Agent 0 P0 item): pipeline/leg_odometry.py and
 deploy_runtime.build_obs_odom() (+ the base_lin_vel/motion_anchor_pos_b entries in
 ESTIMATOR_DEPENDENT_TERMS). The actor no longer consumes base_lin_vel, so faking it is
 obsolete. This file does NOT touch deploy code — flagged for the deploy wave only.
 
-PREFLIGHT:  python cloud/sim2real_task_v8.py --selfcheck   (asserts keys + 154-dim actor)
+PREFLIGHT:  python cloud/sim2real_task_v8.py --selfcheck  (asserts keys + 154/frame + 770 flat)
 Launch:     cloud/train_v8_curriculum.sh   (via cloud/run_attempt5.sh)
 """
 
@@ -137,6 +209,19 @@ WAIST_SLACK_WINDOWS_S = ((13.0, 18.0), (25.0, 36.0))
 
 # The two privileged terms Agent 0 moves to critic-only.
 PRIVILEGED_ACTOR_TERMS = ("base_lin_vel", "motion_anchor_pos_b")
+
+# Student obs history (USER DECISION 2026-07-16). Length of the actor's rolling obs
+# history; env-overridable so the launcher can sweep it. The critic (teacher) is NEVER
+# stacked. Applied at the ACTOR GROUP level, so it covers exactly the deployable terms
+# that remain after the privileged-term drop.
+G1_OBS_HISTORY = int(os.environ.get("G1_OBS_HISTORY", "5"))
+
+# The deployable actor terms that survive the privileged drop (== everything stacked by
+# the history). Order here matches the base actor-group dict order after the two deletes;
+# --selfcheck asserts the live actor group equals exactly this set.
+DEPLOYABLE_ACTOR_TERMS = (
+  "command", "motion_anchor_ori_b", "base_ang_vel", "joint_pos", "joint_vel", "actions",
+)
 
 # Non-ankle joint regexes (every G1 non-ankle joint contains exactly one of these
 # substrings; no ankle joint contains any). Used to re-scope the global effort DR off
@@ -267,6 +352,26 @@ def _drop_privileged_actor_terms(cfg) -> None:
       del actor.terms[name]
 
 
+def _apply_actor_history(cfg) -> None:
+  """Set the observation history on the ACTOR (student) group only (USER DECISION).
+  Group-level history_length applies to every remaining actor term; flatten so the
+  stack lands in the concatenated obs. Idempotent. The critic (teacher) is untouched
+  (history_length stays None -> single-frame full-state). Guarded: if a future mjlab
+  drops these fields, fail LOUDLY rather than silently train a non-history policy."""
+  actor = cfg.observations["actor"]
+  if not hasattr(actor, "history_length"):
+    raise AttributeError(
+      "ObservationGroupCfg has no `history_length` — this mjlab does not support obs "
+      "history natively; the teacher-student history design needs a custom wrapper. "
+      "ABORT before spending GPU."
+    )
+  actor.history_length = G1_OBS_HISTORY
+  # flatten the [history, feature] stack into the concatenated actor vector (default,
+  # but set explicitly so the deploy contract's 770-dim flat layout is unambiguous).
+  if hasattr(actor, "flatten_history_dim"):
+    actor.flatten_history_dim = True
+
+
 def _apply_v8(cfg, train: bool):
   # 1. inherit every v7 delta (which inherits v6 drift termination + v5 arm/station).
   v7._apply_v7(cfg)
@@ -330,9 +435,18 @@ def _apply_v8(cfg, train: bool):
       },
     )
 
-  # 0. asymmetric actor-critic obs (drop privileged terms from the actor). LAST, so the
-  #    v7/base wiring that touched actor base_lin_vel is cleanly superseded.
+  # 0a. asymmetric actor-critic obs (drop privileged terms from the actor). LAST, so the
+  #     v7/base wiring that touched actor base_lin_vel is cleanly superseded.
   _drop_privileged_actor_terms(cfg)
+
+  # 0b. TEACHER-STUDENT obs history (USER DECISION 2026-07-16): stack the actor
+  #     (student) group over the last G1_OBS_HISTORY control steps so it can infer
+  #     velocity/contact implicitly. Group-level history_length applies to every term in
+  #     the actor group — after the drop that is EXACTLY the six deployable terms.
+  #     flatten_history_dim=True flattens the stack into the concatenated actor input.
+  #     The CRITIC (teacher) is deliberately NOT stacked: it keeps its single-frame
+  #     full-state privileged view. mjlab 1.5.0 supports this natively (no wrapper).
+  _apply_actor_history(cfg)
   return cfg
 
 
@@ -350,17 +464,24 @@ register_mjlab_task(
 
 
 def _actor_obs_dim(cfg):
-  """Sum the per-term dims of the ACTOR group from TERM_DIMS. Returns (dim, unknown)
-  where unknown is the list of actor terms with no dim in the table (so nothing is
-  silently miscounted)."""
+  """Compute the ACTOR obs dims from TERM_DIMS + the group history_length (never
+  hardcoded). Returns (per_frame, flat, history, unknown):
+    per_frame — sum of the actor group's per-term dims (154 after the drop)
+    flat      — the vector the network actually sees = per_frame * max(history, 1)
+                (mjlab flattens the history stack into the concatenated obs)
+    history   — the actor group's history_length (0/None -> unstacked)
+    unknown   — actor terms with no dim in TERM_DIMS (so nothing is silently miscounted)
+  """
   actor = cfg.observations["actor"]
-  dim, unknown = 0, []
+  per_frame, unknown = 0, []
   for k in actor.terms.keys():
     if k in TERM_DIMS:
-      dim += TERM_DIMS[k]
+      per_frame += TERM_DIMS[k]
     else:
       unknown.append(k)
-  return dim, unknown
+  history = int(getattr(actor, "history_length", 0) or 0)
+  flat = per_frame * (history if history > 0 else 1)
+  return per_frame, flat, history, unknown
 
 
 def _selfcheck() -> int:
@@ -416,17 +537,47 @@ def _selfcheck() -> int:
       print(f"  {name:<22} actor:{'DROPPED OK' if dropped else '!! STILL IN ACTOR'}  "
             f"critic:{'KEPT OK' if kept else '!! MISSING FROM CRITIC'}")
 
+  print("== student obs history (USER DECISION, teacher-student) ==")
+  actor_grp = cfg.observations["actor"]
+  has_field = hasattr(actor_grp, "history_length")
+  ok &= has_field
+  if not has_field:
+    print("  !! ObservationGroupCfg has NO history_length field — this mjlab does NOT")
+    print("  !! support obs history natively; the design needs a CUSTOM WRAPPER. ABORT.")
+  else:
+    hist = int(getattr(actor_grp, "history_length", 0) or 0)
+    hist_ok = hist == G1_OBS_HISTORY and hist > 1
+    ok &= hist_ok
+    print(f"  actor history_length     : {hist}  (G1_OBS_HISTORY={G1_OBS_HISTORY})  "
+          f"{'OK' if hist_ok else '!! history NOT set on actor'}")
+    # the exact set stacked must be the six deployable terms (nothing privileged leaks in)
+    stacked = set(actor_grp.terms.keys())
+    terms_ok = stacked == set(DEPLOYABLE_ACTOR_TERMS)
+    ok &= terms_ok
+    print(f"  stacked actor terms      : {sorted(stacked)}")
+    print(f"  == deployable set?       : {'OK' if terms_ok else '!! ' + str(sorted(stacked)) + ' != ' + str(sorted(DEPLOYABLE_ACTOR_TERMS))}")
+    # the CRITIC (teacher) must NOT be stacked — it stays single-frame full-state
+    crit_hist = int(getattr(cfg.observations.get('critic'), "history_length", 0) or 0)
+    crit_ok = crit_hist in (0,)
+    ok &= crit_ok
+    print(f"  critic history_length    : {crit_hist}  "
+          f"{'OK (teacher single-frame)' if crit_ok else '!! critic must NOT be stacked'}")
+
   print("== actor obs dim ==")
-  adim, unknown = _actor_obs_dim(cfg)
+  per_frame, flat, hist, unknown = _actor_obs_dim(cfg)
   print(f"  actor terms  : {sorted(cfg.observations['actor'].terms.keys())}")
-  print(f"  actor obs dim: {adim}   (expected 154; upstream '155' adds a +1 command "
+  print(f"  per-frame dim: {per_frame}   (expected 154; upstream '155' adds a +1 command "
         f"element we do NOT fabricate)")
+  print(f"  flattened dim: {flat}   (= {per_frame} per-frame x history {hist or 1}); "
+        f"this is what the deployed actor network consumes")
   if unknown:
     ok = False
     print(f"  !! actor terms with UNKNOWN dim (not counted): {unknown}")
-  dim_ok = (adim == 154) and (adim != 160)
-  ok &= dim_ok
-  print(f"  dim check    : {'OK (154, NOT 160)' if dim_ok else f'!! got {adim}, expected 154'}")
+  pf_ok = (per_frame == 154) and (per_frame != 160)
+  flat_ok = flat == 154 * G1_OBS_HISTORY
+  ok &= pf_ok and flat_ok
+  print(f"  per-frame chk: {'OK (154, NOT 160)' if pf_ok else f'!! got {per_frame}, expected 154'}")
+  print(f"  flat chk     : {'OK (' + str(154*G1_OBS_HISTORY) + ')' if flat_ok else f'!! got {flat}, expected {154*G1_OBS_HISTORY}'}")
 
   print("== velocity-honest ankle effort clamp (Agent D) ==")
   clamp_ok = ("dr_ankle_effort_clamp" in cfg.events

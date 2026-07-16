@@ -110,7 +110,12 @@ if [ "${1:-}" = "mjlab" ]; then
     fi
     if [ "$INSTALL_OK" != 1 ]; then
         log "installing mjlab (fallback: pip + the 3 deps that actually break)"
-        "$VENV_MJ/bin/python" -m pip install -q mjlab \
+        # PIN mjlab==1.5.0 — bare `mjlab` pulls the newest (1.5.1+), which requires
+        # mujoco-warp>=3.10.0.2 and thus CONFLICTS with our pinned 3.10.0.1 (known-good
+        # combo is mjlab 1.5.0 + mujoco-warp 3.10.0.1). Fixed 2026-07-16 after a fresh
+        # box grabbed 1.5.1 and the drift-check (which didn't check mjlab's own version)
+        # passed anyway.
+        "$VENV_MJ/bin/python" -m pip install -q "mjlab==1.5.0" \
           && "$VENV_MJ/bin/python" -m pip install -q "mujoco-warp==3.10.0.1" "warp-lang==1.14.0" --extra-index-url https://pypi.nvidia.com \
           && { "$VENV_MJ/bin/python" -c 'import torch,sys; sys.exit(0 if "cu128" in torch.__version__ else 1)' 2>/dev/null \
                || "$VENV_MJ/bin/python" -m pip install -q --force-reinstall "torch>=2.7.0" --index-url https://download.pytorch.org/whl/cu128; } \
@@ -120,7 +125,7 @@ if [ "${1:-}" = "mjlab" ]; then
         # determinism CHECK — fail loud if the resolved versions drifted off known-good
         "$VENV_MJ/bin/python" - <<'PYCHK' || log "WARNING: version drift vs known-good — expect trouble at reset"
 import importlib.metadata as m
-want = {"mujoco-warp": "3.10.0.1", "warp-lang": "1.14.0"}
+want = {"mjlab": "1.5.0", "mujoco-warp": "3.10.0.1", "warp-lang": "1.14.0"}
 bad = [f"{k} {m.version(k)}!={v}" for k, v in want.items() if m.version(k) != v]
 import torch
 if "cu128" not in torch.__version__: bad.append(f"torch {torch.__version__} not cu128")

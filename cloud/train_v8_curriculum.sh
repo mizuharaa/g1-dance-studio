@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Attempt 5 (v8) — the v-chain revamp curriculum. Layers Agent 0's asymmetric
-# no-state-estimation actor (154-dim) + Agent D's CANDIDATE A actuation deltas onto the
-# proven v7 station-keeping + drift-termination curriculum. Prefer cloud/run_attempt5.sh
+# Attempt 5 (v8) — the v-chain revamp curriculum. Layers the TEACHER-STUDENT obs design
+# (user decision 2026-07-16: privileged-critic teacher + history-stacked deployable actor,
+# 154 per-frame x history 5 = 770-dim flattened) + Agent D's CANDIDATE A actuation deltas
+# onto the proven v7 station-keeping + drift-termination curriculum. Prefer cloud/run_attempt5.sh
 # (it preflights v8 --selfcheck + the GPU smoke test + does the ground->repair->npz
 # motion prep). Drift was SOLVED in v6/v7 — the drift-band curriculum is KEPT as-is.
 #
@@ -23,6 +24,7 @@ ENTRY=$NB/cloud/sim2real_task_v8.py
 TASK=Mjlab-Tracking-Flat-Unitree-G1-S2R-V8
 MOTION=${MOTION:?set MOTION=/path/to/thriller_grounded_repaired_1p8x.npz}
 export G1_SLOWDOWN=${G1_SLOWDOWN:-1.8}
+export G1_OBS_HISTORY=${G1_OBS_HISTORY:-5}   # student obs-history length (teacher-student)
 RUN=train-thriller_v8s2r-$(date +%m%d)
 LOGDIR=$NB/logs/rsl_rl/g1_tracking
 EXP=$NB/exports/${RUN}
@@ -88,6 +90,8 @@ echo "===== DONE $(date -Is) — gap.json + heldout in $EXP (selected $CKPT) ===
 echo "  Gate PASS iff: nominal survival>=99%, drift_max<=1.0 m, 40ms+push survival>=95%,"
 echo "  ankle p95<=15/20 Nm. v8 EXTRA to eyeball (Agent D GPU-validation items): ankle p95"
 echo "  at the 13-18s/25-36s beats (scaled x${G1_SLOWDOWN}) should drop <20 Nm AND trunk"
-echo "  angular-momentum use should rise there. Exported policy actor obs MUST be 154-dim."
+echo "  angular-momentum use should rise there. Exported policy actor obs MUST be 770-dim"
+echo "  (154 per-frame x history ${G1_OBS_HISTORY}); DEPLOY needs a rolling history buffer -> see the"
+echo "  DEPLOY CONTRACT block in cloud/sim2real_task_v8.py (deploy-wave requirement)."
 echo "  If survival marginal (90-95%): walk G1_SLOWDOWN 1.8 -> 2.0 -> 2.5 (one env var)."
 echo "  Then pull to laptop, sign, DELETE THE BOX."
