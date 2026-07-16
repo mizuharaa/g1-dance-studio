@@ -69,6 +69,26 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   (Apache-2.0). CAVEAT: unitree_rl_mjlab clone hung on sandbox net → read via raw-GitHub WebFetch;
   confirm the obs-contract details empirically before deleting code.
 
+- 2026-07-16: **AGENT B (motion feasibility) DONE — ROOT CAUSE QUANTIFIED + FIXED.** Built a
+  dynamic feasibility pass (mj_inverse, ankle-strategy torque F_z·‖ZMP−CoM‖); VALIDATED — lights up
+  exactly at the fall beats. **The Thriller reference demands 173.6 Nm peak ankle torque** (sim limit
+  50 flat; real derated ~36–43) → the motion was PHYSICALLY IMPOSSIBLE by 3–4× → why v5/v6/v7 all
+  failed (no reward fixes an impossible target). Repair (global-slowdown-first per user philosophy):
+  **2.5× uniform slowdown** → ankle max 173.6→39.4 Nm, p95 102→22, frames-over 47.5%→0%, style
+  0.999 (music stays synced under uniform stretch). Delivered pipeline/g1_limits.py, motion_dynamics.py,
+  tools/motion_repair.py, motion_triage.py (3-way floaty-motion classifier), upgraded vet + feasibility
+  scorecard + retarget_gvhmr.dof_aware_postprocess. NEW DISTINCT DEFECT surfaced: reference FLOATS the
+  support foot ~0.10 m in 78% of frames (grounding bug, separate from torque). All committed.
+  **USER DECISION (2026-07-16):** pursue the MILDEST safe slowdown via hip-strategy (2.5× is a
+  conservative ankle-only bound; hips could allow ~1.7–2.0×) before v8; and do all three no-GPU prep
+  items. **DISPATCHED (parallel, no-GPU):** Agent D (hip-strategy actuation design → mildest-safe
+  slowdown + training deltas → experiments/actuation_design_v8.md), Agent E (swap faithful mjlab model
+  into the laptop preview, reusing B's MJCF+armature setup → kills the menagerie mismatch), grounding-fix
+  (the 78% foot-float bug). NEXT after they land: I draft cloud/sim2real_task_v8.py = Agent 0's 155-dim
+  no-state-est actor obs + delete leg_odometry + Agent D's actuation deltas + Agent B's repaired motion
+  at D's slowdown factor. THEN the GPU wave (Agent A gate-calibration + Agent F v8 train) — the FIRST
+  point a box is needed; will confirm the new-PC-GPU option first (could replace GreenNode entirely).
+
 - 2026-07-16: **UI REVAMP (Agent C) DONE + committed.** (1) FIXED "video not displaying after
   retrain" — real bug in `pipeline/sim_preview.py`: `_sha8()` keyed the preview version off
   `dance.policy_sha256`, which `attach_policy()` deliberately clears → EVERY retrain collapsed to one
