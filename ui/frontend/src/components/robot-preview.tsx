@@ -37,7 +37,7 @@ export function CuteRobotMark({ className }: { className?: string }) {
  *  surface an "open in your browser" button that hands the URL to the real system browser
  *  (which has the codec) via the pywebview bridge. In a normal browser the video just plays
  *  and the fallback never shows. `data-testid="preview-video"` stays mounted for tests. */
-export function PreviewPlayer({ url, autoPlay = true, className, testId = "preview-video" }: { url: string; autoPlay?: boolean; className?: string; testId?: string }) {
+export function PreviewPlayer({ url, autoPlay = true, className, testId = "preview-video", onVideo }: { url: string; autoPlay?: boolean; className?: string; testId?: string; onVideo?: (el: HTMLVideoElement | null) => void }) {
   const desktop = useDesktopShell()
   const [retry, setRetry] = useState(0)
   const [src, setSrc] = useState<string | null>(null)
@@ -66,7 +66,7 @@ export function PreviewPlayer({ url, autoPlay = true, className, testId = "previ
   }, [url, desktop, retry])
   return (
     <div className={cn("relative", className)}>
-      {src && <video data-testid={testId} src={src} controls autoPlay={autoPlay} playsInline className="max-h-[70vh] w-full rounded-lg bg-black" onError={() => setState("failed")} />}
+      {src && <video ref={onVideo} data-testid={testId} src={src} controls autoPlay={autoPlay} playsInline className="max-h-[78vh] w-full rounded-lg bg-black" onError={() => setState("failed")} />}
       {state === "preparing" && (
         <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-lg bg-slate-950 p-6 text-center" data-testid="preview-preparing">
           <Loader2 className="h-7 w-7 animate-spin text-blue-400" />

@@ -31,9 +31,9 @@ from fastapi.staticfiles import StaticFiles
 
 from pipeline.config import DATA_DIR, STAGE_ORDER
 from pipeline import audio as audio_mod
-from pipeline import (body_models, cloud, monitor, policy_store, preshow, setlist,
-                      show_runner, shows, sim_preview, store, venue, video_edit,
-                      video_quality, video_web)
+from pipeline import (body_models, cloud, landmark_preview, monitor, policy_store,
+                      preshow, setlist, show_runner, shows, sim_preview, store, venue,
+                      video_edit, video_quality, video_web)
 from pipeline.runner import Runner
 from pipeline.stages.local_motion import build_stages
 
@@ -578,6 +578,24 @@ def render_dance_sim(dance_id: str) -> dict:
     if not dance.policy_path:
         raise HTTPException(409, "dance has no trained policy yet — nothing to simulate")
     return sim_preview.render_async(dance)
+
+
+# ---- Simulation tab: pose-estimation landmark overlay (debug garbage-in) ----------
+@app.get("/api/dances/{dance_id}/landmark")
+def dance_landmark(dance_id: str) -> dict:
+    """Status (+url when ready) of the GVHMR landmark overlay for this dance's source video."""
+    dance = _load_dance_or_404(dance_id)
+    return landmark_preview.status(getattr(dance, "source_job", None) or "")
+
+
+@app.post("/api/dances/{dance_id}/landmark")
+def render_dance_landmark(dance_id: str) -> dict:
+    """Render (background) the landmark overlay for this dance's source video; poll GET for status."""
+    dance = _load_dance_or_404(dance_id)
+    job = getattr(dance, "source_job", None)
+    if not job:
+        raise HTTPException(409, "dance has no source video job — nothing to overlay")
+    return landmark_preview.render_async(job)
 
 
 # ---- show mode: dance library ---------------------------------------------------

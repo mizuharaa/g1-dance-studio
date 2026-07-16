@@ -38,6 +38,30 @@ from tools.sim_sandbox import run_sandbox, tracking_report, SCENE  # noqa: E402
 H, W = 480, 380
 
 
+def _ffmpeg_exe() -> str:
+    """Encoder resolver. There is NO system ffmpeg on this laptop, so prefer the
+    imageio-ffmpeg bundle (per handoff), then the conda env's ffmpeg, then PATH."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+    conda = Path.home() / "miniconda3/envs/g1dance/bin/ffmpeg"
+    if conda.exists():
+        return str(conda)
+    return shutil.which("ffmpeg") or "ffmpeg"
+
+
+def _encode(frames_dir: Path, out_path: Path) -> None:
+    """Encode a directory of f%05d.png frames (50 fps) to an H.264 mp4, then clean up."""
+    subprocess.run([_ffmpeg_exe(), "-y", "-loglevel", "error", "-framerate", "50",
+                    "-i", str(frames_dir / "f%05d.png"), "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p", str(out_path)], check=True)
+    for f in frames_dir.glob("*.png"):
+        f.unlink()
+    frames_dir.rmdir()
+
+
 def _kinematic_reference(dance: Path, steps: int) -> dict:
     """The INTENDED dance: reference joint_pos played kinematically (a perfect tracker)."""
     meta = D.Meta(dance / "policy_meta.json")
@@ -48,8 +72,10 @@ def _kinematic_reference(dance: Path, steps: int) -> dict:
     return {"q": q, "base_pos": base, "meta": meta, "achieved": 1.0, "kind": "REFERENCE (intended)"}
 
 
-def _policy_rollout(dance: Path, steps: int, latency: float, tether: float, label: str) -> dict:
-    out, _, _ = run_sandbox(dance, steps=steps, latency_ms=latency, tether_kp=tether)
+def _policy_rollout(dance: Path, steps: int, latency: float, tether: float, label: str,
+                    model_path: Path = SCENE) -> dict:
+    out, _, _ = run_sandbox(dance, steps=steps, latency_ms=latency, xml=model_path,
+                            tether_kp=tether)
     rep = tracking_report(out)
     out["achieved"] = rep["amplitude_ratio_overall"]   # honest: how much it DANCES (not error)
     out["kind"] = label
@@ -64,8 +90,8 @@ def _qadr(model, meta) -> np.ndarray:
     return a
 
 
-def render_studio(left: dict, right: dict, out_path: Path, meta):
-    model = mujoco.MjModel.from_xml_path(str(SCENE))
+def render_studio(left: dict, right: dict, out_path: Path, meta, model_path: Path = SCENE):
+    model = mujoco.MjModel.from_xml_path(str(model_path))
     qadr = _qadr(model, meta)
     dl, dr = mujoco.MjData(model), mujoco.MjData(model)
     rL = mujoco.Renderer(model, height=H, width=W)
@@ -103,15 +129,77 @@ def render_studio(left: dict, right: dict, out_path: Path, meta):
                  "(reference | policy)", fill=(230, 170, 90))
         im.save(tmp / f"f{k:05d}.png")
     rL.close(); rR.close()
+    _encode(tmp, out_path)
 
-    ff = str(Path.home() / "miniconda3/envs/g1dance/bin/ffmpeg")
-    ff = ff if Path(ff).exists() else (shutil.which("ffmpeg") or "ffmpeg")
-    subprocess.run([ff, "-y", "-loglevel", "error", "-framerate", "50",
-                    "-i", str(tmp / "f%05d.png"), "-c:v", "libx264",
-                    "-pix_fmt", "yuv420p", str(out_path)])
-    for f in tmp.glob("*.png"):
-        f.unlink()
-    tmp.rmdir()
+
+# ---- OVERLAY: reference (green ghost) + policy (blue) in ONE shared scene ----------
+OW, OH = 760, 540
+_REF_RGBA = np.array([0.28, 0.85, 0.42, 1.0], np.float32)   # translucent green ghost
+_POL_RGBA = np.array([0.24, 0.48, 0.98, 1.0], np.float32)   # solid blue
+
+
+def _tint_dynamic(scene, rgba) -> None:
+    """Recolor only the robot (dynamic-category) geoms; leaves floor/sky/world alone."""
+    for i in range(scene.ngeom):
+        g = scene.geoms[i]
+        if g.category == mujoco.mjtCatBit.mjCAT_DYNAMIC:
+            g.rgba[:] = rgba
+
+
+def render_overlay(left: dict, right: dict, out_path: Path, meta, model_path: Path = SCENE):
+    """Render BOTH skeletons in the SAME mujoco scene, color-coded, into one mp4.
+
+    Reference (intended) = translucent green ghost; policy (actual robot) = solid blue.
+    Divergence between intent and reality is directly visible in a single view.
+    model_path is a parameter so a faithful mjlab model can be swapped in later.
+    """
+    model = mujoco.MjModel.from_xml_path(str(model_path))
+    model.vis.global_.offwidth = max(model.vis.global_.offwidth, OW)
+    model.vis.global_.offheight = max(model.vis.global_.offheight, OH)
+    qadr = _qadr(model, meta)
+    dL, dR = mujoco.MjData(model), mujoco.MjData(model)
+    r = mujoco.Renderer(model, height=OH, width=OW)
+    cam = mujoco.MjvCamera(); cam.azimuth, cam.elevation, cam.distance = 135, -15, 3.6
+    opt = mujoco.MjvOption()
+    n = min(len(left["q"]), len(right["q"]))
+    tmp = Path(str(out_path) + ".frames"); tmp.mkdir(exist_ok=True)
+
+    def pose(data, rec, k):
+        data.qpos[:] = 0
+        data.qpos[0:3] = rec["base_pos"][k]
+        data.qpos[3:7] = [1, 0, 0, 0]
+        data.qpos[qadr] = rec["q"][k]
+        mujoco.mj_forward(model, data)
+
+    for k in range(n):
+        cx = (left["base_pos"][k][0] + right["base_pos"][k][0]) / 2
+        cy = (left["base_pos"][k][1] + right["base_pos"][k][1]) / 2
+        cam.lookat[:] = [cx, cy, 0.8]
+        pose(dL, left, k)
+        r.update_scene(dL, cam, opt); _tint_dynamic(r.scene, _REF_RGBA)
+        img_ref = r.render().astype(np.float32)
+        pose(dR, right, k)
+        r.update_scene(dR, cam, opt); _tint_dynamic(r.scene, _POL_RGBA)
+        img_pol = r.render().astype(np.float32)
+        # Blend: reference as a faint ghost, policy stronger. Identical background in
+        # both frames blends back to ~itself; the two tinted robots stay distinct.
+        combo = np.clip(img_ref * 0.5 + img_pol * 0.72, 0, 255).astype(np.uint8)
+        im = Image.fromarray(combo); d = ImageDraw.Draw(im)
+        d.rectangle([0, 0, OW, 40], fill=(0, 0, 0))
+        d.rectangle([8, 10, 26, 28], fill=(72, 217, 107))
+        d.text((32, 14), "REFERENCE (intended dance)", fill=(210, 245, 215))
+        d.rectangle([OW - 250, 10, OW - 232, 28], fill=(61, 122, 250))
+        d.text((OW - 226, 14), "POLICY (actual robot)", fill=(200, 220, 255))
+        fell = right.get("fell_at")
+        if fell and k >= fell:
+            d.text((OW // 2 - 60, 14), f"POLICY FELL @ {fell}", fill=(250, 130, 90))
+        d.rectangle([0, OH - 18, OW, OH], fill=(0, 0, 0))
+        d.text((6, OH - 15),
+               "OVERLAY - same scene, color-coded. SIM NOT YET CALIBRATED to the training "
+               "model; under-represents hardware.", fill=(230, 170, 90))
+        im.save(tmp / f"f{k:05d}.png")
+    r.close()
+    _encode(tmp, out_path)
 
 
 def main() -> int:
@@ -122,23 +210,32 @@ def main() -> int:
     ap.add_argument("--latency-ms", type=float, default=0.0)
     ap.add_argument("--tether-kp", type=float, default=0.0,
                     help="keep 0 — a high tether pins the base and SUPPRESSES the dance")
-    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--out", type=Path, required=True, help="side-by-side mp4 (reference | policy)")
+    ap.add_argument("--overlay-out", type=Path, default=None,
+                    help="also render the SAME-SCENE color-coded overlay to this mp4")
+    ap.add_argument("--model", type=Path, default=SCENE,
+                    help="MuJoCo scene xml (parameterized so a faithful mjlab model can be swapped in)")
     ap.add_argument("--report", type=Path, default=None, help="write a small json summary")
     args = ap.parse_args()
 
     meta = D.Meta(args.dance / "policy_meta.json")
     if args.dance_b:                              # POLICY(before) | POLICY(after)
-        left = _policy_rollout(args.dance, args.steps, args.latency_ms, args.tether_kp, "BEFORE")
-        right = _policy_rollout(args.dance_b, args.steps, args.latency_ms, args.tether_kp, "AFTER")
+        left = _policy_rollout(args.dance, args.steps, args.latency_ms, args.tether_kp, "BEFORE",
+                               model_path=args.model)
+        right = _policy_rollout(args.dance_b, args.steps, args.latency_ms, args.tether_kp, "AFTER",
+                                model_path=args.model)
     else:                                         # REFERENCE(intended) | POLICY(actual)
         left = _kinematic_reference(args.dance, args.steps)
         right = _policy_rollout(args.dance, args.steps, args.latency_ms, args.tether_kp,
-                                "POLICY (sim — uncalibrated)")
+                                "POLICY (sim — uncalibrated)", model_path=args.model)
     print(f"left  {left['kind']}: achieved {left['achieved']*100:.0f}%")
     print(f"right {right['kind']}: achieved {right['achieved']*100:.0f}%"
           + (f"  fell@{right.get('fell_at')}" if right.get('fell_at') else ""))
-    render_studio(left, right, args.out, meta)
+    render_studio(left, right, args.out, meta, model_path=args.model)
     print(f"wrote {args.out}")
+    if args.overlay_out:
+        render_overlay(left, right, args.overlay_out, meta, model_path=args.model)
+        print(f"wrote {args.overlay_out}")
     if args.report:
         import json
         args.report.parent.mkdir(parents=True, exist_ok=True)
