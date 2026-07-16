@@ -352,3 +352,19 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - RESUME IF SESSION DIES: tail $NB/attempt4.out; on "==== DONE" -> pull
   `scp -P 57240 -i .secrets/greennode_rsa root@103.245.250.152:/workspace/notebook-data/exports/train-thriller_v7ank-0715/* exports/train-thriller_v7ank-0715/`
   -> read gap.json gate -> sign -> DELETE BOX (billing!). This is attempt 4 (budget extended by 1).
+
+## 2026-07-16 — NEW BOX + v8 REDESIGN (history + teacher-student)
+- Box: root@103.245.250.152:46659, key .secrets/greennode_rsa (cloud.json updated). Fresh RTX 4090
+  24GB, driver 580.65, EMPTY 196GB volume (/dev/sdb, no 20GB squeeze). Provisioning in background
+  (00_bootstrap + 20_training mjlab) -> $NB/logs/provision.log; expect mjlab_ready.
+- USER decided (2026-07-16): obs architecture = HISTORY + TEACHER-STUDENT (drop explicit base_lin_vel,
+  give the student obs history to infer velocity, privileged critic/teacher on full sim-truth). KEEP
+  the box running / fast-track. Also requested deploy-safety hardening (never run grounded policy
+  suspended; require foot contact before run; action clamps+rate limits+estimator-validity+independent
+  damping watchdog) and a full obs units/frames/normalization/timing audit.
+- DISPATCHED (parallel, no-GPU): (1) recipe redesign v8 -> history+teacher-student (checks mjlab
+  native obs-history support first); (2) obs audit -> experiments/obs_audit.md (gates train);
+  (3) deploy-safety guards in pipeline/deploy_runtime.py (NON-blocking; robot down).
+- NEXT: reconcile audit fixes into recipe -> re-push cloud/ -> motion prep (ground->repair1.8x->
+  csv_to_npz) -> preflight (v8 --selfcheck + 64-env smoke) -> launch v8 curriculum + Agent A gate
+  calibration (run thriller_csv_ankle_penalty through the gate) in the SAME session. DELETE box when done.
