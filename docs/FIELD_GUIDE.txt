@@ -1,0 +1,432 @@
+===============================================================================
+ THE G1 DANCE PROJECT — A FIELD GUIDE (end to end, plain language first)
+===============================================================================
+ For:    the incoming dev (no robotics background assumed)
+ Robot:  Unitree G1 EDU Ultimate (29 DoF + Inspire hands)
+ Status: pipeline working; controller not yet passing the deploy bar
+ Pairs with PROJECT_STATE.md (live status + decision log).
+
+ You point a camera at a dancer. Out the other end, a humanoid robot performs
+ that exact choreography — on its own two feet, staying balanced even if you
+ shove it. This is how the whole machine works, simple words first, real terms
+ after.
+
+ CONTENTS
+   1. The big idea & the goal
+   2. The robot, and why walking is hard
+   3. The pipeline, stage by stage
+   4. How the robot "learns" (reinforcement learning)
+   5. Judging it: the gate & its metrics
+   6. Getting it onto real hardware
+   7. The tech stack & the app
+   8. Key decisions (including "why not Isaac Lab?")
+   9. Bugs & war stories
+  10. Where we are right now
+  11. Glossary
+
+
+===============================================================================
+ 1. THE BIG IDEA — a dance video in, a balanced robot performance out
+===============================================================================
+Everything here serves one sentence:
+  reference dance video  ->  the Unitree G1 performs that choreography,
+                             reliably, without falling.
+
+The end goal isn't a lab demo — it's a PLUG-AND-PLAY PRODUCT. An operator powers
+the robot on, picks a dance from a library, hits deploy, and the robot performs
+at paid-service quality, venue after venue. The primary target is LONG dances
+(2-3 minutes), not 15-second clips.
+
+Two things make it hard — keep them separate in your head:
+  * GETTING THE MOVES — turning a video of a human into instructions a robot
+    body can follow. THIS PART WORKS.
+  * STAYING UP WHILE DOING THEM — performing those moves on two feet without
+    toppling, even with real-world imperfections (delays, shoves, sensor noise).
+    THIS is where the project currently gets stuck.
+
+PLAIN VERSION: copying the dance is the easy half. Not falling over while
+dancing is the hard half — because a humanoid is basically a tall stack of
+motors trying to balance a broomstick that happens to be shaped like a person.
+
+
+===============================================================================
+ 2. THE ROBOT — and why balance is the whole game
+===============================================================================
+A HUMANOID ROBOT is a robot shaped like a person (torso, two arms, two legs,
+head). Ours is a Unitree G1 EDU Ultimate.
+
+JOINTS, DoF, ACTUATORS, TORQUE
+  * JOINT — a powered hinge (hip, knee, ankle, shoulder, elbow...). Our G1 has
+    29 independently controllable joints.
+  * DEGREE OF FREEDOM (DoF) — one independent way it can move. So this is a
+    "29-DoF" robot, plus dexterous Inspire hands on the ends.
+  * ACTUATOR — the motor + gearbox that drives a joint.
+  * TORQUE — the twisting force a motor makes, in newton-metres (Nm). KEY FACT
+    for later: every motor has a MAX torque. Ask for more and it SATURATES — it's
+    already flooring it and can't push harder. A saturated ankle can't catch a
+    wobble. That's the wall this project is hitting.
+
+THE BALANCE PROBLEM
+A humanoid is STATICALLY UNSTABLE — left alone it falls, like a pencil balanced
+on a fingertip. It stays up only because a controller makes tiny corrections
+many times a second. Two ideas describe "staying up":
+  * CENTER OF MASS (CoM) — keep the robot's weight balanced over its feet.
+  * STATION-KEEPING — stay on one spot instead of sliding. How far it slides is
+    DRIFT, which we cap because the stage is only ~2 m across.
+
+PLAIN VERSION: 29 little motors, each with a strength limit, cooperating 50
+times a second to keep a person-shaped tower from tipping over — WHILE also
+throwing dance shapes. When a move needs more ankle strength than the motor
+has, it tips.
+
+
+===============================================================================
+ 3. THE PIPELINE — from a phone video to a robot brain, in six stages
+===============================================================================
+The core of the software is a PIPELINE — an assembly line where each stage takes
+the previous stage's output and transforms it.
+
+  video --> [1 pose est.] --> 3D human --> [2 retarget] --> robot poses
+        --> [3 clean/vet] --> motion file --> [4 train (RL, GPU)] --> policy.onnx
+        --> [5 verify: the gate] --> pass? --> [6 deploy on robot]
+
+STAGE 1 — SEE THE HUMAN (pose estimation)
+  in: dance video   out: a moving 3D skeleton of the person
+  POSE ESTIMATION is the computer-vision step that works out where the dancer's
+  body was in 3D, frame by frame. We use a model called GVHMR. Its output is in
+  a standard digital-human format called SMPL (a rigged 3D body described by a
+  few numbers per frame). KEYPOINTS = the tracked points (wrists, ankles, hips)
+  we later compare the robot against.
+
+STAGE 2 — TRANSLATE TO THE ROBOT'S BODY (retargeting)
+  in: 3D human motion   out: 29 robot joint angles per frame
+  A human and the G1 have different proportions/joints, so you can't copy angles
+  directly. RETARGETING maps the human motion onto the robot's skeleton. We use
+  a library called GMR (General Motion Retargeting). Out comes a table of 29
+  joint angles per frame, saved as CSV, then a compact binary motion file (.npz).
+
+STAGE 3 — SANITY-CHECK THE MOVES (cleanup & vetting)
+  in: raw robot motion   out: a clean, physically-possible motion
+  Vision output is jittery, and some human moves are impossible for the robot
+  (too fast, feet leave the 2 m circle, joint spins faster than the motor can).
+  This stage FILTERS jitter (smoothing single-frame "twitches") and VETS
+  FEASIBILITY (checks joint speeds vs limits, rejects the impossible). Terms:
+  JERK = twitchiness; FEASIBILITY = can the robot physically do it.
+
+STAGE 4 — TEACH THE ROBOT TO PERFORM IT (training)
+  in: clean motion file   out: a trained controller, policy.onnx
+  We do NOT "play back" the motion like a puppet. We TRAIN a controller that
+  watches the robot's state and figures out how to move the joints to MATCH the
+  reference dance WHILE balancing. This happens in simulation on a GPU and
+  produces a small neural network called a POLICY. (See section 4.)
+
+STAGE 5 — JUDGE WHETHER IT'S GOOD ENOUGH (the gate)
+  in: trained policy   out: PASS/FAIL + a scorecard
+  Before a policy touches the real robot, it runs an automated exam called the
+  GATE — thousands of simulated robots dancing under stress (delays, shoves,
+  noise), scored on survival, accuracy, drift, and motor strain. (See section 5.)
+
+STAGE 6 — RUN IT FOR REAL (deploy)
+  in: a passing policy   out: the robot dancing on the floor
+  The policy runs on the robot's onboard computer, reading sensors and commanding
+  motors 50 times a second — with a human holding a safety remote. (See sec. 6.)
+
+
+===============================================================================
+ 4. THE LEARNING PART — reinforcement learning (RL)
+===============================================================================
+The controller is trained with REINFORCEMENT LEARNING (RL). Plain loop:
+  try something -> get a score -> adjust to score higher -> repeat millions of
+  times.
+
+VOCABULARY
+  POLICY       The "brain." A neural net that, given what the robot senses,
+               outputs the 29 joint commands. The thing we're training.
+  OBSERVATION  What the policy sees each step: joint positions/speeds, body tilt,
+               and where the reference dance says it should be. Ours = 160 numbers.
+  ACTION       What the policy outputs: target angles for the 29 joints.
+  REWARD       The score. High for matching the dance AND staying up AND not
+               slamming the motors; low for drifting or falling. Shaping this is
+               most of the "recipe" work.
+  ENVIRONMENT  The simulated world where it practices.
+  EPISODE      One practice attempt (e.g. one run of the 49 s dance). A fall ends
+               it early.
+  ITERATION    One round of "collect experience -> nudge the policy." We run
+               ~10,000-12,000 per dance.
+
+WHY SIMULATION, AND WHY A GPU?
+You can't teach this on the real robot — it would fall thousands of times and
+destroy itself. So we train in a PHYSICS SIMULATOR, running 4,096 virtual robots
+in parallel, all learning together. That parallelism needs a GPU (a chip that
+does thousands of calculations at once). Our dev laptop has NO GPU, so training
+runs on a rented cloud GPU (an NVIDIA RTX 4090). This constraint drove several
+big decisions (section 8).
+
+DOMAIN RANDOMIZATION — the trick that makes sim transfer to reality
+A policy trained in a PERFECT simulation fails in the real world, which is
+messier. So during training we deliberately RANDOMIZE the sim: vary the robot's
+weight, add sensor noise, inject control delays, shove the robot randomly. This
+is DOMAIN RANDOMIZATION, and it's what lets a sim-trained brain survive on real
+hardware. The gap it fights is the SIM-TO-REAL GAP.
+
+The RL algorithm is PPO (a standard, stable method), run by a library called
+rsl_rl, inside a training framework called mjlab. Why mjlab and not the more
+famous Isaac Lab is the most-asked question — answered in section 8.
+
+PLAIN VERSION: we breed a dance controller by having thousands of simulated
+robots practise at once, scoring each on "did you match the dance AND stay up
+AND go easy on the motors," and keeping what scores best — while roughing up the
+simulation so the winner also works in the real, messy world.
+
+
+===============================================================================
+ 5. JUDGING IT — the gate and its metrics
+===============================================================================
+A trained policy is NOT trusted just because training reward went up. It must
+pass the GATE — an independent test that runs the policy on ~128 simulated robots
+through the full dance under many CONDITIONS, and scores it.
+
+  METRIC          WHAT IT MEASURES                                    BAR
+  -----------     ------------------------------------------------    ----------
+  Survival        % of simulated robots that finish without falling   >= 99%
+  Drift (m)       How far it slid from where it should stand          <= 1.0 m
+  mpkpe (m)       Mean per-keypoint position error: how closely the
+                  body matches the reference, in world space          low
+  rr_mpkpe        Same, ignoring WHERE it stands: pure pose accuracy.
+                  low rr + high mpkpe = "right poses, sliding away"    <= 0.1 m
+  Ankle p95 (Nm)  Near-peak ankle torque. Hitting the 50 Nm limit =
+                  saturation = about to fall                          <= 15 / 20
+  Latency         Injected control delay (20/40/60/80 ms) to mimic
+                  real electronics                                    survive 40ms
+  Push            Random shoves mid-dance (balance robustness)        survive
+
+The gate passes ONLY if EVERY check passes. The realistic
+"will-it-survive-the-robot" condition is 40ms delay + push + noise — that's the
+one we key on. HELD-OUT EVALUATION = a second check on UNSEEN random conditions,
+so we know the policy generalizes rather than got lucky.
+
+TWO KINDS OF VERIFICATION
+  * SIM-TO-SIM — re-test in a DIFFERENT simulator to catch overfitting to the
+    training sim. (We tried; it hit a snag — see war stories.)
+  * ROBOT DAY — the real, final test on the physical robot, always on a GANTRY
+    (safety frame) first, with a human on the kill-switch.
+
+
+===============================================================================
+ 6. DEPLOYMENT — getting a policy onto the real robot, safely
+===============================================================================
+Once a policy passes the gate, it runs on the robot's onboard computer — an
+NVIDIA Jetson Orin ("PC2"). The CONTROL LOOP runs at 50 Hz (50x/second):
+  read sensors -> policy computes joint targets -> send to motors -> repeat.
+Any slower or jittery and the robot wobbles, which is why we hardened the loop.
+
+HOW JOINT TARGETS BECOME MOTION — PD CONTROL & GAINS
+The policy outputs TARGET angles, not raw power. A lower-level controller called
+PD CONTROL turns "go to this angle" into actual torque, using tuning numbers
+called GAINS (stiffness kp and damping kd). These must match what training
+assumed, or a good policy behaves badly on hardware.
+
+SAFETY — NOT OPTIONAL
+  *** This tetherless G1 has NO torque-cutting hardware e-stop. ***
+The only real stops are the remote's B-damping button (motors go soft) and the
+power switch. So every deploy requires a HUMAN PHYSICALLY PRESENT with the
+damping remote, the robot on a gantry for first runs, and a typed confirmation
+in the app. The safety review baked these in as hard, non-skippable gates.
+
+SNEAKY SIM-TO-REAL GAPS
+Some things are true in sim but not measurable on the real robot — e.g. the
+robot's exact sideways velocity (base_lin_vel) is an INPUT the policy expects
+but hardware can't directly sense; it needs a STATE ESTIMATOR to reconstruct it.
+Mismatches like this are the essence of the sim-to-real gap.
+
+
+===============================================================================
+ 7. THE TECH STACK & THE OPERATOR APP
+===============================================================================
+The whole stack, by what each piece does (nothing exotic — the skill is in how
+they're wired together and hardened):
+
+  LAYER               TOOLS                                     ROLE
+  ----------------    --------------------------------------    -------------------------------
+  Perception          GVHMR, SMPL / SMPL-X                      Video -> 3D human motion
+  Retargeting         GMR                                       Human -> 29-DoF robot motion
+  Motion prep         custom Python, NumPy/SciPy                De-jitter, feasibility, ramps
+  Training            mjlab 1.5.0, rsl_rl (PPO), MuJoCo+Warp    RL controller training on GPU
+  Simulation          MuJoCo, mujoco_menagerie, unitree_mujoco  Physics for train/sandbox/gate
+  Verification        custom gate, held-out eval, sim sandbox   Prove a policy before hardware
+  Policy format       ONNX                                      Portable trained-net file
+  Deploy runtime      unitree_sdk2_python, CycloneDDS, onnxrt   50 Hz control loop on the Jetson
+  Cloud compute       GreenNode (RTX 4090 notebooks)            Rented GPU for train/extract
+  Experiment tracking Weights & Biases (W&B)                    Logs training curves & artifacts
+  App backend         FastAPI (Python)                          Local engine + API on :8735
+  App frontend        React, Vite, Tailwind/shadcn              Operator console UI
+  Desktop shell       pywebview (PySide6/Qt)                    Wraps the web UI as a desktop app
+
+THE APP IS AN "OPERATOR CONSOLE," NOT A DASHBOARD
+Because the end goal is a product an operator runs at a show, the app ("G1 Dance
+Studio") is built like mission-control. Already built:
+  * Five-stage pipeline view with drag-and-drop, logs, blockers, retry, and a
+    training-approval step.
+  * Live run state machine + estimated dance timeline; a big global STOP button.
+  * SHOW MODE: dance library, per-venue records, setlist builder, perform mode.
+  * Compute/cost/training monitor (live GPU %, spend, iterations) so you don't
+    have to SSH to check.
+  * Held-out stats per dance + one-click POLICY ROLLBACK to a previous version.
+  * Safety UX: a typed confirmation phrase, fall/incident capture, an immutable
+    audit timeline.
+  * Signed verification verdicts (tamper-proof), music/audio sync, and a
+    side-by-side "dance studio" preview (reference vs. what the policy does).
+
+IN PROGRESS / NEXT: the "motion surgery" approach to the survival problem
+(section 10), best-checkpoint selection (just added), and — pending a hardware
+repair — real robot-day validation.
+
+
+===============================================================================
+ 8. KEY DECISIONS — including "WHY NOT ISAAC LAB?"
+===============================================================================
+[THE BIG ONE] Why mjlab, not Isaac Lab / the prebuilt BeyondMimic?
+  The research method we're copying is BeyondMimic, built on ISAAC LAB — NVIDIA's
+  RL robotics framework, which runs on ISAAC SIM, a large Omniverse-based
+  simulator. The catch is our rented cloud GPU: GreenNode gives us a FIXED
+  software image (PyTorch 2.5.1 / CUDA 12.4) with NO Docker and no way to install
+  the heavyweight, driver-specific Omniverse/Isaac Sim stack. So Isaac Lab simply
+  would NOT run there ("permanently dead on this image").
+  The fix: MJLAB — a newer, lighter library that reimplements the SAME
+  motion-tracking RL approach on MuJoCo + Warp (GPU physics) instead of Isaac Sim.
+  It installs with plain pip, ships its own motion converter (no Isaac Sim needed),
+  has built-in ONNX export and push randomization, and runs on the fixed image.
+  It was pre-planned as a "bounded fallback" — and the fallback became the main road.
+
+[FOLLOW-UP] "So why write custom code at all, if the libraries exist?"
+  We DO lean on prebuilt libraries heavily (mjlab, rsl_rl, GMR, GVHMR, MuJoCo).
+  But the stock library gets you a RESEARCH DEMO — a policy that tracks a dance in
+  a clean simulation. Turning that into something that survives on REAL HARDWARE —
+  robust to latency, shoves, motor-torque limits, and floor drift — is the custom
+  part. That's what our sim2real_task_v5/v6/v7 "recipes" are: extra reward terms,
+  termination rules, and training curricula layered on top of mjlab's stock task.
+  The acceptance GATE and the operator APP are also ours.
+  Rule of thumb: libraries give you "it dances in sim"; the custom code is
+  everything between there and "it dances on the robot, at a show, safely."
+
+OTHER DECISIONS WORTH KNOWING
+  * CLOUD GPU, DELETED NOT PAUSED. GreenNode bills from instance CREATION to
+    DELETION — pausing still charges. Workflow: spin up, train, pull results,
+    DELETE. (We've twice been burned by a box idling after a run — watch this.)
+  * HELD-OUT mjlab VERIFICATION instead of true sim-to-sim. The plan was to verify
+    in a second simulator; its robot model wasn't dynamically equivalent to
+    mjlab's (it even fell holding a STATIC pose), so a cross-sim test gives false
+    failures. We switched to testing in the same faithful sim with unseen
+    conditions + strong randomization, and made ROBOT DAY the true independent test.
+  * DESKTOP APP, NOT A WEBSITE. An operator at a venue shouldn't depend on a
+    browser tab or a server — the UI is wrapped as a native desktop window
+    (all-Python, via pywebview).
+  * LONG DANCES NEED IN-PLACE CHOREOGRAPHY. Stock motion-capture dances travel too
+    far for a 2 m stage; real show dances must have a small footprint.
+
+
+===============================================================================
+ 9. BUGS & WAR STORIES — mistakes and what they taught us
+===============================================================================
+* SILENT VERSION DRIFT BROKE THE GPU PHYSICS. A loose install pulled slightly
+  newer physics libs (mujoco-warp, warp-lang) that crashed with a cryptic CUDA
+  error at startup. Fix: PIN EXACT VERSIONS. In GPU/ML stacks, "latest" is a
+  liability — lock everything.
+
+* A RENDERING FLAG CORRUPTED TRAINING. Setting MUJOCO_GL=egl (needed for
+  RENDERING) during TRAINING collided with the GPU physics engine ("illegal
+  memory access"). Fix: rendering flag on only for the verify step.
+
+* CHECKPOINTS SORTED ALPHABETICALLY. Code picked the "latest" saved policy by
+  NAME, so model_500 sorted after model_3999 — we resumed from the wrong, earlier
+  checkpoint and lost a whole training stage. Fix: sort NUMERICALLY.
+
+* "num_envs DEFAULTS TO 1." The trainer silently defaults to ONE simulated robot
+  unless you pass 4,096 explicitly — easy to run a 4,000x slower job unnoticed.
+
+* A MIS-READ SENSOR INDEX DROVE A DAY OF WRONG CONCLUSIONS. One mis-indexed number
+  in a sim readout led to confident-but-wrong diagnoses for a full day. Project
+  rule now: never call a finding decisive without an independent cross-check, and
+  commit the measurement script + its raw output so numbers have provenance.
+
+* ...AND A FRESH ONE THIS WEEK. While diagnosing a "the motion is 16x too fast!"
+  scare, the alarming number came from a one-character bug in the ANALYSIS code
+  (np.diff(x, 0) — which diffs zero times — instead of axis=0). The motion was
+  fine. Caught before spending a cent of GPU.
+
+* A GOOD SAVE: BEST-CHECKPOINT SELECTION. Late in one run the policy COLLAPSED to
+  3% survival in its final steps. We used to export the LAST checkpoint
+  automatically — which would've shipped the collapse. The new step screens the
+  last several checkpoints and exports the best one. It immediately earned its keep.
+
+
+===============================================================================
+ 10. WHERE WE ARE RIGHT NOW
+===============================================================================
+THE SURVIVAL WALL (software)
+After four training attempts, one number won't move: NOMINAL SURVIVAL is stuck at
+~86-92% (we need >= 99%). Each recipe change improves one metric and dents
+another — we recently SOLVED drift (1.67 m -> 0.81 m) but survival got slightly
+worse. Crucially, the falls always land in the SAME TWO MOMENTS of the dance
+(~13-18 s and ~25-36 s), and at exactly those moments the ANKLE MOTORS SATURATE —
+they hit their 50 Nm limit.
+
+  THE REALIZATION: this is NOT a reward-tuning problem anymore. At those two beats
+  the choreography demands a faster weight-shift than the ankle motors can
+  physically deliver, so the robot runs out of strength and tips. You cannot add
+  torque with a reward weight. The next move is "MOTION SURGERY" — gently
+  slowing/softening only those two beats so the ankle demand drops under the limit
+  — validated on the laptop before spending any more GPU money.
+
+THE BURNT DC-DC CONVERTER (hardware)
+Separately, the robot is currently DOWN: a foul burnt-electronics smell traced to
+a DC-DC CONVERTER in the torso — the circuitry that steps the ~48 V battery down
+to the low-voltage rails that run the computer. It's powered off, battery
+disconnected, awaiting a support RMA. Good news: this is INDEPENDENT of the
+software — training continues in the cloud, so no time is lost during the repair.
+
+WHERE THAT LEAVES US: the pipeline works and the app is mature; the controller is
+close but not yet deploy-grade because of a genuine physical limit at two dance
+beats; and the robot needs a power-board repair before the next real-world test.
+Two clear, separate tracks — one software, one hardware.
+
+
+===============================================================================
+ 11. GLOSSARY — quick reference
+===============================================================================
+DoF (degree of freedom)  One independent way a robot can move. Our G1 has 29.
+Actuator                 A joint's motor + gearbox. Produces torque, has a limit.
+Torque (Nm)              Rotational force. Every motor has a max; over it =
+                         saturation.
+Saturation               A motor at full strength, unable to push harder. Cause
+                         of the current falls.
+Pose estimation          Inferring a 3D body pose from ordinary video (GVHMR).
+SMPL                     A standard digital-human body format; pose-est output.
+Retargeting              Mapping human motion onto the robot's skeleton (GMR).
+Policy                   The trained neural-net controller — the robot's "brain."
+Reinforcement learning   Learning by trial, reward, and adjustment, over millions
+  (RL)                   of tries.
+Reward                   The training score: match the dance + stay up + spare
+                         the motors.
+Episode                  One practice attempt (e.g. one dance run); a fall ends it.
+Domain randomization     Roughing up the sim (noise, delays, shoves) so the policy
+                         survives reality.
+Sim-to-real gap          The difference between simulation and the real robot —
+                         the core challenge.
+The gate                 The automated exam a policy must pass before hardware.
+Survival                 % of simulated robots that finish without falling.
+Drift (m)                How far the robot slides from its intended spot.
+mpkpe / rr_mpkpe         How accurately the body matches the reference (world /
+                         pose-only).
+PD control & gains       The low-level rule (stiffness/damping knobs) that drives
+                         a joint to a target angle.
+Control loop (50 Hz)     Sense -> decide -> command, 50x/second, on the Jetson.
+ONNX                     A portable file format for the trained policy, at deploy.
+mjlab                    The MuJoCo-based RL framework we train in (Isaac Lab
+                         replacement).
+Gantry                   A safety frame that holds the robot up during first
+                         real-world tests.
+
+===============================================================================
+ End of field guide. Live status & decision log: PROJECT_STATE.md
+===============================================================================

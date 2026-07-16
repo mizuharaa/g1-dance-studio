@@ -1,0 +1,17 @@
+{
+  "id": "20260710-145107-febcad",
+  "dance_id": "20260708-71711415",
+  "dance_name": "thriller CSV +ankle penalty",
+  "operator": "alois",
+  "created_at": 1783669867.6650035,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "aborted",
+    "notes": "",
+    "at": 1783669966.557172
+  },
+  "closed": true,
+  "mode": "rehearsal",
+  "setlist_id": null
+}

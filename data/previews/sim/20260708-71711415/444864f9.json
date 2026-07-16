@@ -1,0 +1,1 @@
+{"label": "thriller CSV +ankle penalty", "policy_sha256": "444864f9220836dc7e6cc9b11746e8ff02d009719dc453bef47e1ed5653c3abb", "created_at": 1783679103.818865, "kind": "reference_vs_policy", "left_kind": "REFERENCE (intended)", "left_achieved": 1.0, "right_kind": "POLICY (sim \u2014 uncalibrated)", "right_achieved": 0.24394990223405874, "right_fell_at": 361}

@@ -1,0 +1,3 @@
+[2026-07-10 14:51:07] rehearsal show created for dance 'thriller CSV +ankle penalty' by operator 'alois'
+[2026-07-10 14:51:07] RUN SHOW spawned (mode=rehearsal, audio=laptop, exit_mode=ramp-to-damping, config=proven default) — operator holds the damping remote
+[2026-07-10 14:52:46] outcome recorded: aborted (rehearsal) — show closed

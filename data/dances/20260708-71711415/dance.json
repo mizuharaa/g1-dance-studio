@@ -2,8 +2,8 @@
   "id": "20260708-71711415",
   "name": "thriller CSV +ankle penalty",
   "created_at": 1783516127.136763,
-  "updated_at": 1783516760.5288517,
-  "status": "show-ready",
+  "updated_at": 1783677827.2799177,
+  "status": "sim-verified",
   "duration_s": 44.3,
   "motion_csv": "data/policies/thriller_csv_ankle_penalty/thriller_csv_ankle_penalty_deploy.csv",
   "policy_path": "data/policies/thriller_csv_ankle_penalty/policy.onnx",
@@ -86,7 +86,11 @@
   "source_job": "20260708-175045-96da66",
   "notes": "trained by app job 20260708-175045-96da66 (train-thriller_csv_ankle_penalty-96da66)",
   "policy_sha256": "444864f9220836dc7e6cc9b11746e8ff02d009719dc453bef47e1ed5653c3abb",
-  "incident": null,
+  "incident": {
+    "show_id": "20260710-144742-718ef9",
+    "result": "aborted",
+    "at": 1783677827.279915
+  },
   "audio": {
     "track": "data/dances/20260708-71711415/audio/music.wav",
     "source": "attached_file",
@@ -101,7 +105,7 @@
     "attached_at": 1783516760.5054557
   },
   "repeatability": {
-    "consecutive_clean": 3,
+    "consecutive_clean": 0,
     "total_runs": 3,
     "last_run_at": 1783516127.1503575,
     "history": [

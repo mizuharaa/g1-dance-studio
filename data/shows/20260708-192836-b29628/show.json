@@ -6,8 +6,12 @@
   "created_at": 1783513716.204465,
   "steps": {},
   "deploy": null,
-  "outcome": null,
-  "closed": false,
+  "outcome": {
+    "result": "aborted",
+    "notes": "",
+    "at": 1783677829.7969332
+  },
+  "closed": true,
   "mode": "rehearsal",
   "setlist_id": null
 }

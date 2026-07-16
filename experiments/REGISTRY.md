@@ -25,6 +25,36 @@ target of the whole revamp (Agents B + D + F).
 **Note:** trained motion `.npz` files are gitignored / live on the (now-deleted) box;
 Agent B/F must regenerate or pull them and record sha256 on use.
 
+## Repaired reference motions (Agent B — motion feasibility)
+
+Every repaired motion gets a new sha256 and a row here; the source is NEVER
+overwritten. Feasibility = the ankle-strategy dynamic pass (`pipeline/motion_dynamics.py`,
+mj_inverse on CPU; ankle demand = F_z·‖ZMP−CoM‖, speed-derated limit, ankle capped
+at 40 Nm). Scorecards + raw JSON/NPZ under `experiments/motion_feasibility/`.
+
+| motion (file + sha256) | derived from | repair applied | ankle max (Nm) | ankle p95 | % frames > 40 Nm | style sim | scorecard |
+|---|---|---|---|---|---|---|---|
+| `thriller_g1_clean.csv` (`d9e4fc2dc39fbdbc`) | source retarget | — (SOURCE) | **173.6** | 102.3 | 47.5% | 1.000 | `experiments/motion_feasibility/thriller_g1_clean_scorecard.json` |
+| `thriller_g1_repaired.csv` (`0d3ffc28492b5e50`) | thriller_g1_clean | **global slowdown 2.5×** (pure; music stays synced under uniform time-stretch) | **39.4** ✅ | 22.3 | **0.0%** ✅ | **0.999** | `experiments/motion_feasibility/thriller_g1_repaired_scorecard.json` |
+
+**Global-slowdown sweep (torque ∝ 1/T², confirmed):** factor 1.0→p95 102 / 47.5% over;
+1.3→69 / 25%; 1.5→55 / 15%; 1.7→45 / 7%; 2.0→34 / 2.3%; **2.5→22 / 0%**; 3.0→16 / 0%.
+Mildest factor clearing the *majority* ≈ 1.7×; clearing *everything* (≤40 Nm) ≈ 2.5×.
+The 2.5× number is a CONSERVATIVE upper bound (pure ankle-strategy; hip-strategy
+substitution would let a milder factor suffice). Raw: `tools/motion_repair.py --sweep`.
+
+**Dynamic-pass validation (the key check):** the pass lights up exactly at the
+predicted fall beats — sharp spike at **15–18 s** (peak 233 Nm on the ankle-penalty
+deploy motion) and sustained high demand across **24–45 s** (the 25–36 s beat +
+tail), with quiet standing reading ~0.2 Nm (correct baseline). Raw:
+`experiments/motion_feasibility/*_dyn.json`.
+
+**Distinct un-fixed defect (feeds the retarget/grounding work, NOT torque):** the
+Thriller reference FLOATS the lower foot ~0.10 m in **78% of frames**. Global
+slowdown fixes torque but not grounding; `motion_triage.py` correctly still tags the
+repaired motion as a source error on the floaty-feet axis. Fix belongs in
+grounding/retarget (per-contact grounding + `retarget_gvhmr.dof_aware_postprocess`).
+
 ## New runs (appended by agents)
 
 _(none yet — Agent F appends v8 here)_

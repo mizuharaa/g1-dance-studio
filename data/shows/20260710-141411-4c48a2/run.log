@@ -1,0 +1,61 @@
+SHOW RUN: dance=20260708-71711415 audio=laptop latency_comp=0.0s
+[ground-run-legodom] human-confirmed. Damping is your remote's job if anything looks wrong.
+!! RELEASING onboard motion/balance service — the robot will NOT self-balance.
+   Feet OFF ground, remote in hand, ready to damp.
+   motion service released — rt/lowcmd accepted for full-body.
+   entry catch: holding current pose 0.5s so the robot is never unheld at the onboard->policy handoff, then easing to the ready pose.
+GROUND-RUN-LEGODOM: stage-1 firm move-to-default (4s)+hold, then PROVEN gantry policy (160-dim obs, base_lin_vel+height from LEG kinematics — service-independent) 2600/2789 ticks @ 50Hz [--max-secs 52.0], action cap 10.0. Tethered. Ctrl-C / remote-damp to stop.
+reference yaw-aligned to robot heading (offset -150.6 deg).
+at default — starting leg-odometry policy. Keep tension on the tether; damp at the first sign of a fault, lurch, or lean.
+[show_audio] armed: mode=laptop offset=4.00s latency_comp=0.000s track=/home/alois/g1-dance/data/dances/20260708-71711415/audio/music.wav
+[show_display] player=vlc output=DP-3 argv=vlc --fullscreen --no-video-title-show --play-and-exit --avcodec-hw=none --qt-fullscreen-screennumber=1 data/previews/thriller_side_by_side_csv.mp4
+[show_display] launching video (+0.151s vs tick0 target)
+[0000651177c685d0] main libvlc: Running vlc with the default interface. Use 'cvlc' to use vlc without interface.
+[00007646fc004950] gl gl: Initialized libplacebo v4.192.1 (API v192)
+libva info: VA-API version 1.24.0
+libva info: Trying to open /home/alois/miniconda3/envs/g1dance/lib/dri/iHD_drv_video.so
+libva info: Found init function __vaDriverInit_1_23
+libva info: va_openDriver() returns 0
+[00007646fc03d760] croppadd filter error: Unknown input chroma VAOP
+[00007646fcdc79d0] croppadd filter error: Unknown input chroma VAOP
+[00007646fc004950] gl gl: Initialized libplacebo v4.192.1 (API v192)
+[00007646fc2ac8b0] croppadd filter error: Unknown input chroma VDV0
+[00007646fc819700] chain filter error: Too high level of recursion (3)
+[00007646fc007e80] main filter error: Failed to create video converter
+[00007646fc819700] chain filter error: Too high level of recursion (3)
+[00007646fc007e80] main filter error: Failed to create video converter
+[00007646fc819700] chain filter error: Too high level of recursion (3)
+[00007646fc007e80] main filter error: Failed to create video converter
+[00007646fc819700] chain filter error: Too high level of recursion (3)
+[00007646fc007e80] main filter error: Failed to create video converter
+[00007646fc819700] chain filter error: Too high level of recursion (3)
+[00007646fc007e80] main filter error: Failed to create video converter
+[00007646fc819700] chain filter error: Too high level of recursion (3)
+[00007646fc007e80] main filter error: Failed to create video converter
+[00007646fc819700] chain filter error: Too high level of recursion (3)
+[00007646fc007e80] main filter error: Failed to create video converter
+[00007646fcdc9170] main filter error: Failed to create video converter
+[00007646fc7f10b0] chain filter error: Too high level of recursion (3)
+[00007646fcdd0420] main filter error: Failed to create video converter
+[00007646fc7f10b0] chain filter error: Too high level of recursion (3)
+[00007646fcdd0420] main filter error: Failed to create video converter
+[00007646fc7f10b0] chain filter error: Too high level of recursion (3)
+[00007646fcdd0420] main filter error: Failed to create video converter
+[00007646fc7f10b0] chain filter error: Too high level of recursion (3)
+[00007646fcdd0420] main filter error: Failed to create video converter
+[00007646fc7f10b0] chain filter error: Too high level of recursion (3)
+[00007646fcdd0420] main filter error: Failed to create video converter
+[00007646fc7f10b0] chain filter error: Too high level of recursion (3)
+[00007646fcdd0420] main filter error: Failed to create video converter
+[00007646fc7f10b0] chain filter error: Too high level of recursion (3)
+[00007646fcdd0420] main filter error: Failed to create video converter
+[00007646fcdc9170] main filter error: Failed to create video converter
+[0000764700050e10] main video output error: Failed to create video converter
+[0000764700050e10] main video output error: Failed to compensate for the format changes, removing all filters
+[00007646fc004950] gl gl: Initialized libplacebo v4.192.1 (API v192)
+[show_audio] done: {"mode": "laptop", "t0_epoch": 1783667659.9216611, "offset_s": 4.0, "late_s": 0.0001571178436279297}
+ground segment done — smooth ramp to damping.
+[0000651177d09af0] main playlist: end of playlist, exiting
+QObject::~QObject: Timers cannot be stopped from another thread
+   restored onboard motion service ('ai') — remote/app can pair.
+telemetry saved: /home/alois/g1-dance/data/telemetry/20260710-141415_ground-run-legodom.npz (2600 ticks)

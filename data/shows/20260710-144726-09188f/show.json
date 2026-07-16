@@ -1,0 +1,17 @@
+{
+  "id": "20260710-144726-09188f",
+  "dance_id": "20260704-18f65bbd",
+  "dance_name": "Thriller",
+  "operator": "alois",
+  "created_at": 1783669646.2727323,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "aborted",
+    "notes": "",
+    "at": 1783677829.6104991
+  },
+  "closed": true,
+  "mode": "live",
+  "setlist_id": null
+}

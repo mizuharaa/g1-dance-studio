@@ -72,12 +72,73 @@ def retime_to_margin(motion: np.ndarray, fps: float = FPS,
                  "new_frames": newT, "peak_before_rad_s": round(float(peak), 2)}
 
 
+def scorecard(csv_path, fps: float = FPS) -> dict:
+    """Full per-motion feasibility SCORECARD: the kinematic velocity feasibility
+    (this module) folded together with the dynamic torque + balance pass
+    (pipeline.motion_dynamics) and the quality metrics. This is the single dict to
+    persist per motion file (before/after repair). Requires mujoco (dynamic pass).
+
+    Returns max required torque per joint, % frames flagged, and the ankle demand
+    headline — everything a registry row needs."""
+    import sys as _sys
+    _root = Path(__file__).resolve().parent.parent
+    if str(_root) not in _sys.path:
+        _sys.path.insert(0, str(_root))
+    from pipeline import motion_dynamics as MD
+    from pipeline.motion_io import load_motion_csv
+
+    m = load_motion_csv(csv_path)
+    vel = feasibility(m, fps)
+    dyn = MD.analyze(csv_path, fps=fps)
+    # numpy-only jerk metric (avoids tools.motion_quality's scipy dependency)
+    acc = np.abs(np.diff(m[:, 7:], axis=0, n=2)) * fps * fps
+    med = np.median(acc, axis=0)
+    mad = np.median(np.abs(acc - med), axis=0) + 1e-6
+    spike = int((((acc - med) / (1.4826 * mad) > 10.0) & (acc > 150.0)).any(axis=1).sum())
+    jerk_peak = float((np.abs(np.diff(m[:, 7:], axis=0, n=3)) * fps ** 3).max())
+    d = dyn["dynamic"]
+    return {
+        "file": str(csv_path),
+        "frames": dyn["frames"], "seconds": dyn["seconds"],
+        "kinematic_velocity": {
+            "peak_vel_rad_s": vel["peak_vel_rad_s"],
+            "frames_over_limit_pct": vel["frames_over_limit_pct"],
+            "feasible": vel["feasible"]},
+        "dynamic_torque": {
+            "ankle_tau_max_nm": d["ankle_tau_max_nm"],
+            "ankle_tau_p95_nm": d["ankle_tau_p95_nm"],
+            "ankle_frames_over_headroom_pct": d["ankle_frames_over_headroom_pct"],
+            "any_joint_frames_over_pct": d["any_joint_frames_over_pct"],
+            "per_joint_tau_max_nm": d["per_joint_tau_max_nm"],
+            "per_joint_effort_limit_nm": d["per_joint_effort_limit_nm"],
+            "ankle_flag_windows_s": dyn["ankle_flag_windows_s"]},
+        "balance": dyn["balance"],
+        "quality": {"jerk_peak_rad_s3": round(jerk_peak, 1), "spike_frames": spike},
+        "torque_speed_model": dyn["torque_speed_model"],
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("csv", type=Path)
     ap.add_argument("--fps", type=float, default=FPS)
     ap.add_argument("--json", type=Path, default=None)
+    ap.add_argument("--scorecard", type=Path, default=None,
+                    help="write the FULL feasibility scorecard (kinematic + dynamic "
+                         "torque + balance) — needs mujoco")
     args = ap.parse_args()
+    if args.scorecard:
+        sc = scorecard(args.csv, args.fps)
+        d = sc["dynamic_torque"]
+        print(f"== SCORECARD {args.csv} ==")
+        print(f"  {sc['seconds']}s  ankle max {d['ankle_tau_max_nm']} Nm, p95 "
+              f"{d['ankle_tau_p95_nm']}, over-headroom {d['ankle_frames_over_headroom_pct']}%")
+        print(f"  kinematic vel feasible: {sc['kinematic_velocity']['feasible']}  "
+              f"floaty-feet {sc['balance']['floaty_feet_pct']}%")
+        args.scorecard.parent.mkdir(parents=True, exist_ok=True)
+        args.scorecard.write_text(json.dumps(sc, indent=2))
+        print(f"  wrote {args.scorecard}")
+        return 0
     m = np.loadtxt(args.csv, delimiter=",")
     rep = feasibility(m, args.fps)
     rep["file"] = str(args.csv)

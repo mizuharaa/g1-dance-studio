@@ -5,3 +5,5 @@
 [2026-07-08 18:40:32] checklist step 'estop' completed: {'at': 1783510832.8401027, 'confirmed': True}
 [2026-07-08 18:40:33] checklist step 'venue_ack' completed: {'at': 1783510833.7167056, 'confirmed': True}
 [2026-07-08 18:40:44] deploy requested by operator — RECORDED ONLY (no robot contact)
+[2026-07-10 17:03:49] outcome recorded: aborted (live) — show closed
+[2026-07-10 17:03:49] dance 'Thriller' demoted + streak reset after aborted

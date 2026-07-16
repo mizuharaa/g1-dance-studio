@@ -30,8 +30,12 @@
     "requested_at": 1783510844.066418,
     "note": "placeholder \u2014 nothing was sent to the robot"
   },
-  "outcome": null,
-  "closed": false,
+  "outcome": {
+    "result": "aborted",
+    "notes": "",
+    "at": 1783677829.961024
+  },
+  "closed": true,
   "mode": "live",
   "setlist_id": null
 }

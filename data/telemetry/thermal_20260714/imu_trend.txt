@@ -1,0 +1,47 @@
+[thermal-trend] READ-ONLY (subscribe only). iface=enp0s31f6 interval=20s duration=720s abort>=90C
+YOU are the safety loop: kill switch in hand; abort on smoke/hiss/smell spike no matter what this says.
+(Cold-start warm-up is NORMAL; we're watching for an overshoot past the ~80 C baseline.)
+
+  t(s)   IMU_C  dIMU   waist_max  hip_max  body_max      note
+     0      78     +0         37       35        54      
+    20      78     +0         37       37        58      
+    40      80     +2         38       38        60      
+    60      78     +0         38       39        51      
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+  ---    link drop (no lowstate) — check LAN / robot still on
+
+=== TREND VERDICT — 4 samples over 60s ===
+  IMU 78C -> 78C (rise +0C); peak 80C; tail slope +0.0 C/min
+  VERDICT: PLATEAUED at the ~80C baseline (not runaway). The SMELL still means inspect soon, but no emergency.
+  (Motors stayed normal throughout = not a winding; the heat is the pelvis power board.)

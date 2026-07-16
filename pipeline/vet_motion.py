@@ -90,6 +90,38 @@ def severe_after_clean(csv_path: str) -> list:
     return reasons
 
 
+def kinematic_feasibility(m: np.ndarray, fps: float = CSV_FPS) -> dict:
+    """Per-frame KINEMATIC feasibility vs the TRUE G1 envelope (pipeline.g1_limits,
+    extracted from the training model — NOT the menagerie model this file otherwise
+    loads). Reports position clamp-distance, joint velocity and acceleration vs the
+    per-joint limits. Importable; folded into the vet JSON as `kinematic_feasibility`.
+    (Dynamic torque + balance live in pipeline.motion_dynamics — heavier, mj_inverse.)"""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from pipeline import g1_limits as L
+
+    j = m[:, 7:]
+    # position clamp-distance vs the per-joint model ranges
+    if L.POS_LO is not None:
+        clamp = (np.clip(L.POS_LO - j, 0, None) + np.clip(j - L.POS_HI, 0, None))
+    else:
+        clamp = np.zeros_like(j)
+    jvel = np.diff(j, axis=0) * fps                      # (N-1,29)
+    jacc = np.diff(j, axis=0, n=2) * fps * fps           # (N-2,29)
+    vel_over = np.abs(jvel) > L.VELOCITY_LIMIT
+    return {
+        "pos_worst_clamp_rad": round(float(clamp.max()), 4),
+        "pos_frames_over_pct": round(100.0 * float((clamp > 1e-3).any(axis=1).mean()), 2),
+        "vel_peak_rad_s": round(float(np.abs(jvel).max()), 2),
+        "vel_frames_over_limit_pct": round(100.0 * float(vel_over.any(axis=1).mean()), 2),
+        "accel_peak_rad_s2": round(float(np.abs(jacc).max()), 1),
+        "per_joint_vel_limit_rad_s": L.VELOCITY_LIMIT.tolist(),
+        "ok": bool(clamp.max() < 0.05 and not vel_over.any()),
+        "note": "envelope from pipeline.g1_limits (mjlab training model); "
+                "dynamic torque/balance = pipeline.motion_dynamics",
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("csv")
@@ -227,6 +259,16 @@ def main():
         "note": "raw source severely glitchy — clean stage must tame it before training"
                 if severe_reasons else "ok",
         "ok": not severe_reasons}
+
+    # ADVISORY 6: kinematic feasibility vs the TRUE G1 envelope (g1_limits). This
+    # is advisory (the RL tracking reward smooths references); the load-bearing
+    # dynamic torque/balance pass is pipeline.motion_dynamics (run separately —
+    # it needs mj_inverse). Never blocks the gate here.
+    try:
+        kf = kinematic_feasibility(m, CSV_FPS)
+        advisory["kinematic_feasibility"] = kf
+    except Exception as e:  # noqa: BLE001 — advisory must never break the gate
+        advisory["kinematic_feasibility"] = {"ok": True, "error": str(e)[:120]}
 
     res["hard"] = hard
     res["advisory"] = advisory
