@@ -206,6 +206,12 @@ ANKLE_ACTION_RATE_W = float(os.environ.get("G1_ANKLE_ACTION_RATE_W", "-0.05"))
 WAIST_BODY_NAME = "torso_link"
 WAIST_SLACK = float(os.environ.get("G1_WAIST_SLACK", "0.5"))
 WAIST_SLACK_WINDOWS_S = ((13.0, 18.0), (25.0, 36.0))
+# v9 (adaptive time-warp): the motion clock is NON-uniformly warped, so a uniform
+# G1_SLOWDOWN scale can't place the beat windows. The launcher maps the source-time
+# windows through the warp's time_map (tools/motion_repair.map_source_windows) and
+# passes the ALREADY-WARPED windows here, e.g. G1_WAIST_WINDOWS="19.9-27.4,38.2-52.1".
+# When set, this REPLACES the G1_SLOWDOWN scaling entirely.
+WAIST_WINDOWS_ENV = os.environ.get("G1_WAIST_WINDOWS", "")
 
 # The two privileged terms Agent 0 moves to critic-only.
 PRIVILEGED_ACTOR_TERMS = ("base_lin_vel", "motion_anchor_pos_b")
@@ -338,6 +344,9 @@ class WaistGatedBodyTracking:
 
 
 def _scaled_windows():
+  if WAIST_WINDOWS_ENV:  # v9: pre-warped windows straight from the launcher
+    return tuple(tuple(float(x) for x in w.split("-"))
+                 for w in WAIST_WINDOWS_ENV.split(","))
   return tuple((a * G1_SLOWDOWN, b * G1_SLOWDOWN) for a, b in WAIST_SLACK_WINDOWS_S)
 
 

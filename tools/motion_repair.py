@@ -128,6 +128,89 @@ def local_time_warp(m: np.ndarray, windows_s, factor: float, fps: float = FPS,
     return _resample(m, t_src, src_time_at)
 
 
+def adaptive_time_warp(m: np.ndarray, fps: float = FPS, margin: float = 0.85,
+                       pad_s: float = 0.20, smooth_s: float = 0.30,
+                       max_gain: float = 2.6, rounds: int = 6, verbose: bool = True):
+    """DEMAND-SHAPED local retiming (v9): slow ONLY the moments whose ankle demand
+    exceeds `margin`x the (speed-derated) limit; everything feasible keeps 1.0x speed.
+
+    Per round:
+      1. dynamic pass -> per-frame demand tau_i and per-frame limit lim_i
+      2. required local gain g_i = clip( sqrt(tau_i / (margin*lim_i)), 1, max_gain )
+         (torque ~ 1/T^2 under local time-scaling, validated by the global sweep)
+      3. dilate g by +-pad_s (torque at a frame depends on accelerations around it),
+         cosine-smooth over `smooth_s` so the tempo ramps musically, never steps
+      4. integrate g -> monotone warped clock, resample uniformly at fps
+    Iterate (warping shifts accelerations and lowers joint speeds, which also RAISES
+    the derated limit) until 0 frames over headroom or `rounds` exhausted.
+
+    Returns (motion, report) — report carries duration ratio, max local gain and the
+    fraction of source time left untouched at 1.0x.
+    """
+    src_dur = (len(m) - 1) / fps
+    total_gain_max, rounds_used = 1.0, 0
+    kept_native = None
+    # source-time of each CURRENT frame (composed across rounds) — lets callers map
+    # any source-time landmark (e.g. the waist-slack beat windows) to the warped clock
+    orig_t = np.arange(len(m)) / fps
+    for r in range(rounds):
+        fe = _feas(m, fps, arrays=True)
+        arrs = fe.pop("_arrays")
+        tau = arrs["ankle_tau_max"]
+        need = tau / (margin * L.ANKLE_HEADROOM_NM)
+        if (need <= 1.0).all():
+            break
+        rounds_used = r + 1
+        g = np.clip(np.sqrt(np.maximum(need, 1.0)), 1.0, max_gain)
+        if kept_native is None:
+            kept_native = float((g <= 1.0 + 1e-9).mean())
+        # dilation: sliding max over +-pad_s
+        w = max(1, int(round(pad_s * fps)))
+        gd = np.copy(g)
+        for i in range(len(g)):
+            gd[i] = g[max(0, i - w):i + w + 1].max()
+        # cosine smoothing (hann), keep >=1
+        k = max(3, int(round(smooth_s * fps)) | 1)
+        hann = np.hanning(k); hann /= hann.sum()
+        gs = np.convolve(gd, hann, mode="same")
+        gs = np.maximum(gs, 1.0)
+        total_gain_max = max(total_gain_max, float(gs.max()))
+        # integrate to the warped clock, resample uniform
+        t_src = np.arange(len(m)) / fps
+        warped = np.concatenate([[0], np.cumsum((gs[1:] + gs[:-1]) / 2) / fps])
+        t_dst = np.arange(0, warped[-1], 1.0 / fps)
+        src_time_at = np.interp(t_dst, warped, t_src)
+        orig_t = np.interp(src_time_at, t_src, orig_t)  # compose the source-time map
+        m = _resample(m, t_src, src_time_at)
+        if verbose:
+            print(f"  round {r+1}: peak need x{np.sqrt(need.max()):.2f}, "
+                  f"applied local gain <=x{gs.max():.2f}, "
+                  f"duration {src_dur:.1f}s -> {warped[-1]:.1f}s")
+    fe = _feas(m, fps)
+    report = {
+        "op": "adaptive_time_warp", "margin": margin, "pad_s": pad_s,
+        "smooth_s": smooth_s, "max_gain": max_gain, "rounds_used": rounds_used,
+        "duration_ratio": round(((len(m) - 1) / fps) / src_dur, 3),
+        "max_local_gain": round(total_gain_max, 2),
+        "native_speed_fraction": (round(kept_native, 3) if kept_native is not None else 1.0),
+        # source-time of every warped frame (30 fps grid) — np.interp(src_landmark_s,
+        # source_t, warped_t) maps any source-time window onto the warped clock
+        "time_map": {"warped_t": [round(float(t), 3) for t in np.arange(len(m)) / fps],
+                     "source_t": [round(float(t), 3) for t in orig_t]},
+        "final": fe,
+    }
+    return m, report
+
+
+def map_source_windows(report: dict, windows_s) -> list:
+    """Map source-time [start,end] windows through an adaptive_time_warp report's
+    time_map onto the warped clock (for e.g. the v8/v9 waist-slack beat windows)."""
+    tm = report["time_map"]
+    src, wrp = np.asarray(tm["source_t"]), np.asarray(tm["warped_t"])
+    return [[round(float(np.interp(s, src, wrp)), 2),
+             round(float(np.interp(e, src, wrp)), 2)] for (s, e) in windows_s]
+
+
 def amplitude_scale_root(m: np.ndarray, windows_s, scale: float, fps: float = FPS,
                          ramp_s: float = 0.4) -> np.ndarray:
     """Shrink root-XY sway toward its local mean inside flagged windows (reduces
@@ -173,7 +256,7 @@ def style_similarity(m0: np.ndarray, m1: np.ndarray, samples: int = 300) -> floa
 # --------------------------------------------------------------------------- #
 # feasibility summary from the dynamic pass
 # --------------------------------------------------------------------------- #
-def _feas(m_or_path, fps=FPS, tmp=None):
+def _feas(m_or_path, fps=FPS, tmp=None, arrays=False):
     """Run the dynamic pass; accept a path or an array (written to a temp csv)."""
     if isinstance(m_or_path, np.ndarray):
         tmp = tmp or (ROOT / "experiments/motion_feasibility/_tmp_repair.csv")
@@ -184,13 +267,16 @@ def _feas(m_or_path, fps=FPS, tmp=None):
         path = m_or_path
     r = MD.analyze(path, fps=fps)
     d = r["dynamic"]
-    return {
+    out = {
         "frames": r["frames"], "seconds": r["seconds"],
         "ankle_tau_max_nm": d["ankle_tau_max_nm"],
         "ankle_tau_p95_nm": d["ankle_tau_p95_nm"],
         "ankle_over_headroom_pct": d["ankle_frames_over_headroom_pct"],
         "windows": r["ankle_flag_windows_s"],
     }
+    if arrays:
+        out["_arrays"] = r["_arrays"]  # per-frame demand/limit for adaptive_time_warp
+    return out
 
 
 def sweep(m: np.ndarray, factors, fps=FPS):
@@ -225,12 +311,36 @@ def main():
                     help="skip the sweep; just apply this global factor")
     ap.add_argument("--local-warp", type=float, default=1.4,
                     help="extra local slowdown applied to residual flagged windows")
+    ap.add_argument("--adaptive", action="store_true",
+                    help="v9 mode: NO global slowdown — demand-shaped local retiming only "
+                         "(adaptive_time_warp); feasible parts keep native 1.0x speed")
+    ap.add_argument("--margin", type=float, default=0.85,
+                    help="adaptive mode: target = margin x ankle headroom")
     args = ap.parse_args()
 
     m0 = load_motion_csv(args.csv)
     base = _feas(args.csv, args.fps)
     print(f"SOURCE {args.csv}: {base['seconds']:.1f}s  ankle p95 {base['ankle_tau_p95_nm']} "
           f"max {base['ankle_tau_max_nm']}  over-headroom {base['ankle_over_headroom_pct']}%")
+
+    if args.adaptive:
+        print("\n[ADAPTIVE] demand-shaped local retiming (no global slowdown):")
+        m, rep = adaptive_time_warp(m0.copy(), fps=args.fps, margin=args.margin)
+        f = rep["final"]
+        print(f"RESULT: {f['seconds']:.1f}s ({rep['duration_ratio']}x), native-speed "
+              f"{rep['native_speed_fraction']*100:.0f}%, max local gain x{rep['max_local_gain']}, "
+              f"ankle max {f['ankle_tau_max_nm']} p95 {f['ankle_tau_p95_nm']} "
+              f"over {f['ankle_over_headroom_pct']}%")
+        if args.out:
+            np.savetxt(args.out, m, delimiter=",")
+            rep.update(source=str(args.csv), source_sha256=sha256(args.csv),
+                       repaired=str(args.out), repaired_sha256=sha256(args.out))
+            print(f"wrote {args.out}")
+        if args.scorecard:
+            args.scorecard.parent.mkdir(parents=True, exist_ok=True)
+            args.scorecard.write_text(json.dumps(rep, indent=1))
+            print(f"wrote {args.scorecard}")
+        return 0 if f["ankle_over_headroom_pct"] == 0 else 1
 
     ops = []
     if args.apply_factor:

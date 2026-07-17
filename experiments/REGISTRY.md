@@ -38,6 +38,7 @@ at 40 Nm). Scorecards + raw JSON/NPZ under `experiments/motion_feasibility/`.
 |---|---|---|---|---|---|---|---|
 | `thriller_g1_clean.csv` (`d9e4fc2dc39fbdbc`) | source retarget | — (SOURCE) | **173.6** | 102.3 | 47.5% | 1.000 | `experiments/motion_feasibility/thriller_g1_clean_scorecard.json` |
 | `thriller_g1_repaired.csv` (`0d3ffc28492b5e50`) | thriller_g1_clean | **global slowdown 2.5×** (pure; music stays synced under uniform time-stretch) | **39.4** ✅ | 22.3 | **0.0%** ✅ | **0.999** | `experiments/motion_feasibility/thriller_g1_repaired_scorecard.json` |
+| `thriller_g1_grounded_adaptive.csv` (2026-07-17, **v9 motion**) | thriller_g1_grounded | **adaptive time-warp** (demand-shaped local retiming, `motion_repair.py --adaptive`): only over-torque moments slowed, **49% of the dance stays native 1.0×**, overall 1.53× (vs 1.8× uniform), max local gain 2.17× | **34.0** ✅ | 32.3 | **0.0%** ✅ | poses identical (pure time-warp) | `data/motions/thriller/thriller_g1_grounded_adaptive_scorecard.json` (carries `time_map` → warped waist windows 16.72–24.81, 35.12–53.5) |
 
 **Global-slowdown sweep (torque ∝ 1/T², confirmed):** factor 1.0→p95 102 / 47.5% over;
 1.3→69 / 25%; 1.5→55 / 15%; 1.7→45 / 7%; 2.0→34 / 2.3%; **2.5→22 / 0%**; 3.0→16 / 0%.

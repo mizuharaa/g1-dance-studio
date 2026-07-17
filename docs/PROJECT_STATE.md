@@ -46,6 +46,25 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-17 (night): **V9 READY FOR TRAINING — adaptive time-warp motion (user decision: slow ONLY
+  the over-torque parts, never the whole dance).** New `tools/motion_repair.py --adaptive` =
+  demand-shaped local retiming: per-frame gain sqrt(demand/0.85·headroom), ±0.2 s dilation, cosine
+  smoothing, iterate ≤6 rounds. Thriller result: **0% frames over headroom (max 34.0 Nm vs 40 limit),
+  49% of the dance keeps native 1.0× speed** (arm swings etc.), overall 1.53× (vs v8's uniform 1.8×),
+  peak local gain 2.17× only at the hard weight-shifts. Motion committed:
+  `data/motions/thriller/thriller_g1_grounded_adaptive.csv` + scorecard (carries `time_map`).
+  v9 recipe = v8 task UNCHANGED (`G1_WAIST_WINDOWS` env now overrides the beat windows, pre-warped
+  through the time_map → 16.72–24.81, 35.12–53.5 s). Launchers: `cloud/run_attempt6.sh` (preflight:
+  scorecard-feasibility assert + windows derived from the scorecard so they can't desync; csv→npz;
+  selfcheck; 64-env smoke) + `cloud/train_v9_curriculum.sh` (same 3-stage curriculum; verify chain
+  with --task/--task-module + export_ckpt_onnx from the start — the v8 lesson baked in). Judge v9 vs
+  the CALIBRATED bar (anchor row), expect ankle p95 ≤15 now that the motion is fully feasible.
+  ALSO: docs pruned 61→33 MD files (stale one-off status notes removed; history in git).
+  v8 sim preview RENDERED (sandbox learned the 770-dim history contract; policy survives the full
+  89 s dance at 109% amplitude; front camera) → dance 20260717-db1b8cf4 in the app.
+  **BLOCKED ON USER: provision/confirm a GPU box for the v9 run (old box may be deleted), then
+  push cloud/ + the adaptive motion per run_attempt6.sh header and launch.**
+
 - 2026-07-17 (later): **V8 RE-VERIFY + FIRST GATE CALIBRATION DONE — box ready to DELETE.**
   Winner iter 10000 (6 screened; picker worked). Absolute gate FAIL / calibrated read = BEST POLICY
   YET: nominal survival **99.2% (first-ever ≥99% PASS)**, rr_mpkpe **0.059 (best)**, heldout 99.6/96.5;
