@@ -7,7 +7,7 @@
  "duration_s": null,
  "motion_csv": null,
  "policy_path": "exports/preview-v9-motion/policy.onnx",
- "preview": null,
+ "preview": "/previews/v9_reference.mp4",
  "vet": null,
  "sim_exam": null,
  "source_job": null,
