@@ -395,3 +395,15 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   -> npz, stock task, 32 envs, 4 conds) -> calibration_anchor_gap.json.
 - ON DONE: pull exports/train-thriller_v8s2r-0716/ (incl. pick2.log, gap.json,
   calibration_anchor_gap.json), judge v8 vs the CALIBRATED bar, sign, DELETE THE BOX.
+
+## 2026-07-17 — ATTEMPT 6 (v9) LAUNCHED
+- Box root@103.245.250.152:46659 (same box, mjlab env intact). Driver: cloud/run_attempt6.sh
+  detached -> $NB/attempt6.out (pid 54308).
+- Motion: thriller_g1_grounded_adaptive.csv (adaptive time-warp: 0% over headroom,
+  max 34.0 Nm, 49% native speed, 1.53x duration = ~75.4s). Waist windows derived on-box
+  from the scorecard time_map (~16.72-24.81, 35.12-53.5 s).
+- Recipe: v8 task UNCHANGED (G1_SLOWDOWN=1.0, G1_WAIST_WINDOWS override). 3 stages
+  (4000+3000+5000), then verify with --task/--task-module + export_ckpt_onnx (fixed chain).
+- Judge vs CALIBRATED bar: beat v8 (99.2% nominal / 59.4% @40ms+push / ankle p95 20.4 /
+  drift 4.31); expect ankle p95 <=15 (motion now fully feasible).
+- ETA ~4-5 h. ON DONE: pull exports/train-thriller_v9adpt-0717/, sign, DELETE THE BOX.
