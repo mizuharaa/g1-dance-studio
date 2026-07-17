@@ -27,15 +27,16 @@ MOTION=${MOTION:?set MOTION=/path/to/thriller_grounded_adaptive.npz}
 export G1_SLOWDOWN=1.0                 # adaptive warp replaces uniform slowdown
 export G1_OBS_HISTORY=${G1_OBS_HISTORY:-5}
 export G1_WAIST_WINDOWS=${G1_WAIST_WINDOWS:?set from the adaptive scorecard time_map (e.g. 16.72-24.81,35.12-53.5)}
-RUN=train-thriller_v9adpt-$(date +%m%d)
+RUN=${RUN_NAME:-train-thriller_v9adpt-$(date +%m%d)}
 LOGDIR=$NB/logs/rsl_rl/g1_tracking
 EXP=$NB/exports/${RUN}
 COMMON=(--env.scene.num-envs 4096 --env.commands.motion.motion-file "$MOTION")
 cd "$NB"   # mjlab resolves logs/ relative to CWD — pin it or stage-resume breaks (attempt-6 lesson)
 
-resolve() {  # $1=suffix -> "RUNDIR_BASENAME model_<n>.pt" (newest run, NUMERIC-max ckpt)
+resolve() {  # $1=suffix -> "RUNDIR_BASENAME model_<n>.pt" (newest run of THIS RUN NAME only —
+  # a bare *-s2 glob once matched the OLD v8 s2 and resumed the wrong lineage)
   local rundir ckpt
-  rundir=$(ls -dt "$LOGDIR"/*"-$1" 2>/dev/null | head -1) || true
+  rundir=$(ls -dt "$LOGDIR"/*"${RUN}-$1" 2>/dev/null | head -1) || true
   [ -n "$rundir" ] || { echo "NO_RUNDIR"; return 1; }
   ckpt=$(ls -1 "$rundir"/model_*.pt 2>/dev/null | sed 's/.*model_//; s/\.pt$//' | sort -n | tail -1) || true
   [ -n "$ckpt" ] || { echo "NO_CKPT"; return 1; }
