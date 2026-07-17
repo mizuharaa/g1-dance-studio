@@ -72,6 +72,39 @@ def _wxyz(q):  # mujoco stores base quat as wxyz already
     return np.asarray(q, float)
 
 
+# v8 estimator-free per-frame layout (DEPLOY CONTRACT in cloud/sim2real_task_v8.py):
+# no base_lin_vel / motion_anchor_pos_b; 154 dims/frame, history-stacked below.
+V8_GROUND_ORDER = (("command", 58), ("motion_anchor_ori_b", 6), ("base_ang_vel", 3),
+                   ("joint_pos", 29), ("joint_vel", 29), ("actions", 29))
+
+
+class _V8HistoryObs:
+    """770-dim history-stacked obs per the v8 DEPLOY CONTRACT: per-TERM blocks, each
+    term's N frames oldest->newest concatenated, then terms concatenated (mjlab
+    flatten_history_dim=True layout — NOT frame-major). Warmup = repeat the first
+    frame (mjlab CircularBuffer pads with the first obs), never zero-pad."""
+
+    def __init__(self, n_hist: int = 5):
+        self.n = n_hist
+        self.frames: deque = deque(maxlen=n_hist)
+
+    def __call__(self, meta, ref, q, dq, imu_quat, gyro, last_action, tick):
+        _obs, terms = D.build_obs_ground(meta, ref, q, dq, imu_quat, gyro,
+                                         last_action, tick, V8_GROUND_ORDER)
+        if not self.frames:
+            for _ in range(self.n):
+                self.frames.append(terms)
+        else:
+            self.frames.append(terms)
+        parts = []
+        for name, _w in V8_GROUND_ORDER:
+            for fr in self.frames:  # oldest -> newest
+                parts.append(np.asarray(fr[name], float).reshape(-1))
+        obs = np.concatenate(parts)
+        assert obs.shape[0] == 154 * self.n, f"v8 obs dim {obs.shape[0]} != {154*self.n}"
+        return obs, terms
+
+
 def run_sandbox(dance: Path, steps: int, latency_ms: float, xml: Path = SCENE,
                 tether_kp: float = 0.0):
     meta = D.Meta(dance / "policy_meta.json")
@@ -79,6 +112,11 @@ def run_sandbox(dance: Path, steps: int, latency_ms: float, xml: Path = SCENE,
     ref = D.Reference(npz)
     sess = ort.InferenceSession(str(dance / "policy.onnx"),
                                 providers=["CPUExecutionProvider"])
+    obs_dim = sess.get_inputs()[0].shape[-1]
+    v8_obs = _V8HistoryObs(obs_dim // 154) if isinstance(obs_dim, int) and obs_dim % 154 == 0 \
+        else None
+    if v8_obs:
+        print(f"  v8 estimator-free contract detected (obs {obs_dim} = 154 x {v8_obs.n} history)")
 
     model = mujoco.MjModel.from_xml_path(str(xml))
     model.opt.timestep = SIM_DT
@@ -130,7 +168,11 @@ def run_sandbox(dance: Path, steps: int, latency_ms: float, xml: Path = SCENE,
         state = (q, dq, imu_quat, gyro, v_world, disp)
         obs_delay.append(state)
         sq, sdq, squat, sgyro, sv, sdisp = obs_delay[0]   # oldest within the window
-        obs, _ = D.build_obs_odom(meta, ref, sq, sdq, squat, sgyro, last_action, tick, sdisp, sv)
+        if v8_obs:
+            obs, _ = v8_obs(meta, ref, sq, sdq, squat, sgyro, last_action, tick)
+        else:
+            obs, _ = D.build_obs_odom(meta, ref, sq, sdq, squat, sgyro, last_action, tick,
+                                      sdisp, sv)
 
         if not np.isfinite(obs).all():
             fell_at = tick; break

@@ -35,6 +35,10 @@ from PIL import Image, ImageDraw  # noqa: E402
 import pipeline.deploy_runtime as D  # noqa: E402
 from tools.sim_sandbox import run_sandbox, tracking_report, SCENE, is_faithful  # noqa: E402
 
+# FRONT view (user 2026-07-17: previews read "from the back"): the retargets face
+# yaw ~90 deg; azimuth -45 shows the front-quarter like the original deploy previews.
+CAM_AZIMUTH = -45
+
 
 def _banner(model_path):
     """Model-aware honest caveat for the preview footer. Softer (blue-grey) on the
@@ -106,7 +110,7 @@ def render_studio(left: dict, right: dict, out_path: Path, meta, model_path: Pat
     dl, dr = mujoco.MjData(model), mujoco.MjData(model)
     rL = mujoco.Renderer(model, height=H, width=W)
     rR = mujoco.Renderer(model, height=H, width=W)
-    cam = mujoco.MjvCamera(); cam.azimuth, cam.elevation, cam.distance = 135, -15, 3.2
+    cam = mujoco.MjvCamera(); cam.azimuth, cam.elevation, cam.distance = CAM_AZIMUTH, -15, 3.2
     opt = mujoco.MjvOption()
     n = min(len(left["q"]), len(right["q"]))
     tmp = Path(str(out_path) + ".frames"); tmp.mkdir(exist_ok=True)
@@ -168,7 +172,7 @@ def render_overlay(left: dict, right: dict, out_path: Path, meta, model_path: Pa
     qadr = _qadr(model, meta)
     dL, dR = mujoco.MjData(model), mujoco.MjData(model)
     r = mujoco.Renderer(model, height=OH, width=OW)
-    cam = mujoco.MjvCamera(); cam.azimuth, cam.elevation, cam.distance = 135, -15, 3.6
+    cam = mujoco.MjvCamera(); cam.azimuth, cam.elevation, cam.distance = CAM_AZIMUTH, -15, 3.6
     opt = mujoco.MjvOption()
     n = min(len(left["q"]), len(right["q"]))
     tmp = Path(str(out_path) + ".frames"); tmp.mkdir(exist_ok=True)
