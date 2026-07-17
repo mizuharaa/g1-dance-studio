@@ -71,6 +71,8 @@ def main() -> int:
     # free base is joint 0 -> qpos[0:7] = [x,y,z, qw,qx,qy,qz]
     has_free = model.jnt_type[0] == mujoco.mjtJoint.mjJNT_FREE
 
+    model.vis.global_.offheight = max(model.vis.global_.offheight, args.height)
+    model.vis.global_.offwidth = max(model.vis.global_.offwidth, args.width)
     renderer = mujoco.Renderer(model, height=args.height, width=args.width)
     cam = mujoco.MjvCamera()
     cam.azimuth, cam.elevation, cam.distance = 135, -15, 3.2

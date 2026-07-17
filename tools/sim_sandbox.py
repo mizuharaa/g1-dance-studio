@@ -155,7 +155,7 @@ def run_sandbox(dance: Path, steps: int, latency_ms: float, xml: Path = SCENE,
     tgt_delay = deque(maxlen=lat_ticks + 1)      # delayed ACTION (actuation lag)
 
     last_action = np.zeros(meta.n)
-    rec = {k: [] for k in ("q", "target", "ref_jp", "base_pos", "base_up", "action", "fell")}
+    rec = {k: [] for k in ("q", "target", "ref_jp", "base_pos", "base_quat", "base_up", "action", "fell")}
     target = meta.default.copy()
     fell_at = None
 
@@ -185,8 +185,9 @@ def run_sandbox(dance: Path, steps: int, latency_ms: float, xml: Path = SCENE,
 
         # up-vector of the torso (z of body frame) — fall if it drops below 0.5
         up = 1 - 2 * (imu_quat[1] ** 2 + imu_quat[2] ** 2)
-        for r, val in zip(("q", "target", "ref_jp", "base_pos", "base_up", "action"),
-                          (q, target, ref.at(tick)[0], data.qpos[0:3].copy(), up, action)):
+        for r, val in zip(("q", "target", "ref_jp", "base_pos", "base_quat", "base_up", "action"),
+                          (q, target, ref.at(tick)[0], data.qpos[0:3].copy(),
+                           data.qpos[3:7].copy(), up, action)):
             rec[r].append(val)
         rec["fell"].append(up < 0.5 or data.qpos[2] < 0.4)
         if (up < 0.5 or data.qpos[2] < 0.4) and fell_at is None:

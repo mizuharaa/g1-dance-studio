@@ -77,13 +77,22 @@ def _encode(frames_dir: Path, out_path: Path) -> None:
 
 
 def _kinematic_reference(dance: Path, steps: int) -> dict:
-    """The INTENDED dance: reference joint_pos played kinematically (a perfect tracker)."""
+    """The INTENDED dance: reference joint_pos played kinematically (a perfect tracker).
+
+    Uses the FULL pelvis pose from the npz (pos incl. z, and quat). The old version
+    pinned z=0.79 and identity orientation, so crouches read as the feet leaving the
+    floor and extensions punched through it — the "floating/bouncing" preview artifact
+    (user report 2026-07-17). Body 0 in the npz body arrays is the pelvis."""
     meta = D.Meta(dance / "policy_meta.json")
-    ref = D.Reference(next(dance.glob("*_deploy.npz")))
+    npz = next(dance.glob("*_deploy.npz"))
+    ref = D.Reference(npz)
+    d = np.load(npz, allow_pickle=True)
     n = min(steps, ref.T)
     q = np.array([ref.jp[t] for t in range(n)])
-    base = np.array([[ref.apos[t][0], ref.apos[t][1], 0.79] for t in range(n)])
-    return {"q": q, "base_pos": base, "meta": meta, "achieved": 1.0, "kind": "REFERENCE (intended)"}
+    base = d["body_pos_w"][:n, 0, :].copy()          # pelvis world pos (real z)
+    quat = d["body_quat_w"][:n, 0, :].copy()         # pelvis world quat (wxyz)
+    return {"q": q, "base_pos": base, "base_quat": quat, "meta": meta,
+            "achieved": 1.0, "kind": "REFERENCE (intended)"}
 
 
 def _policy_rollout(dance: Path, steps: int, latency: float, tether: float, label: str,
@@ -118,7 +127,8 @@ def render_studio(left: dict, right: dict, out_path: Path, meta, model_path: Pat
     def panel(data, r, rec, k):
         data.qpos[:] = 0
         data.qpos[0:3] = rec["base_pos"][k]
-        data.qpos[3:7] = [1, 0, 0, 0]
+        bq = rec.get("base_quat")
+        data.qpos[3:7] = bq[k] if bq is not None else [1, 0, 0, 0]
         data.qpos[qadr] = rec["q"][k]
         mujoco.mj_forward(model, data)
         cam.lookat[:] = [rec["base_pos"][k][0], rec["base_pos"][k][1], 0.8]
@@ -180,7 +190,8 @@ def render_overlay(left: dict, right: dict, out_path: Path, meta, model_path: Pa
     def pose(data, rec, k):
         data.qpos[:] = 0
         data.qpos[0:3] = rec["base_pos"][k]
-        data.qpos[3:7] = [1, 0, 0, 0]
+        bq = rec.get("base_quat")
+        data.qpos[3:7] = bq[k] if bq is not None else [1, 0, 0, 0]
         data.qpos[qadr] = rec["q"][k]
         mujoco.mj_forward(model, data)
 
