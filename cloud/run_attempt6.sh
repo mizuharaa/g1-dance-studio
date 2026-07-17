@@ -21,6 +21,7 @@ NPZ=$NB/motions/thriller_grounded_adaptive.npz
 CSV2NPZ=$NB/repos/mjlab/src/mjlab/scripts/csv_to_npz.py
 [ -f "$NB/.wandb_key" ] && export WANDB_API_KEY=$(tr -d '[:space:]' < "$NB/.wandb_key")
 
+cd "$NB"   # pin CWD: mjlab writes logs/ relative to it (attempt-6 stage-2 resume lesson)
 say() { echo "== $* == $(date -Is)"; }
 die() { echo "!! $*"; exit 1; }
 

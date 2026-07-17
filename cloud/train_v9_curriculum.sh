@@ -31,6 +31,7 @@ RUN=train-thriller_v9adpt-$(date +%m%d)
 LOGDIR=$NB/logs/rsl_rl/g1_tracking
 EXP=$NB/exports/${RUN}
 COMMON=(--env.scene.num-envs 4096 --env.commands.motion.motion-file "$MOTION")
+cd "$NB"   # mjlab resolves logs/ relative to CWD — pin it or stage-resume breaks (attempt-6 lesson)
 
 resolve() {  # $1=suffix -> "RUNDIR_BASENAME model_<n>.pt" (newest run, NUMERIC-max ckpt)
   local rundir ckpt
@@ -44,14 +45,22 @@ assert_iter() { local n; n=$(echo "$1" | sed 's/.*model_//; s/\.pt$//'); [ "$n" 
 
 echo "===== v9 adaptive-warp motion: $MOTION  waist windows: $G1_WAIST_WINDOWS  $(date -Is) ====="
 echo "===== STAGE 1/3  0-20 ms, drift<0.8 m, 4000 iters  $(date -Is) ====="
+if S1=$(resolve s1) && [ "$(echo "$S1" | sed 's/.*model_//; s/\.pt$//')" -ge 3900 ] 2>/dev/null; then
+  echo "  stage 1 already complete ($S1) — skipping"
+else
 G1_CMD_DELAY_MAX_LAG=4  G1_OBS_DELAY_MAX_LAG=1  G1_DRIFT_TERM_M=0.8 \
   "$PY" "$ENTRY" "$TASK" "${COMMON[@]}" --agent.max-iterations 4000 --agent.run-name "${RUN}-s1"
+fi
 
 echo "===== STAGE 2/3  0-50 ms, drift<0.6 m, +3000 (resume s1)  $(date -Is) ====="
+if S2=$(resolve s2) && [ "$(echo "$S2" | sed 's/.*model_//; s/\.pt$//')" -ge 6900 ] 2>/dev/null; then
+  echo "  stage 2 already complete ($S2) — skipping"
+else
 read -r R1 C1 <<< "$(resolve s1)"; echo "  resume run=$R1 ckpt=$C1"; assert_iter "$C1" 3900
 G1_CMD_DELAY_MAX_LAG=10 G1_OBS_DELAY_MAX_LAG=2  G1_DRIFT_TERM_M=0.6 \
   "$PY" "$ENTRY" "$TASK" "${COMMON[@]}" --agent.max-iterations 3000 --agent.run-name "${RUN}-s2" \
     --agent.resume True --agent.load-run "$R1" --agent.load-checkpoint "$C1"
+fi
 
 echo "===== STAGE 3/3  0-60 ms, drift<0.4 m, +5000 (resume s2)  $(date -Is) ====="
 read -r R2 C2 <<< "$(resolve s2)"; echo "  resume run=$R2 ckpt=$C2"; assert_iter "$C2" 6900
