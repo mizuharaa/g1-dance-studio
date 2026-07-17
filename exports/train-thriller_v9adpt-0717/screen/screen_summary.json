@@ -1,0 +1,73 @@
+{
+  "winner": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-17_07-06-57_train-thriller_v9adpt-0717-s3/model_9500.pt",
+  "winner_iter": 9500,
+  "gate": {
+    "nominal_survival": 0.99,
+    "nominal_drift_max": 1.0,
+    "nominal_ankle_p95": 15.0,
+    "push_survival": 0.95,
+    "push_ankle_p95": 20.0
+  },
+  "rows": [
+    {
+      "gate_passes": 0,
+      "nominal_survival": 0.90625,
+      "nominal_drift_max": 2.6055471897125244,
+      "nominal_ankle_p95": 21.04010009765625,
+      "push_survival": 0.390625,
+      "push_ankle_p95": 27.30681800842285,
+      "iter": 9500,
+      "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-17_07-06-57_train-thriller_v9adpt-0717-s3/model_9500.pt"
+    },
+    {
+      "gate_passes": 0,
+      "nominal_survival": 0.828125,
+      "nominal_drift_max": 2.985574722290039,
+      "nominal_ankle_p95": 21.364980697631836,
+      "push_survival": 0.375,
+      "push_ankle_p95": 27.20911979675293,
+      "iter": 10500,
+      "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-17_07-06-57_train-thriller_v9adpt-0717-s3/model_10500.pt"
+    },
+    {
+      "gate_passes": 0,
+      "nominal_survival": 0.8125,
+      "nominal_drift_max": 2.618016242980957,
+      "nominal_ankle_p95": 21.02298355102539,
+      "push_survival": 0.40625,
+      "push_ankle_p95": 26.42339515686035,
+      "iter": 10000,
+      "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-17_07-06-57_train-thriller_v9adpt-0717-s3/model_10000.pt"
+    },
+    {
+      "gate_passes": 0,
+      "nominal_survival": 0.765625,
+      "nominal_drift_max": 2.23945951461792,
+      "nominal_ankle_p95": 22.131999969482422,
+      "push_survival": 0.421875,
+      "push_ankle_p95": 27.717063903808594,
+      "iter": 11997,
+      "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-17_07-06-57_train-thriller_v9adpt-0717-s3/model_11997.pt"
+    },
+    {
+      "gate_passes": 0,
+      "nominal_survival": 0.6875,
+      "nominal_drift_max": 6.2989630699157715,
+      "nominal_ankle_p95": 21.810407638549805,
+      "push_survival": 0.515625,
+      "push_ankle_p95": 26.890380859375,
+      "iter": 11500,
+      "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-17_07-06-57_train-thriller_v9adpt-0717-s3/model_11500.pt"
+    },
+    {
+      "gate_passes": 0,
+      "nominal_survival": 0.453125,
+      "nominal_drift_max": 2.397881269454956,
+      "nominal_ankle_p95": 22.095012664794922,
+      "push_survival": 0.234375,
+      "push_ankle_p95": 27.02827262878418,
+      "iter": 11000,
+      "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-17_07-06-57_train-thriller_v9adpt-0717-s3/model_11000.pt"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[screen] checkpoint 9500 -> screen_9500.json
+  iter 9500: passes=0/5 surv=0.906 drift=2.61 ankle=21.0 push_surv=0.391
+[screen] checkpoint 10000 -> screen_10000.json
+  iter 10000: passes=0/5 surv=0.812 drift=2.62 ankle=21.0 push_surv=0.406
+[screen] checkpoint 10500 -> screen_10500.json
+  iter 10500: passes=0/5 surv=0.828 drift=2.99 ankle=21.4 push_surv=0.375
+[screen] checkpoint 11000 -> screen_11000.json
+  iter 11000: passes=0/5 surv=0.453 drift=2.40 ankle=22.1 push_surv=0.234
+[screen] checkpoint 11500 -> screen_11500.json
+  iter 11500: passes=0/5 surv=0.688 drift=6.30 ankle=21.8 push_surv=0.516
+[screen] checkpoint 11997 -> screen_11997.json
+  iter 11997: passes=0/5 surv=0.766 drift=2.24 ankle=22.1 push_surv=0.422
+[pick] winner = iter 9500 (0/5 gate checks, surv 0.906, drift 2.61 m)
+WINNER /workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-17_07-06-57_train-thriller_v9adpt-0717-s3/model_9500.pt

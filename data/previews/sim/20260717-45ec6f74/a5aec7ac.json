@@ -1,0 +1,1 @@
+{"label": "train-thriller_v9adpt-0717", "policy_sha256": null, "created_at": 1784281141.164558, "kind": "reference_vs_policy", "left_kind": "REFERENCE (intended)", "left_achieved": 1.0, "right_kind": "POLICY (mjlab training model)", "right_achieved": 1.056081685431954, "right_fell_at": null}

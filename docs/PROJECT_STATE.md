@@ -46,6 +46,23 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-17 (v9 DONE): **ATTEMPT 6 FINISHED — v9 = a SPEED-vs-ROBUSTNESS TRADE, not a strict win;
+  v8 remains the strongest policy. BOX READY TO DELETE.** Winner iter 9500 (of 6 screened; iter
+  11000 collapsed to 45% — late-stage-3 instability is now a PATTERN: v7 and v9 both diverged late,
+  v8 didn't; consider stopping s3 at ~9.5k). Gate: nominal 89.8% (v8 99.2%), drift 3.26 (v8 4.31 —
+  better), ankle p95 20.96 (v8 20.4 — SAME), 40ms+push 43.0% (v8 59.4%; anchor deployed-quality bar
+  34.4%). Heldout 96.5/82.4. ⭐ KEY SCIENCE: ankle p95 unchanged despite the motion's ankle demand
+  dropping 67.8→34 Nm ⇒ the ~21 Nm residual is STABILIZATION effort (lean corrections/chatter), not
+  choreography — further slowdown won't reduce it; the ankle gate bar (≤15) may need revisiting
+  against what stabilization physically costs. v9 dances 49% of the dance at NATIVE speed (75.3s vs
+  v8's 88.7s) — visibly livelier — at the cost of ~9pts nominal survival and push robustness.
+  BOTH v8 and v9 clear the calibrated deployed-quality bar; NEITHER passes the absolute gate.
+  NEXT OPTIONS (user decision): (a) v10 = adaptive motion at margin 0.7 (slower hard parts, still
+  native elsewhere) + stop s3 early ≈ robustness of v8 with most of v9's tempo; (b) attack the
+  stabilization-torque floor + drift with a station-keeping recipe change; (c) robot-repair wave +
+  deploy v8 tethered for a real-world calibration point 2. Artifacts pulled + published (dance
+  auto-registered with fixed-renderer preview). **DELETE THE BOX** (billing since 07-16 08:00).
+
 - 2026-07-17 (night): **V9 READY FOR TRAINING — adaptive time-warp motion (user decision: slow ONLY
   the over-torque parts, never the whole dance).** New `tools/motion_repair.py --adaptive` =
   demand-shaped local retiming: per-frame gain sqrt(demand/0.85·headroom), ±0.2 s dilation, cosine
