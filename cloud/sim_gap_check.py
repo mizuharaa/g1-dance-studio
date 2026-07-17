@@ -109,9 +109,11 @@ SECTIONS = [(0.0, 10.0), (13.0, 17.5), (25.0, 36.0), (40.0, 49.5)]
 
 @dataclass(frozen=True)
 class Cfg:
-  checkpoint: str
   motion_file: str
+  checkpoint: str = ""  # rsl_rl .pt (mutually exclusive with --onnx)
+  onnx: str = ""  # deploy-exported policy.onnx (obs[N,160-ish] + time_step inputs)
   task: str = "Mjlab-Tracking-Flat-Unitree-G1"
+  task_module: str = ""  # python module to import first (registers custom tasks, e.g. sim2real_task_v8)
   num_envs: int = 64
   seed: int = 91001
   device: str | None = None
@@ -143,6 +145,61 @@ def _as_dict(agent_cfg) -> dict:
   from dataclasses import asdict, is_dataclass
 
   return asdict(agent_cfg) if is_dataclass(agent_cfg) else dict(agent_cfg)
+
+
+def _extract_actor_obs(obs) -> torch.Tensor:
+  """Pull the flat actor-obs tensor out of whatever the env wrapper returns."""
+  if torch.is_tensor(obs):
+    return obs
+  if isinstance(obs, (tuple, list)):
+    return _extract_actor_obs(obs[0])
+  for key in ("actor", "policy"):
+    try:
+      v = obs[key]
+      if torch.is_tensor(v):
+        return v
+    except (KeyError, TypeError, IndexError):
+      pass
+  if hasattr(obs, "policy") and torch.is_tensor(obs.policy):
+    return obs.policy
+  raise ValueError(f"cannot extract actor obs from {type(obs)}")
+
+
+class _OnnxPolicy:
+  """Rollout policy backed by a deploy-exported policy.onnx (same contract as
+  pipeline/deploy_runtime.py: inputs obs float32 + time_step float32 [[tick]],
+  output 'actions'). Lets the gate score OLD promoted policies whose training
+  checkpoints no longer exist — the Agent A calibration path."""
+
+  def __init__(self, path: str, device: str):
+    import onnxruntime as ort
+
+    self.sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+    self.input_names = [i.name for i in self.sess.get_inputs()]
+    self.device = device
+    self.t = 0
+
+  def __call__(self, obs) -> torch.Tensor:
+    x = _extract_actor_obs(obs).detach().cpu().numpy().astype(np.float32)
+    feeds = {}
+    for nm in self.input_names:
+      if nm == "obs":
+        feeds[nm] = x
+      elif nm == "time_step":
+        feeds[nm] = np.full((x.shape[0], 1), float(self.t), np.float32)
+      else:
+        raise ValueError(f"onnx policy has unexpected input '{nm}'")
+    try:
+      out = self.sess.run(["actions"], feeds)[0]
+    except Exception:
+      # graph may pin batch=1 — fall back to a per-env loop
+      outs = [
+        self.sess.run(["actions"], {nm: v[i : i + 1] for nm, v in feeds.items()})[0]
+        for i in range(x.shape[0])
+      ]
+      out = np.concatenate(outs, 0)
+    self.t += 1
+    return torch.as_tensor(out, dtype=torch.float32, device=self.device)
 
 
 def _run_condition(
@@ -187,10 +244,13 @@ def _run_condition(
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
   env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-  runner_cls = load_runner_cls(cfg.task) or MjlabOnPolicyRunner
-  runner = runner_cls(env, _as_dict(agent_cfg), device=device)
-  runner.load(cfg.checkpoint, map_location=device)
-  policy = runner.get_inference_policy(device=device)
+  if cfg.onnx:
+    policy = _OnnxPolicy(cfg.onnx, device)
+  else:
+    runner_cls = load_runner_cls(cfg.task) or MjlabOnPolicyRunner
+    runner = runner_cls(env, _as_dict(agent_cfg), device=device)
+    runner.load(cfg.checkpoint, map_location=device)
+    policy = runner.get_inference_policy(device=device)
 
   asset = env.unwrapped.scene["robot"]
   leg_ids_list, leg_names = asset.find_joints(LEG_JOINTS)
@@ -355,6 +415,14 @@ def main() -> None:
   argv = [a for i, a in enumerate(raw)
           if a not in known_tasks or (i > 0 and raw[i - 1] == "--task")]
   cfg = tyro.cli(Cfg, args=argv)
+  if bool(cfg.checkpoint) == bool(cfg.onnx):
+    raise SystemExit("pass exactly one of --checkpoint or --onnx")
+  if cfg.task_module:
+    # registers custom tasks (e.g. sim2real_task_v8 -> ...-S2R-V8); the cloud/
+    # dir is sys.path[0] when this script is run by path.
+    import importlib
+
+    importlib.import_module(cfg.task_module)
   configure_torch_backends()
   device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
   torch.manual_seed(cfg.seed)
@@ -459,6 +527,7 @@ def main() -> None:
       {
         "task": cfg.task,
         "checkpoint": cfg.checkpoint,
+        "onnx": cfg.onnx,
         "motion_file": cfg.motion_file,
         "episode_length_s": episode_length_s,
         "gate": gate,

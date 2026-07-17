@@ -73,6 +73,9 @@ def main() -> int:
   ap.add_argument("--last", type=int, default=6)
   ap.add_argument("--num-envs", type=int, default=64)
   ap.add_argument("--workdir", required=True)
+  ap.add_argument("--task", default="", help="task id forwarded to the gap check")
+  ap.add_argument("--task-module", default="",
+                  help="custom-task module forwarded to the gap check (e.g. sim2real_task_v8)")
   a = ap.parse_args()
 
   rundir = Path(a.rundir)
@@ -87,10 +90,13 @@ def main() -> int:
     it = int(ck.stem.split("_")[1])
     out = work / f"screen_{it}.json"
     print(f"[screen] checkpoint {it} -> {out.name}", flush=True)
-    r = subprocess.run(
-      [a.python, a.gap_check, "--checkpoint", str(ck), "--motion-file", a.motion_file,
-       "--num-envs", str(a.num_envs), "--only", SCREEN_ONLY, "--output-file", str(out)],
-      capture_output=True, text=True)
+    cmd = [a.python, a.gap_check, "--checkpoint", str(ck), "--motion-file", a.motion_file,
+           "--num-envs", str(a.num_envs), "--only", SCREEN_ONLY, "--output-file", str(out)]
+    if a.task:
+      cmd += ["--task", a.task]
+    if a.task_module:
+      cmd += ["--task-module", a.task_module]
+    r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0 or not out.exists():
       print(f"  !! screen failed for {it} (rc={r.returncode}); skipping\n{r.stderr[-500:]}",
             file=sys.stderr)

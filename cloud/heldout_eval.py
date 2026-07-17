@@ -48,6 +48,8 @@ from mjlab.utils.torch import configure_torch_backends
 class Cfg:
     checkpoint: str
     motion_file: str
+    task: str = "Mjlab-Tracking-Flat-Unitree-G1"
+    task_module: str = ""  # module to import first (registers custom tasks, e.g. sim2real_task_v8)
     num_envs: int = 256
     seed: int = 90001
     device: str | None = None
@@ -142,9 +144,16 @@ def _as_dict(agent_cfg) -> dict:
 
 def main() -> None:
     import mjlab.tasks  # noqa: F401
-    task_id = "Mjlab-Tracking-Flat-Unitree-G1"
-    argv = [a for a in sys.argv[1:] if a != task_id]
+    default_task = "Mjlab-Tracking-Flat-Unitree-G1"
+    raw = sys.argv[1:]
+    argv = [a for i, a in enumerate(raw)
+            if a != default_task or (i > 0 and raw[i - 1] == "--task")]
     cfg = tyro.cli(Cfg, args=argv)
+    if cfg.task_module:
+        import importlib
+
+        importlib.import_module(cfg.task_module)
+    task_id = cfg.task
     configure_torch_backends()
     device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(cfg.seed)
