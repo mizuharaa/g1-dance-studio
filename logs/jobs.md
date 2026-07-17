@@ -407,3 +407,8 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - Judge vs CALIBRATED bar: beat v8 (99.2% nominal / 59.4% @40ms+push / ankle p95 20.4 /
   drift 4.31); expect ankle p95 <=15 (motion now fully feasible).
 - ETA ~4-5 h. ON DONE: pull exports/train-thriller_v9adpt-0717/, sign, DELETE THE BOX.
+- 06:03-06:07 UTC incident: stage-2 resume crashed (mjlab logs are CWD-relative; launch had
+  cwd=/root so s1 landed in /root/logs) -> moved dirs, pinned cd $NB. Relaunch then matched the
+  OLD v8 s2 via the bare *-s2 glob and started s3 from the WRONG lineage -> killed within ~2 min,
+  wrong s3 dir deleted, resolve() now anchors on ${RUN}. Verified resume from v9 s1 model_3999.
+  Stage 1 was NOT retrained (skip logic). Fixes committed.
