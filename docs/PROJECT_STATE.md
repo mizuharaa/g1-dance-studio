@@ -46,6 +46,26 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-17 (later): **V8 RE-VERIFY + FIRST GATE CALIBRATION DONE — box ready to DELETE.**
+  Winner iter 10000 (6 screened; picker worked). Absolute gate FAIL / calibrated read = BEST POLICY
+  YET: nominal survival **99.2% (first-ever ≥99% PASS)**, rr_mpkpe **0.059 (best)**, heldout 99.6/96.5;
+  FAILS drift (4.31 m) + ankle p95 (20.4) + 40ms+push (59.4% vs bar 95%). ⭐ CALIBRATION (Agent A,
+  via new --onnx gate mode): the ~70%-IRL anchor REPRODUCES its 07-08 numbers exactly (surv 100%,
+  mpkpe 0.154, ankle p95 10.56) → **gate NOT hallucinated**; BUT anchor scores only 37.5% @40ms /
+  **34.4% @40ms+push** → the latency bars are far stricter than deployed reality; v8 is 1.7× more
+  latency+push-robust than the proven-deployable policy. Drift is partly HONEST (v8 actor can't see
+  position — v7's 0.81 m consumed a privileged term hardware never has). Ankle: 1.8× motion still
+  3.7% infeasible (67.8 Nm peak vs 40 clamp) — fallback is G1_SLOWDOWN=2.0/2.5. USER "reference looks
+  wrong" report INVESTIGATED (docs/V8_ASSESSMENT.md §2b): NOT a wrong reference (nearest-pose diff
+  0.018 rad vs anchor motion = same choreography, sha-matched); float/slip = the UNGROUNDED old motion
+  in v6/v7 backfilled previews (v8's is planted, z≈0.05 m); "from the back" = sim_studio camera
+  azimuth 135 vs old front renderer (cosmetic). v8 published as dance 20260717-db1b8cf4; its sim
+  preview needs the 770-dim deploy wave (sandbox uses the 160-dim deploy contract). Artifacts pulled
+  to exports/train-thriller_v8s2r-0716/ (gap.json, calibration_anchor_gap.json, screens, pick2.log,
+  winner policy.onnx). Full report: docs/V8_ASSESSMENT.md. **NEXT DECISIONS (user): (1) DELETE THE BOX
+  (billing since 07-16 08:00, ~$25 accrued); (2) next recipe = v8 + station-keeping fix + slowdown
+  fallback choice; (3) robot repair remains the deploy blocker.**
+
 - 2026-07-17: **V8 TRAINING FINISHED BUT THE VERIFY CHAIN WAS BROKEN — fixed, re-verify RUNNING.**
   Attempt 5 (train-thriller_v8s2r-0716) completed all 3 stages (11,998 iters, ~4 h) on box
   103.245.250.152:46659, but produced NO gate numbers: train_v8_curriculum.sh's verify section

@@ -27,10 +27,74 @@ lengths look short (~5 s) but that is an artifact of the tight 0.4 m drift-termi
 band plus mjlab's adaptive sampler parking ~90% of episodes on the hardest motion bin —
 not a gate verdict.
 
-## 2. Gate results (re-verify run)
+## 2. Gate results (re-verify run, 2026-07-17)
 
-<!-- FILLED AFTER verify_v8_rerun.sh COMPLETES -->
-_pending — see `exports/train-thriller_v8s2r-0716/gap.json` + `calibration_anchor_gap.json`_
+Winner = **iter 10000** of 6 screened (the picker worked; the last ckpt was NOT best).
+Full gate: 11 conditions × 128 envs on the 1.8× grounded motion (88.7 s), drift
+termination neutralized (comparable to how v5–v7 were gated).
+
+| metric | v8 (iter 10000) | bar | v7 | anchor (~70% IRL) |
+|---|---|---|---|---|
+| nominal survival | **99.2% — first-ever PASS** | ≥99% | 85.9% | 100% |
+| rr_mpkpe | **0.059 m — best ever** | ≤0.10 | 0.09 | 0.078 |
+| drift_max (nominal) | 4.31 m — FAIL | ≤1.0 | 0.81 | 0.40 |
+| ankle p95 (nominal) | 20.4 Nm — FAIL | ≤15 | 16.5 | 10.6 |
+| 40 ms + push survival | 59.4% — FAIL vs bar | ≥95% | 87.5% | **34.4%** |
+| heldout (trained motion) | 99.6% nom / 96.5% push | ≥99% | — | — |
+
+**Calibration (first ever, `calibration_anchor_gap.json`):** the anchor policy —
+the only one with ground truth (~70% mimicry, live-deployed, survived full shows) —
+re-run through today's gate **reproduces its 2026-07-08 numbers exactly**
+(survival 100%, mpkpe 0.154, ankle p95 10.56 vs 10.7). Two consequences:
+
+1. **The gate is NOT hallucinating.** Same policy, same numbers, 9 days and many
+   code changes apart, now via an independent ONNX rollout path.
+2. **The latency bars are miscalibrated-strict**: the proven-deployable anchor
+   scores only 37.5% @delay40ms and **34.4% @40ms+push** in sim. Against that
+   calibrated reference, v8's 59.4% is **1.7× more latency+push-robust than the
+   policy that already performed live.**
+
+**Verdict:** absolute gate = FAIL (drift + ankle bars). Calibrated read = v8 is the
+best policy the project has produced: first ≥99% nominal survival, best tracking,
+much better latency robustness than the deployed baseline — with two real, understood
+deficits:
+
+- **Drift (4.31 m).** Partly architectural honesty: the v8 actor deliberately cannot
+  see `motion_anchor_pos_b`/`base_lin_vel` (they don't exist on hardware); v7's
+  0.81 m was achieved by consuming a privileged signal the real robot never has, then
+  faking it with drifting leg-odometry. The REAL robot was always going to drift more
+  than the old gate said. Fix directions (next recipe, pick one): stronger
+  critic-shaped station-keeping (works through policy-gradient even if the actor
+  can't observe drift), a deploy-side re-anchoring aid (e.g. periodic yaw/position
+  correction from the operator console between sections), or accepting drift and
+  re-centering choreography (2 m-radius venue bound = the binding constraint).
+- **Ankle p95 20.4 Nm.** The 1.8× motion is still ~3.7% infeasible (67.8 Nm peak
+  demand vs the 40 Nm velocity-derated clamp, 29 windows — `_scorecard.json`). The
+  hip-strategy bet paid off only partially. One env var walks the fallback:
+  `G1_SLOWDOWN=2.0` (34 Nm p95 predicted) or `2.5` (22 Nm, fully feasible).
+
+## 2b. The "reference looks wrong" investigation (user report, 2026-07-17)
+
+User: the reference video looks drifty/floaty/uncoordinated, viewed from the back;
+the ankle-penalty preview is the intended look. Findings (all verified numerically):
+
+1. **Not a wrong reference.** Windowed nearest-pose distance between the v8 training
+   motion and the anchor deploy motion = **0.018 rad mean (≈1°)** — same choreography,
+   same source extract (`thriller_g1.csv`, sha-matched laptop↔box↔registry). The two
+   differ only in time-warp (uniform 1.8× vs the Jul-08 non-uniform velocity-clamp
+   retiming), so beats land at different wall-clock times.
+2. **The float/slip is real but belongs to the OLD (ungrounded) motion** replayed in
+   the v6/v7 backfilled previews rendered 07-16. The v8 training motion has feet
+   PLANTED (ankle-roll link z ≈ 0.05 m throughout — probe renders); ironically the
+   "intended-look" anchor reference floats its feet 0.08–0.20 m in the raw data.
+3. **"Seen from the back" is the renderer**, not the data: every motion file shares
+   the same facing (first-frame yaw ≈ 90°); `sim_studio`'s default camera
+   (azimuth 135°) gives a rear-quarter view, while the old ankle-penalty preview came
+   from `render_deploy_sim.py` with a front camera. Cosmetic; flip azimuth to ~-45°.
+4. **The gate is not hallucinating** — see the calibration above.
+5. v8 has **no sim preview yet**: the sandbox drives policies through the deploy obs
+   contract (160-dim); v8 needs the 770-dim history buffer (deploy wave). The
+   registered dance will get its preview after that lands.
 
 ## 3. What was BROKEN when "training finished" (found + fixed 2026-07-17)
 
