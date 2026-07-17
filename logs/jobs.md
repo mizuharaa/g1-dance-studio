@@ -383,3 +383,15 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   through the gate for the trusted bar; run AFTER training (avoid GPU sharing). Then judge v8 vs the
   calibrated bar. Pull artifacts, sign, DELETE BOX (billing!).
 - Deploy-safety guards committed (5 guards, 30 tests) — staged for next robot-day (robot down).
+
+## 2026-07-17 ~03:00 UTC — V8 RE-VERIFY LAUNCHED (verify chain was broken)
+- Training itself finished 2026-07-16 12:21 UTC (3 stages, 11,998 iters) but the verify
+  section gated the 770-dim v8 ckpt against the 160-dim stock task -> all screens failed,
+  no gap.json, picker fell back to last ckpt. Fix committed (085ab43).
+- Box root@103.245.250.152:46659. Running: cloud/verify_v8_rerun.sh (detached,
+  verify_v8_rerun.out): screen last-6 ckpts on the V8 task -> export WINNER via
+  export_ckpt_onnx.py -> gap.json (128 envs, 11 conds, drift-term neutralized) ->
+  heldout x3 -> Agent A CALIBRATION (thriller_csv_ankle_penalty ONNX + its deploy csv
+  -> npz, stock task, 32 envs, 4 conds) -> calibration_anchor_gap.json.
+- ON DONE: pull exports/train-thriller_v8s2r-0716/ (incl. pick2.log, gap.json,
+  calibration_anchor_gap.json), judge v8 vs the CALIBRATED bar, sign, DELETE THE BOX.

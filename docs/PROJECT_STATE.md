@@ -46,6 +46,30 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-17: **V8 TRAINING FINISHED BUT THE VERIFY CHAIN WAS BROKEN — fixed, re-verify RUNNING.**
+  Attempt 5 (train-thriller_v8s2r-0716) completed all 3 stages (11,998 iters, ~4 h) on box
+  103.245.250.152:46659, but produced NO gate numbers: train_v8_curriculum.sh's verify section
+  called pick_checkpoint/sim_gap_check/heldout_eval WITHOUT --task, so they instantiated the
+  160-dim STOCK task against the 770-dim v8 checkpoint → every screen errored (state_dict size
+  mismatch), the picker fell back to the LAST checkpoint (the exact v7 failure mode it exists to
+  prevent), and gap_check crashed (no gap.json). SECOND latent defect found while fixing:
+  export_policy.py copies the train-END ONNX (mjlab exports once, at end) — so whenever the picker
+  selects a non-final winner, the staged policy.onnx silently disagrees with the gated checkpoint
+  (v7's shipped policy.onnx was actually iter-11997's net, NOT the gated iter-10000 winner; never
+  deployed, so no harm done). FIXES (commit 085ab43): --task/--task-module on all three eval
+  scripts; cloud/export_ckpt_onnx.py re-exports the PICKED ckpt via the runner's own exporter;
+  sim_gap_check gained an --onnx mode (deploy-contract onnxruntime rollout) so OLD promoted
+  policies without .pt can be gated → unblocks Agent A calibration. cloud/verify_v8_rerun.sh
+  re-runs screen→export→gate→heldout on the V8 task (G1_DRIFT_TERM_M=999 during gating so drift
+  is measured not clipped — comparable to v5/v6/v7 stock-task gates; the 40 Nm velocity-derated
+  ankle clamp is KEPT — closer to the real actuator) THEN the Agent A calibration: the
+  thriller_csv_ankle_penalty anchor (sha 444864f9, ~70% IRL) through the same gate via ONNX.
+  Training-health read (stage-3 tfevents, parsed): NO late collapse (unlike v7) — reward/tracking
+  flat 8k→12k, error_body_pos ~0.10 m; in-training episodes end mostly via the tight 0.4 m drift
+  band with mjlab's adaptive sampler parked ~90% on the hardest motion bin, so short mean episode
+  length (~5 s) in-training is NOT evidence of gate failure. Box still up (billing) pending the
+  re-verify → pull → sign → DELETE.
+
 - 2026-07-16: **NO-GPU REVAMP COMPLETE — v8 recipe drafted, reviewed, committed; ready for the
   GPU wave.** Agent E (faithful preview) done: assembled the faithful mjlab model (official G1 MJCF +
   mjlab armatures + zeroed damping) as the sandbox default → same v7 policy shows 7% (menagerie) vs
