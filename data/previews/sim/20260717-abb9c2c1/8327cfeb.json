@@ -1,0 +1,1 @@
+{"label": "preview-v9-motion", "policy_sha256": null, "created_at": 1784264185.9026225, "kind": "reference_vs_policy", "left_kind": "REFERENCE (intended)", "left_achieved": 1.0, "right_kind": "POLICY (mjlab training model)", "right_achieved": 1.0593369604955638, "right_fell_at": null}
