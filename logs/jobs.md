@@ -448,3 +448,13 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - Pushed v11 stack + gate files + beatsync CSV + wandb. 09:10 provisioning (frozen lock).
 - Launch: G1_GATE_ANKLE_P95_NOMINAL_NM=22 G1_GATE_ANKLE_P95_WORST_NM=25 run_attempt8.sh
   (retimes 4 tempo npz on this fresh box, selfcheck, smoke, then v11 4-stage curriculum, 9.5k stop).
+
+## 2026-07-20 — Attempt 8 (v11) RESULT: BEST POLICY YET, native tempo, gate near-pass
+- Winner iter 9496 (final native stage; NO late collapse this time -> picker took last ckpt).
+- Episode 49.5s NATIVE. Survival 98.4% (v10 85.2%, v8 99.2%). rr_mpkpe 0.056 (BEST).
+- LEG REACH FIXED: 10-25s knees 75-84% (v10 49-59%), hips 57-91% (v10 43-80%). arms ~81-85%.
+- ankle p95 21.5 (PASS <=22). drift: clean-rollout 0.31m/26s (BETTER than v10 0.56m);
+  gate mean 0.68m, episode-max median 1.06m, p95 2.21m (FAILs 1.5 bar on perturbed tail).
+- Gate FAIL but closest yet: survival 0.6pt short of 99, drift p95 tail, ankle mean/RMS floor.
+- Published dance 20260721-36bb7844 (full 49s preview, 109% amplitude). Artifacts in exports/.
+- BOX 53665 STILL BILLING since 09:10 -> DELETE (console-only, user).
