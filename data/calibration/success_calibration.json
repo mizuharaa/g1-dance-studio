@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-20T10:35:51",
+  "generated_at": "2026-07-20T10:48:55",
   "primary_metric": "ankle_frames_over_headroom_pct",
   "checker": {
     "module": "pipeline.motion_dynamics",
@@ -15,7 +15,7 @@
         "ankle_frames_over_headroom_pct": 1.54,
         "ankle_tau_p95_nm": 31.69,
         "ankle_tau_max_nm": 51.85,
-        "zmp_outside_support_pct": 100.0,
+        "zmp_outside_support_pct": 56.95,
         "vel_frames_over_limit_pct": 0.0
       },
       "nominal_survival_pct": 92.19,
@@ -29,7 +29,7 @@
         "ankle_frames_over_headroom_pct": 1.54,
         "ankle_tau_p95_nm": 31.69,
         "ankle_tau_max_nm": 51.85,
-        "zmp_outside_support_pct": 100.0,
+        "zmp_outside_support_pct": 56.95,
         "vel_frames_over_limit_pct": 0.0
       },
       "nominal_survival_pct": 85.94,
@@ -43,7 +43,7 @@
         "ankle_frames_over_headroom_pct": 1.54,
         "ankle_tau_p95_nm": 31.69,
         "ankle_tau_max_nm": 51.85,
-        "zmp_outside_support_pct": 100.0,
+        "zmp_outside_support_pct": 56.95,
         "vel_frames_over_limit_pct": 0.0
       },
       "nominal_survival_pct": 100.0,
@@ -57,7 +57,7 @@
         "ankle_frames_over_headroom_pct": 0.15,
         "ankle_tau_p95_nm": 32.52,
         "ankle_tau_max_nm": 41.9,
-        "zmp_outside_support_pct": 100.0,
+        "zmp_outside_support_pct": 41.77,
         "vel_frames_over_limit_pct": 0.0
       },
       "nominal_survival_pct": 99.22,
@@ -71,7 +71,7 @@
         "ankle_frames_over_headroom_pct": 0.13,
         "ankle_tau_p95_nm": 33.15,
         "ankle_tau_max_nm": 41.02,
-        "zmp_outside_support_pct": 100.0,
+        "zmp_outside_support_pct": 51.75,
         "vel_frames_over_limit_pct": 0.0
       },
       "nominal_survival_pct": 89.84,

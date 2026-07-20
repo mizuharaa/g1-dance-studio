@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Attempt 7 (v10) — one-command box orchestrator. NATIVE-tempo speed curriculum.
 #
-# INPUT MOTION: the native grounded CSV — NOT the adaptive/1.8x slowed variants.
-#   Default: $NB/motions/thriller_g1_grounded.csv  (override: G1_MOTION_CSV=...)
-#   NOTE: the orchestrator may swap in a RE-PREPPED motion (the 2026-07-20
-#   choreography-guard cleaning fix means the next extraction keeps the dance
-#   hits the old rejector erased) — this script only reads G1_MOTION_CSV, so a
-#   swap is a one-env-var change, no edits here.
+# INPUT MOTION: the NATIVE-TEMPO beat-preserving repaired CSV (49.3 s, ladder
+# output of tools/motion_repair --ladder: over-envelope frames 3.0% -> 0.41%,
+# duration x1.000, beat drift <= 0.34 s transient — absorbed by the waist-slack
+# windows' multi-second width). NOT the adaptive/1.8x slowed variants.
+#   Default: $NB/motions/thriller_g1_v10_beatsync.csv  (override: G1_MOTION_CSV=...)
+#   Laptop source: data/motions/thriller/thriller_g1_v10_beatsync.csv (+ its
+#   scorecard, which carries the time_map). This script only reads
+#   G1_MOTION_CSV, so a swap is a one-env-var change, no edits here.
 #
 # The box generates the 4 tempo variants itself (retime_motion.py: cubic +
 # quaternion slerp, no frame duplication) and converts each to a 50 fps npz, so
@@ -29,7 +31,7 @@
 set -uo pipefail
 NB=${NB:-/workspace/notebook-data}
 PY=$NB/envs/mjlab/bin/python
-CSV=${G1_MOTION_CSV:-$NB/motions/thriller_g1_grounded.csv}
+CSV=${G1_MOTION_CSV:-$NB/motions/thriller_g1_v10_beatsync.csv}
 CSV2NPZ=$NB/repos/mjlab/src/mjlab/scripts/csv_to_npz.py
 [ -f "$NB/.wandb_key" ] && export WANDB_API_KEY=$(tr -d '[:space:]' < "$NB/.wandb_key")
 

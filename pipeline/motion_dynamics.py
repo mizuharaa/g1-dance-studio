@@ -375,26 +375,25 @@ def _support_margin(fpos_xy, fyaw, contact, zmp_xy) -> float:
 
 
 def _point_in_hull_margin(pt, pts) -> float:
+    """Signed distance of pt to the hull boundary: positive inside (min inset
+    over edges), negative outside (worst edge violation). The hull from
+    _convex_hull is CCW, so the left normal (-e_y, e_x) points INWARD and the
+    signed inset is simply min_e (pt-a)·n. (Fixed 2026-07-20: the previous
+    version inverted the sign — a centred ZMP read as 'outside support'.)"""
     hull = _convex_hull(pts)
     if len(hull) < 3:
         return -np.linalg.norm(pt - pts.mean(axis=0))
-    n = len(hull)
-    inside = True
-    min_edge = np.inf
-    for i in range(n):
+    dmin = np.inf
+    for i in range(len(hull)):
         a = hull[i]
-        b = hull[(i + 1) % n]
+        b = hull[(i + 1) % len(hull)]
         e = b - a
-        nrm = np.array([-e[1], e[0]])
-        ln = np.linalg.norm(nrm)
+        ln = np.hypot(e[0], e[1])
         if ln < 1e-9:
             continue
-        nrm = nrm / ln
-        d = np.dot(pt - a, nrm)
-        if d > 0:
-            inside = False
-        min_edge = min(min_edge, abs(d))
-    return min_edge if inside else -min_edge
+        nrm = np.array([-e[1], e[0]]) / ln     # inward normal (CCW hull)
+        dmin = min(dmin, float(np.dot(pt - a, nrm)))
+    return dmin
 
 
 def _convex_hull(pts):
