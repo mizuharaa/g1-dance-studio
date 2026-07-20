@@ -46,6 +46,27 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-20 (clean_motion audit): **THE OUTLIER REJECTOR WAS DELETING GENUINE DANCE HITS —
+  choreography guard added + automated fidelity report (no more eye-checking).** Audit
+  (experiments/clean_motion_audit_20260720/, synthetic ground truth + real Thriller + robot-PSD
+  cross-check): SG smoothing is INNOCENT (sines ≥97% to 6 Hz), but reject_outliers erased
+  velocity-FEASIBLE isolated hits to 0% (a quiet joint's accel MAD→0 ⇒ robust-z explodes; a
+  200 ms 0.8 rad pulse, peak ~6 rad/s, was spline-flattened). On real Thriller the rejections
+  cluster in ~300 ms coherent runs on ARM joints exactly in the fast handswing sections. FIX
+  (committed): a k-frame impulse contaminates k+2 accel samples ⇒ glitch core runs are 3-4
+  samples; flagged events LONGER than MAX_GLITCH_CORE=4 (after closing ≤2-sample gaps — a smooth
+  pulse's |accel| crosses zero mid-rise) are PROTECTED from rejection (SG + velocity clamp still
+  apply). Verified: 200-400 ms hits now retain 83-99% peak (was 0%), 1-frame flips still removed
+  (residual 0.035 rad, collateral 0.004), real Thriller keeps 12 protected choreography runs /
+  115 glitch runs rejected, jerk peak after 17.2k (< the 20k advisory + 30k severe gates), spikes
+  1.03% (<2%), fidelity RMS delta improved 0.033→0.022 rad. NEW: clean_motion() now emits a
+  fidelity report (per-group amp + peak-vel retention, worst 5 s tile, warnings <0.90) into the
+  prep record — automated choreography-preservation check per dance. Robot-PSD context: real
+  measured arm bandwidth (bw95 ~1.0 Hz) is BELOW even the cleaned reference (1.2 Hz), legs/ankle
+  2.2 Hz ≥ reference — hardware wasn't losing content to cleaning in legs, and arms are
+  policy/hardware-limited, not cleaning-limited. NOTE: existing motions were cleaned with the old
+  rejector; re-run prep on the next extraction (v10) to benefit.
+
 - 2026-07-20: **TORQUE-DEMAND MODEL FALSIFIED AT NATIVE SPEED — the slowdown driver is
   systematically INFLATED; native-speed training is back on the table.** User challenge ("robot
   did the fast Thriller live; is peak-torque detection false?") cross-checked with real hardware

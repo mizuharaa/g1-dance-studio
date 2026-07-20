@@ -65,6 +65,26 @@ def test_outlier_rejection_ignores_smooth_and_fast_content():
     assert n == 0
 
 
+def test_feasible_hit_survives_cleaning():
+    """Choreography guard (2026-07-20 audit): a velocity-feasible isolated
+    dance 'hit' (raised-cosine pulse, ~250 ms, peak vel ~5 rad/s) on an
+    otherwise-quiet joint must NOT be deleted by the outlier rejector — before
+    the guard it was erased to 0% because a quiet joint's accel MAD ~ 0."""
+    t = np.arange(N) / FPS
+    m = np.zeros((N, 36))
+    m[:, 2] = 0.79
+    m[:, 6] = 1.0
+    w, c, amp = 0.25, 5.0, 0.8   # 250 ms pulse at t=5 s, 0.8 rad
+    s = np.clip((t - (c - w / 2)) / w, 0, 1)
+    pulse = amp * 0.5 * (1 - np.cos(2 * np.pi * s)) * (np.abs(t - c) < w / 2)
+    m[:, 7 + 20] = pulse
+    cleaned, info = clean_motion(m, FPS)
+    assert cleaned[:, 7 + 20].max() > 0.7 * amp, \
+        "feasible dance hit was flattened by cleaning"
+    assert info["choreo_runs_protected"] >= 1
+    assert info["fidelity"]["arms"]["amp_retention"] > 0.85
+
+
 def test_smooth_quat_kills_single_frame_flip():
     t = np.arange(N) / FPS
     q = Rotation.from_euler("z", 0.4 * np.sin(2 * np.pi * t)).as_quat()

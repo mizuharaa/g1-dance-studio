@@ -53,6 +53,14 @@ SPIKE_ACCEL_FLOOR = 150.0  # rad/s^2; clean dance p99 accel is ~30-60
 SG_WINDOW = 7
 SG_POLY = 3
 
+# Choreography guard (audited 2026-07-20, experiments/clean_motion_audit_20260720):
+# a k-frame position impulse contaminates k+2 consecutive accel samples, so a
+# 1-2 frame GVHMR flip yields a core run of 3-4 flagged samples. A genuine
+# velocity-feasible dance "hit" (>=200 ms) spans >=5. Flagged runs LONGER than
+# this are coherent motion, not impulses — they are protected from rejection
+# (SG smoothing and the downstream velocity clamp still apply to them).
+MAX_GLITCH_CORE = 4
+
 
 def _spike_hit(x: np.ndarray, fps: float) -> np.ndarray:
     """(N-2,D) bool: accel-spike test per sample — robust z vs the column's own
@@ -65,12 +73,42 @@ def _spike_hit(x: np.ndarray, fps: float) -> np.ndarray:
     return ((aacc - med) / mad > SPIKE_ROBUST_Z) & (aacc > SPIKE_ACCEL_FLOOR)
 
 
-def _spike_mask(x: np.ndarray, fps: float) -> np.ndarray:
-    """(N,D) bool sample mask, dilated ±1 frame because a 1-frame impulse
-    smears across 3 accel samples."""
-    mask = np.zeros(x.shape, dtype=bool)
-    mask[1:-1] = _spike_hit(x, fps)
-    return binary_dilation(mask, structure=np.ones((3, 1), dtype=bool))
+def _spike_mask(x: np.ndarray, fps: float,
+                info: dict | None = None) -> np.ndarray:
+    """(N,D) bool sample mask of REJECTABLE glitch samples, dilated ±1 frame
+    because a 1-frame impulse smears across 3 accel samples.
+
+    Choreography guard: contiguous flagged runs whose core exceeds
+    MAX_GLITCH_CORE samples are coherent fast MOTION (a real dance hit), not a
+    1-2 frame estimator flip — those are dropped from the mask (protected).
+    If ``info`` is given, per-run bookkeeping is appended to
+    info["rejected_runs"] / info["protected_runs"] as (frame_start, frame_end,
+    dof_column) tuples on the frame clock."""
+    from scipy.ndimage import binary_closing
+    core = np.zeros(x.shape, dtype=bool)
+    core[1:-1] = _spike_hit(x, fps)
+    for d in np.flatnonzero(core.any(axis=0)):
+        col = core[:, d]
+        # one physical event = one run: a smooth pulse's |accel| crosses zero
+        # mid-rise/fall, splitting its core into fragments — close gaps <=2
+        # samples before judging run length.
+        closed = binary_closing(col, structure=np.ones(3, dtype=bool))
+        edges = np.flatnonzero(np.diff(closed.astype(int)))
+        starts = list(edges[closed[edges + 1]] + 1) + ([0] if closed[0] else [])
+        for s in sorted(starts):
+            e = s
+            while e + 1 < len(closed) and closed[e + 1]:
+                e += 1
+            run = (int(s), int(e), int(d))
+            if e - s + 1 > MAX_GLITCH_CORE:
+                col[s:e + 1] = False
+                if info is not None:
+                    info.setdefault("protected_runs", []).append(run)
+            else:
+                col[s:e + 1] = True   # reject the whole event incl. gap samples
+                if info is not None:
+                    info.setdefault("rejected_runs", []).append(run)
+    return binary_dilation(core, structure=np.ones((3, 1), dtype=bool))
 
 
 def _derivs(dof: np.ndarray, fps: float):
@@ -107,14 +145,17 @@ def analyze(motion: np.ndarray, fps: float = FPS) -> dict:
     }
 
 
-def reject_outliers(x: np.ndarray, fps: float = FPS) -> tuple[np.ndarray, int]:
+def reject_outliers(x: np.ndarray, fps: float = FPS,
+                    info: dict | None = None) -> tuple[np.ndarray, int]:
     """Remove accel-spike outliers per column of (N,D) by cubic interpolation
     across the flagged samples (glitches sit ON fast curved moves, so linear
     interp under-cuts the arc). Returns (cleaned, n_frames_touched). Rolling-
     median (hampel) was tried first but its window MAD inflates on legitimately
-    fast joints and misses flips there; the accel detector is speed-invariant."""
+    fast joints and misses flips there; the accel detector is speed-invariant.
+    Coherent fast moves are protected by _spike_mask's choreography guard;
+    pass ``info`` to receive rejected/protected run bookkeeping."""
     from scipy.interpolate import CubicSpline
-    mask = _spike_mask(x, fps)
+    mask = _spike_mask(x, fps, info)
     out = x.copy()
     idx = np.arange(len(x))
     for d in np.flatnonzero(mask.any(axis=0)):
@@ -149,6 +190,53 @@ def smooth_quat(quat: np.ndarray, window: int = SG_WINDOW,
     return out
 
 
+# joint-group columns within the 29-dof block (G1 LAFAN1 order)
+_GROUPS = {"legs": list(range(12)), "waist": [12, 13, 14],
+           "arms": list(range(15, 29))}
+RETENTION_WARN = 0.90     # amp retention below this in any 5 s tile => warn
+
+
+def _fidelity_retention(raw: np.ndarray, cleaned: np.ndarray,
+                        fps: float) -> dict:
+    """Automated choreography-preservation report: per-joint-group amplitude
+    retention (cleaned/raw peak-to-peak), overall and worst 5 s tile, plus
+    peak-velocity retention. Replaces eye-checking every move: any tile whose
+    amplitude retention drops below RETENTION_WARN is listed in ``warnings``."""
+    n = len(raw)
+    tile = max(int(5 * fps), 1)
+    res: dict = {"warnings": []}
+    for g, jj in _GROUPS.items():
+        jj = [j for j in jj if j < raw.shape[1]]
+        if not jj:
+            continue
+        amps_r = np.ptp(raw[:, jj], axis=0)
+        keep = amps_r > 0.05                      # ignore idle joints
+        amp = (float(np.mean(np.ptp(cleaned[:, jj], axis=0)[keep]
+                             / amps_r[keep])) if keep.any() else 1.0)
+        v_r = np.abs(np.diff(raw[:, jj], axis=0)).max() * fps
+        v_c = np.abs(np.diff(cleaned[:, jj], axis=0)).max() * fps
+        worst_tile, worst_t0 = 1.0, 0.0
+        for s in range(0, n - tile // 2, tile):
+            e = min(n, s + tile)
+            a_r = np.ptp(raw[s:e, jj], axis=0)
+            k = a_r > 0.05
+            if not k.any():
+                continue
+            r = float(np.mean(np.ptp(cleaned[s:e, jj], axis=0)[k] / a_r[k]))
+            if r < worst_tile:
+                worst_tile, worst_t0 = r, s / fps
+        res[g] = {"amp_retention": round(amp, 3),
+                  "peakvel_retention": round(float(v_c / max(v_r, 1e-9)), 3),
+                  "worst_5s_tile": {"t0_s": round(worst_t0, 1),
+                                    "amp_retention": round(worst_tile, 3)}}
+        if worst_tile < RETENTION_WARN:
+            res["warnings"].append(
+                f"{g}: amplitude retention {worst_tile:.2f} in the 5s tile at "
+                f"{worst_t0:.1f}s (< {RETENTION_WARN}) — cleaning may be "
+                f"eating choreography there; inspect before training")
+    return res
+
+
 def clean_motion(motion: np.ndarray, fps: float = FPS) -> tuple[np.ndarray, dict]:
     """Outlier rejection + temporal smoothing on a (N,36) motion.
     Joints & root xyz: hampel then Savitzky-Golay. Root quat: tangent-space SG.
@@ -156,7 +244,8 @@ def clean_motion(motion: np.ndarray, fps: float = FPS) -> tuple[np.ndarray, dict
     before = analyze(motion, fps)
     out = motion.copy()
     cols = np.concatenate([out[:, 0:3], out[:, 7:]], axis=1)
-    cols, n_outliers = reject_outliers(cols, fps)
+    runs: dict = {}
+    cols, n_outliers = reject_outliers(cols, fps, info=runs)
     if len(out) >= SG_WINDOW:
         cols = savgol_filter(cols, SG_WINDOW, SG_POLY, axis=0, mode="interp")
     out[:, 0:3], out[:, 7:] = cols[:, :3], cols[:, 3:]
@@ -164,6 +253,9 @@ def clean_motion(motion: np.ndarray, fps: float = FPS) -> tuple[np.ndarray, dict
     after = analyze(out, fps)
     info = {
         "outlier_frames_replaced": n_outliers,
+        "glitch_runs_rejected": len(runs.get("rejected_runs", [])),
+        "choreo_runs_protected": len(runs.get("protected_runs", [])),
+        "fidelity": _fidelity_retention(motion[:, 7:], out[:, 7:], fps),
         "jerk_peak_before": before["jerk_peak_rad_s3"],
         "jerk_peak_after": after["jerk_peak_rad_s3"],
         "jerk_p99_before": before["jerk_p99_rad_s3"],
