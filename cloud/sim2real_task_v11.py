@@ -162,6 +162,8 @@ def _selfcheck() -> int:
 if __name__ == "__main__":
   if "--selfcheck" in sys.argv:
     raise SystemExit(_selfcheck())
-  print(f"{TASK_ID}: v10 + dedicated leg tracking on {len(LEG_BODY_NAMES)} bodies "
-        f"(pos std {LEG_POS_STD}, ori std {LEG_ORI_STD}), stance linvel softened to "
-        f"{os.environ['G1_STANCE_LINVEL_W']}")
+  # delegate to mjlab's train CLI exactly like v8/v10 — importing this module has
+  # already registered TASK_ID, so train.main() picks it up from the task arg.
+  import mjlab.tasks  # noqa: F401
+  from mjlab.scripts.train import main
+  main()
