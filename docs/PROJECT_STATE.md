@@ -46,6 +46,34 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-20: **TORQUE-DEMAND MODEL FALSIFIED AT NATIVE SPEED — the slowdown driver is
+  systematically INFLATED; native-speed training is back on the table.** User challenge ("robot
+  did the fast Thriller live; is peak-torque detection false?") cross-checked with real hardware
+  telemetry (experiments/torque_crosscheck_20260720/, committed script + raw JSON). The 4 live
+  native-speed runs (07-08/07-10, anchor policy, motion = thriller_deploy.csv, xcorr-aligned
+  lag ≤0.04 s) measured ankle-pitch tau_est p95 **15.3–18.8 Nm, max 28–49 Nm** while
+  motion_dynamics predicts **p95 114 / max 233 Nm, 49.9% frames over** for the SAME motion —
+  a 6–10× gap AT windows where the robot achieved 0.76–0.99 of the reference leg amplitude
+  (so it genuinely executed those beats, not washed them out; caveat: joint-space proxy, no
+  root/CoM telemetry). THREE inflation mechanisms identified: (1) **double-support
+  mis-attribution** — 71% of over-limit frames are double-support (83% of the dance), where the
+  ZMP travels between the feet via load redistribution at near-zero ankle torque, but
+  ankle_balance_tau bills F_z·‖ZMP−CoM‖ entirely to one ankle; (2) **extraction jitter** —
+  calm-window (2–8 s) prediction is p95 56 Nm vs 12 Nm measured: GVHMR pose noise through the
+  double derivative (30 fps) makes the ZMP flail; (3) demand >~34 Nm (Mg·toe-lever, 35.1 kg) is
+  PHYSICALLY IMPOSSIBLE via ankle — numbers above it mean "needs load-shift/step/hip strategy",
+  which the anchor policy demonstrably uses at native speed. B's model stays valid as a
+  RELATIVE hot-spot detector (it does light up at the fall beats); its ABSOLUTE Nm and the
+  "impossible by 3–4×" conclusion are wrong. IMPLICATIONS: v8/v9's 1.8×/1.53× slowdowns were
+  over-conservative; the ankle gate bar ≤15 Nm p95 sits BELOW the real robot's own measured
+  15–19 Nm at native speed (bar should be ~20–22); v5–v7 native-speed falls were recipe
+  problems (obs contract, drift term), not motion infeasibility. NEXT (v10 proposal): fix
+  motion_dynamics (per-foot load-share ZMP model + 4–6 Hz low-pass on CoM/angmom before
+  differentiation + report single-support excess as the only true torque demand), re-run
+  adaptive repair with the corrected model (expect ~1.0× nearly everywhere), retrain v10 at
+  native/near-native speed with the v9 recipe + stage-3 stop at ~9.5k, gate against the
+  calibrated anchor bar with ankle p95 ≤20-22.
+
 - 2026-07-17 (v9 DONE): **ATTEMPT 6 FINISHED — v9 = a SPEED-vs-ROBUSTNESS TRADE, not a strict win;
   v8 remains the strongest policy. BOX READY TO DELETE.** Winner iter 9500 (of 6 screened; iter
   11000 collapsed to 45% — late-stage-3 instability is now a PATTERN: v7 and v9 both diverged late,

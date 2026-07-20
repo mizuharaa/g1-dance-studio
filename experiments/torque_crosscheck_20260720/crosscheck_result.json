@@ -1,0 +1,2208 @@
+{
+  "motion": "/home/alois/g1-dance/data/motions/thriller/thriller_deploy.csv",
+  "predicted": {
+    "ankle_tau_max_nm": 232.89,
+    "ankle_tau_p95_nm": 113.94,
+    "ankle_frames_over_headroom_pct": 49.87
+  },
+  "ankle_flag_windows_s": [
+    [
+      4.93,
+      5.13
+    ],
+    [
+      6.93,
+      7.2
+    ],
+    [
+      7.33,
+      7.37
+    ],
+    [
+      8.03,
+      8.07
+    ],
+    [
+      8.2,
+      8.2
+    ],
+    [
+      9.0,
+      9.17
+    ],
+    [
+      10.03,
+      10.23
+    ],
+    [
+      10.43,
+      10.53
+    ],
+    [
+      10.8,
+      11.4
+    ],
+    [
+      11.57,
+      12.37
+    ],
+    [
+      12.6,
+      13.2
+    ],
+    [
+      13.6,
+      13.9
+    ],
+    [
+      14.17,
+      14.47
+    ],
+    [
+      14.6,
+      16.4
+    ],
+    [
+      16.53,
+      16.87
+    ],
+    [
+      17.07,
+      18.37
+    ],
+    [
+      18.63,
+      19.37
+    ],
+    [
+      19.6,
+      19.67
+    ],
+    [
+      20.17,
+      20.63
+    ],
+    [
+      20.8,
+      21.3
+    ],
+    [
+      21.97,
+      22.27
+    ],
+    [
+      22.57,
+      22.63
+    ],
+    [
+      22.97,
+      23.63
+    ],
+    [
+      24.13,
+      24.8
+    ],
+    [
+      24.93,
+      24.97
+    ],
+    [
+      25.1,
+      26.63
+    ],
+    [
+      27.13,
+      27.13
+    ],
+    [
+      27.37,
+      28.13
+    ],
+    [
+      28.27,
+      28.3
+    ],
+    [
+      28.43,
+      28.47
+    ],
+    [
+      28.63,
+      28.67
+    ],
+    [
+      28.83,
+      29.13
+    ],
+    [
+      29.27,
+      30.17
+    ],
+    [
+      30.37,
+      30.4
+    ],
+    [
+      31.03,
+      32.03
+    ],
+    [
+      32.2,
+      32.3
+    ],
+    [
+      32.97,
+      32.97
+    ],
+    [
+      33.23,
+      35.27
+    ],
+    [
+      35.43,
+      35.6
+    ],
+    [
+      35.8,
+      38.07
+    ],
+    [
+      38.2,
+      38.6
+    ],
+    [
+      38.8,
+      38.9
+    ],
+    [
+      39.1,
+      39.43
+    ],
+    [
+      39.67,
+      40.47
+    ],
+    [
+      40.6,
+      41.3
+    ],
+    [
+      41.43,
+      42.23
+    ],
+    [
+      42.37,
+      43.1
+    ],
+    [
+      43.37,
+      43.53
+    ],
+    [
+      43.77,
+      44.03
+    ],
+    [
+      44.17,
+      44.73
+    ],
+    [
+      44.87,
+      45.3
+    ],
+    [
+      45.43,
+      47.27
+    ],
+    [
+      47.4,
+      47.83
+    ],
+    [
+      47.97,
+      48.33
+    ]
+  ],
+  "runs": {
+    "20260708-192839": {
+      "ticks": 2589,
+      "xcorr_lag_s": -0.04,
+      "ankle_pitch_measured_nm": {
+        "mean": 7.55,
+        "p95": 18.82,
+        "max": 48.69
+      },
+      "windows": {
+        "10.8-11.4s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 88.9,
+            "max": 100.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.04,
+            "p95": 10.56,
+            "max": 11.55
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.45,
+            "legs_p95": 17.16,
+            "arms_mean": 9.62
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.63,
+            "hip_knee": 0.622,
+            "arms": 2.227
+          }
+        },
+        "11.57-12.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 103.2,
+            "max": 104.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 3.1,
+            "p95": 4.3,
+            "max": 6.22
+          },
+          "tracking_err_deg": {
+            "legs_mean": 4.79,
+            "legs_p95": 13.59,
+            "arms_mean": 6.62
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.422,
+            "hip_knee": 0.409,
+            "arms": 0.952
+          }
+        },
+        "12.6-13.2s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 81.2,
+            "max": 81.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.04,
+            "p95": 8.87,
+            "max": 10.15
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.68,
+            "legs_p95": 16.65,
+            "arms_mean": 5.89
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.376,
+            "hip_knee": 0.375,
+            "arms": 0.872
+          }
+        },
+        "14.6-16.4s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 127.1,
+            "max": 165.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.76,
+            "p95": 10.56,
+            "max": 12.71
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.11,
+            "legs_p95": 21.68,
+            "arms_mean": 11.77
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.64,
+            "hip_knee": 0.653,
+            "arms": 0.911
+          }
+        },
+        "17.07-18.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 182.2,
+            "max": 232.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.15,
+            "p95": 16.3,
+            "max": 19.96
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.64,
+            "legs_p95": 21.35,
+            "arms_mean": 11.46
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.62,
+            "hip_knee": 0.52,
+            "arms": 0.942
+          }
+        },
+        "18.63-19.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 132.8,
+            "max": 153.1
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.56,
+            "p95": 14.21,
+            "max": 19.05
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.6,
+            "legs_p95": 18.41,
+            "arms_mean": 7.03
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.472,
+            "hip_knee": 0.442,
+            "arms": 1.17
+          }
+        },
+        "20.8-21.3s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 94.2,
+            "max": 100.4
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 3.03,
+            "p95": 7.19,
+            "max": 7.61
+          },
+          "tracking_err_deg": {
+            "legs_mean": 10.18,
+            "legs_p95": 26.63,
+            "arms_mean": 5.67
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.704,
+            "hip_knee": 0.706,
+            "arms": 0.763
+          }
+        },
+        "22.97-23.63s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 76.5,
+            "max": 87.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 11.25,
+            "p95": 16.91,
+            "max": 17.64
+          },
+          "tracking_err_deg": {
+            "legs_mean": 10.19,
+            "legs_p95": 26.33,
+            "arms_mean": 4.94
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.843,
+            "hip_knee": 0.781,
+            "arms": 0.514
+          }
+        },
+        "24.13-24.8s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 66.4,
+            "max": 78.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.62,
+            "p95": 10.64,
+            "max": 11.49
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.19,
+            "legs_p95": 20.45,
+            "arms_mean": 4.74
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.582,
+            "hip_knee": 0.792,
+            "arms": 0.788
+          }
+        },
+        "25.1-26.63s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 128.9,
+            "max": 154.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.6,
+            "p95": 13.82,
+            "max": 15.42
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.06,
+            "legs_p95": 25.6,
+            "arms_mean": 8.92
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.617,
+            "hip_knee": 0.653,
+            "arms": 1.106
+          }
+        },
+        "27.37-28.13s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 124.9,
+            "max": 125.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 3.37,
+            "p95": 6.78,
+            "max": 10.9
+          },
+          "tracking_err_deg": {
+            "legs_mean": 10.53,
+            "legs_p95": 29.19,
+            "arms_mean": 5.62
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.107,
+            "hip_knee": 1.022,
+            "arms": 1.402
+          }
+        },
+        "29.27-30.17s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 79.0,
+            "max": 92.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.93,
+            "p95": 11.61,
+            "max": 13.06
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.64,
+            "legs_p95": 23.18,
+            "arms_mean": 7.54
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.743,
+            "hip_knee": 0.616,
+            "arms": 0.981
+          }
+        },
+        "31.03-32.03s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 114.9,
+            "max": 122.2
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 10.13,
+            "p95": 14.98,
+            "max": 15.47
+          },
+          "tracking_err_deg": {
+            "legs_mean": 11.29,
+            "legs_p95": 31.24,
+            "arms_mean": 5.54
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.047,
+            "hip_knee": 0.798,
+            "arms": 1.135
+          }
+        },
+        "33.23-35.27s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 140.4,
+            "max": 172.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.96,
+            "p95": 26.83,
+            "max": 31.78
+          },
+          "tracking_err_deg": {
+            "legs_mean": 11.34,
+            "legs_p95": 33.91,
+            "arms_mean": 8.81
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.671,
+            "hip_knee": 0.591,
+            "arms": 0.95
+          }
+        },
+        "35.8-38.07s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 147.2,
+            "max": 178.7
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 4.72,
+            "p95": 9.57,
+            "max": 11.79
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.71,
+            "legs_p95": 26.93,
+            "arms_mean": 7.53
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.728,
+            "hip_knee": 0.653,
+            "arms": 1.051
+          }
+        },
+        "39.67-40.47s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 138.5,
+            "max": 151.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.8,
+            "p95": 16.52,
+            "max": 17.23
+          },
+          "tracking_err_deg": {
+            "legs_mean": 5.94,
+            "legs_p95": 14.27,
+            "arms_mean": 4.37
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.305,
+            "hip_knee": 0.352,
+            "arms": 1.061
+          }
+        },
+        "40.6-41.3s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 139.4,
+            "max": 158.2
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 3.78,
+            "p95": 7.66,
+            "max": 8.93
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.05,
+            "legs_p95": 22.46,
+            "arms_mean": 8.32
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.594,
+            "hip_knee": 0.744,
+            "arms": 0.921
+          }
+        },
+        "41.43-42.23s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 128.3,
+            "max": 135.1
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.25,
+            "p95": 10.74,
+            "max": 11.27
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.11,
+            "legs_p95": 15.2,
+            "arms_mean": 5.89
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.752,
+            "hip_knee": 0.881,
+            "arms": 0.964
+          }
+        },
+        "42.37-43.1s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 117.3,
+            "max": 121.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.51,
+            "p95": 12.14,
+            "max": 13.15
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.2,
+            "legs_p95": 23.7,
+            "arms_mean": 8.26
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.809,
+            "hip_knee": 0.846,
+            "arms": 0.758
+          }
+        },
+        "44.17-44.73s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 120.4,
+            "max": 126.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 4.14,
+            "p95": 10.84,
+            "max": 11.11
+          },
+          "tracking_err_deg": {
+            "legs_mean": 11.35,
+            "legs_p95": 27.79,
+            "arms_mean": 6.26
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.654,
+            "hip_knee": 0.745,
+            "arms": 0.904
+          }
+        },
+        "45.43-47.27s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 130.7,
+            "max": 165.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.44,
+            "p95": 23.19,
+            "max": 25.39
+          },
+          "tracking_err_deg": {
+            "legs_mean": 11.43,
+            "legs_p95": 34.65,
+            "arms_mean": 8.19
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.845,
+            "hip_knee": 0.82,
+            "arms": 1.228
+          }
+        },
+        "2.0-8.0s": {
+          "tag": "calm",
+          "predicted_demand_nm": {
+            "p95": 56.1,
+            "max": 94.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.21,
+            "p95": 13.76,
+            "max": 21.57
+          },
+          "tracking_err_deg": {
+            "legs_mean": 4.07,
+            "legs_p95": 13.11,
+            "arms_mean": 2.95
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.543,
+            "hip_knee": 0.527,
+            "arms": 1.134
+          }
+        }
+      }
+    },
+    "20260708-212451": {
+      "ticks": 2600,
+      "xcorr_lag_s": -0.02,
+      "ankle_pitch_measured_nm": {
+        "mean": 7.52,
+        "p95": 16.39,
+        "max": 31.27
+      },
+      "windows": {
+        "10.8-11.4s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 88.9,
+            "max": 100.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 9.29,
+            "p95": 10.91,
+            "max": 11.06
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.2,
+            "legs_p95": 17.66,
+            "arms_mean": 8.27
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.656,
+            "hip_knee": 0.616,
+            "arms": 1.473
+          }
+        },
+        "11.57-12.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 103.2,
+            "max": 104.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.98,
+            "p95": 22.75,
+            "max": 26.37
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.41,
+            "legs_p95": 25.22,
+            "arms_mean": 6.75
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.9,
+            "hip_knee": 0.914,
+            "arms": 0.99
+          }
+        },
+        "12.6-13.2s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 81.2,
+            "max": 81.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.23,
+            "p95": 12.91,
+            "max": 18.11
+          },
+          "tracking_err_deg": {
+            "legs_mean": 4.26,
+            "legs_p95": 14.11,
+            "arms_mean": 5.24
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.367,
+            "hip_knee": 0.368,
+            "arms": 0.827
+          }
+        },
+        "14.6-16.4s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 127.1,
+            "max": 165.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.29,
+            "p95": 18.72,
+            "max": 24.23
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.67,
+            "legs_p95": 24.43,
+            "arms_mean": 10.66
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.769,
+            "hip_knee": 0.731,
+            "arms": 1.248
+          }
+        },
+        "17.07-18.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 182.2,
+            "max": 232.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.05,
+            "p95": 14.13,
+            "max": 16.36
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.01,
+            "legs_p95": 18.68,
+            "arms_mean": 9.85
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.932,
+            "hip_knee": 0.707,
+            "arms": 0.886
+          }
+        },
+        "18.63-19.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 132.8,
+            "max": 153.1
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 4.41,
+            "p95": 6.38,
+            "max": 6.86
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.66,
+            "legs_p95": 21.21,
+            "arms_mean": 5.79
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.686,
+            "hip_knee": 0.575,
+            "arms": 1.138
+          }
+        },
+        "20.8-21.3s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 94.2,
+            "max": 100.4
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 3.96,
+            "p95": 6.33,
+            "max": 6.67
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.03,
+            "legs_p95": 29.01,
+            "arms_mean": 5.23
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.671,
+            "hip_knee": 0.508,
+            "arms": 0.766
+          }
+        },
+        "22.97-23.63s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 76.5,
+            "max": 87.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.17,
+            "p95": 14.07,
+            "max": 15.64
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.89,
+            "legs_p95": 23.41,
+            "arms_mean": 5.08
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.667,
+            "hip_knee": 0.46,
+            "arms": 0.824
+          }
+        },
+        "24.13-24.8s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 66.4,
+            "max": 78.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.63,
+            "p95": 9.19,
+            "max": 9.77
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.61,
+            "legs_p95": 14.74,
+            "arms_mean": 5.32
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.41,
+            "hip_knee": 0.519,
+            "arms": 0.918
+          }
+        },
+        "25.1-26.63s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 128.9,
+            "max": 154.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.35,
+            "p95": 8.5,
+            "max": 9.46
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.6,
+            "legs_p95": 21.31,
+            "arms_mean": 8.71
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.591,
+            "hip_knee": 0.524,
+            "arms": 1.217
+          }
+        },
+        "27.37-28.13s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 124.9,
+            "max": 125.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 14.66,
+            "p95": 24.58,
+            "max": 27.31
+          },
+          "tracking_err_deg": {
+            "legs_mean": 10.42,
+            "legs_p95": 31.39,
+            "arms_mean": 5.26
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.634,
+            "hip_knee": 1.423,
+            "arms": 1.309
+          }
+        },
+        "29.27-30.17s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 79.0,
+            "max": 92.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 16.19,
+            "p95": 25.45,
+            "max": 26.73
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.87,
+            "legs_p95": 16.45,
+            "arms_mean": 6.28
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.514,
+            "hip_knee": 0.355,
+            "arms": 1.101
+          }
+        },
+        "31.03-32.03s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 114.9,
+            "max": 122.2
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 9.17,
+            "p95": 18.78,
+            "max": 19.79
+          },
+          "tracking_err_deg": {
+            "legs_mean": 12.36,
+            "legs_p95": 35.91,
+            "arms_mean": 5.71
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.955,
+            "hip_knee": 0.86,
+            "arms": 1.068
+          }
+        },
+        "33.23-35.27s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 140.4,
+            "max": 172.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.72,
+            "p95": 12.79,
+            "max": 16.17
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.9,
+            "legs_p95": 28.1,
+            "arms_mean": 8.2
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.717,
+            "hip_knee": 0.528,
+            "arms": 0.972
+          }
+        },
+        "35.8-38.07s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 147.2,
+            "max": 178.7
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.65,
+            "p95": 12.43,
+            "max": 20.78
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.34,
+            "legs_p95": 21.57,
+            "arms_mean": 6.66
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.851,
+            "hip_knee": 0.841,
+            "arms": 0.876
+          }
+        },
+        "39.67-40.47s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 138.5,
+            "max": 151.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 9.89,
+            "p95": 15.69,
+            "max": 16.55
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.34,
+            "legs_p95": 15.67,
+            "arms_mean": 3.95
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.258,
+            "hip_knee": 0.228,
+            "arms": 0.692
+          }
+        },
+        "40.6-41.3s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 139.4,
+            "max": 158.2
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.56,
+            "p95": 13.36,
+            "max": 13.94
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.89,
+            "legs_p95": 20.5,
+            "arms_mean": 8.35
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.632,
+            "hip_knee": 0.676,
+            "arms": 1.158
+          }
+        },
+        "41.43-42.23s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 128.3,
+            "max": 135.1
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 2.94,
+            "p95": 4.65,
+            "max": 4.95
+          },
+          "tracking_err_deg": {
+            "legs_mean": 5.92,
+            "legs_p95": 15.47,
+            "arms_mean": 5.12
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.869,
+            "hip_knee": 1.306,
+            "arms": 0.924
+          }
+        },
+        "42.37-43.1s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 117.3,
+            "max": 121.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 4.94,
+            "p95": 7.51,
+            "max": 7.97
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.98,
+            "legs_p95": 18.42,
+            "arms_mean": 7.84
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.761,
+            "hip_knee": 0.796,
+            "arms": 0.811
+          }
+        },
+        "44.17-44.73s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 120.4,
+            "max": 126.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.28,
+            "p95": 11.09,
+            "max": 11.16
+          },
+          "tracking_err_deg": {
+            "legs_mean": 13.37,
+            "legs_p95": 35.96,
+            "arms_mean": 7.29
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.068,
+            "hip_knee": 1.132,
+            "arms": 0.884
+          }
+        },
+        "45.43-47.27s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 130.7,
+            "max": 165.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.55,
+            "p95": 17.64,
+            "max": 23.66
+          },
+          "tracking_err_deg": {
+            "legs_mean": 13.2,
+            "legs_p95": 40.95,
+            "arms_mean": 8.62
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.022,
+            "hip_knee": 1.014,
+            "arms": 1.486
+          }
+        },
+        "2.0-8.0s": {
+          "tag": "calm",
+          "predicted_demand_nm": {
+            "p95": 56.1,
+            "max": 94.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.45,
+            "p95": 15.31,
+            "max": 22.01
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.14,
+            "legs_p95": 18.75,
+            "arms_mean": 2.97
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.647,
+            "hip_knee": 0.507,
+            "arms": 0.921
+          }
+        }
+      }
+    },
+    "20260710-141415": {
+      "ticks": 2600,
+      "xcorr_lag_s": -0.02,
+      "ankle_pitch_measured_nm": {
+        "mean": 6.78,
+        "p95": 15.26,
+        "max": 30.11
+      },
+      "windows": {
+        "10.8-11.4s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 88.9,
+            "max": 100.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 12.89,
+            "p95": 15.59,
+            "max": 15.94
+          },
+          "tracking_err_deg": {
+            "legs_mean": 10.46,
+            "legs_p95": 27.2,
+            "arms_mean": 8.45
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.105,
+            "hip_knee": 0.981,
+            "arms": 1.478
+          }
+        },
+        "11.57-12.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 103.2,
+            "max": 104.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.66,
+            "p95": 10.38,
+            "max": 11.8
+          },
+          "tracking_err_deg": {
+            "legs_mean": 5.92,
+            "legs_p95": 16.26,
+            "arms_mean": 7.04
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.512,
+            "hip_knee": 0.395,
+            "arms": 0.974
+          }
+        },
+        "12.6-13.2s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 81.2,
+            "max": 81.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.25,
+            "p95": 10.64,
+            "max": 11.0
+          },
+          "tracking_err_deg": {
+            "legs_mean": 4.95,
+            "legs_p95": 17.4,
+            "arms_mean": 5.2
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.581,
+            "hip_knee": 0.603,
+            "arms": 0.724
+          }
+        },
+        "14.6-16.4s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 127.1,
+            "max": 165.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.54,
+            "p95": 14.18,
+            "max": 25.47
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.15,
+            "legs_p95": 22.69,
+            "arms_mean": 10.54
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.828,
+            "hip_knee": 0.844,
+            "arms": 1.226
+          }
+        },
+        "17.07-18.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 182.2,
+            "max": 232.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.31,
+            "p95": 17.02,
+            "max": 18.95
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.48,
+            "legs_p95": 20.23,
+            "arms_mean": 9.86
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.061,
+            "hip_knee": 0.823,
+            "arms": 0.866
+          }
+        },
+        "18.63-19.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 132.8,
+            "max": 153.1
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.5,
+            "p95": 10.74,
+            "max": 14.99
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.93,
+            "legs_p95": 22.29,
+            "arms_mean": 5.9
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.666,
+            "hip_knee": 0.599,
+            "arms": 1.125
+          }
+        },
+        "20.8-21.3s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 94.2,
+            "max": 100.4
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 2.46,
+            "p95": 5.15,
+            "max": 5.32
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.85,
+            "legs_p95": 33.6,
+            "arms_mean": 5.49
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.704,
+            "hip_knee": 0.554,
+            "arms": 0.875
+          }
+        },
+        "22.97-23.63s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 76.5,
+            "max": 87.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 11.25,
+            "p95": 18.14,
+            "max": 19.0
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.72,
+            "legs_p95": 25.2,
+            "arms_mean": 4.96
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.512,
+            "hip_knee": 0.554,
+            "arms": 0.59
+          }
+        },
+        "24.13-24.8s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 66.4,
+            "max": 78.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.76,
+            "p95": 8.85,
+            "max": 9.45
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.16,
+            "legs_p95": 15.15,
+            "arms_mean": 5.31
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.4,
+            "hip_knee": 0.47,
+            "arms": 0.945
+          }
+        },
+        "25.1-26.63s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 128.9,
+            "max": 154.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 3.79,
+            "p95": 6.48,
+            "max": 8.51
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.08,
+            "legs_p95": 17.47,
+            "arms_mean": 8.55
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.487,
+            "hip_knee": 0.47,
+            "arms": 1.178
+          }
+        },
+        "27.37-28.13s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 124.9,
+            "max": 125.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 4.49,
+            "p95": 9.39,
+            "max": 12.14
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.11,
+            "legs_p95": 26.79,
+            "arms_mean": 5.25
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.364,
+            "hip_knee": 0.907,
+            "arms": 1.256
+          }
+        },
+        "29.27-30.17s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 79.0,
+            "max": 92.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 12.96,
+            "p95": 23.84,
+            "max": 24.06
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.05,
+            "legs_p95": 25.27,
+            "arms_mean": 6.46
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.515,
+            "hip_knee": 0.461,
+            "arms": 1.118
+          }
+        },
+        "31.03-32.03s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 114.9,
+            "max": 122.2
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.06,
+            "p95": 18.63,
+            "max": 27.68
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.8,
+            "legs_p95": 23.57,
+            "arms_mean": 5.6
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.067,
+            "hip_knee": 0.877,
+            "arms": 1.053
+          }
+        },
+        "33.23-35.27s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 140.4,
+            "max": 172.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 3.92,
+            "p95": 9.19,
+            "max": 11.35
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.56,
+            "legs_p95": 21.02,
+            "arms_mean": 8.28
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.533,
+            "hip_knee": 0.407,
+            "arms": 0.9
+          }
+        },
+        "35.8-38.07s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 147.2,
+            "max": 178.7
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.75,
+            "p95": 19.36,
+            "max": 24.8
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.89,
+            "legs_p95": 27.97,
+            "arms_mean": 7.0
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.85,
+            "hip_knee": 0.8,
+            "arms": 0.904
+          }
+        },
+        "39.67-40.47s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 138.5,
+            "max": 151.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 3.94,
+            "p95": 6.35,
+            "max": 6.39
+          },
+          "tracking_err_deg": {
+            "legs_mean": 5.75,
+            "legs_p95": 13.91,
+            "arms_mean": 3.87
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.322,
+            "hip_knee": 0.257,
+            "arms": 0.724
+          }
+        },
+        "40.6-41.3s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 139.4,
+            "max": 158.2
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 1.81,
+            "p95": 5.18,
+            "max": 6.75
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.66,
+            "legs_p95": 21.17,
+            "arms_mean": 8.37
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.575,
+            "hip_knee": 0.643,
+            "arms": 1.149
+          }
+        },
+        "41.43-42.23s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 128.3,
+            "max": 135.1
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.05,
+            "p95": 7.11,
+            "max": 7.48
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.54,
+            "legs_p95": 19.14,
+            "arms_mean": 5.1
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.871,
+            "hip_knee": 1.323,
+            "arms": 1.02
+          }
+        },
+        "42.37-43.1s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 117.3,
+            "max": 121.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 4.21,
+            "p95": 9.43,
+            "max": 9.89
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.22,
+            "legs_p95": 19.28,
+            "arms_mean": 7.98
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.805,
+            "hip_knee": 0.855,
+            "arms": 0.809
+          }
+        },
+        "44.17-44.73s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 120.4,
+            "max": 126.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 8.62,
+            "p95": 13.79,
+            "max": 14.24
+          },
+          "tracking_err_deg": {
+            "legs_mean": 12.84,
+            "legs_p95": 33.64,
+            "arms_mean": 7.03
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.179,
+            "hip_knee": 1.339,
+            "arms": 0.877
+          }
+        },
+        "45.43-47.27s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 130.7,
+            "max": 165.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.94,
+            "p95": 19.03,
+            "max": 26.75
+          },
+          "tracking_err_deg": {
+            "legs_mean": 11.28,
+            "legs_p95": 34.15,
+            "arms_mean": 8.22
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.98,
+            "hip_knee": 0.91,
+            "arms": 1.423
+          }
+        },
+        "2.0-8.0s": {
+          "tag": "calm",
+          "predicted_demand_nm": {
+            "p95": 56.1,
+            "max": 94.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.12,
+            "p95": 13.48,
+            "max": 22.74
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.38,
+            "legs_p95": 20.81,
+            "arms_mean": 3.19
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.768,
+            "hip_knee": 0.707,
+            "arms": 1.047
+          }
+        }
+      }
+    },
+    "20260710-145111": {
+      "ticks": 2600,
+      "xcorr_lag_s": 0.0,
+      "ankle_pitch_measured_nm": {
+        "mean": 7.69,
+        "p95": 17.56,
+        "max": 28.62
+      },
+      "windows": {
+        "10.8-11.4s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 88.9,
+            "max": 100.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 12.65,
+            "p95": 16.6,
+            "max": 17.17
+          },
+          "tracking_err_deg": {
+            "legs_mean": 10.22,
+            "legs_p95": 26.45,
+            "arms_mean": 7.97
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.841,
+            "hip_knee": 0.664,
+            "arms": 1.221
+          }
+        },
+        "11.57-12.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 103.2,
+            "max": 104.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.2,
+            "p95": 9.0,
+            "max": 9.84
+          },
+          "tracking_err_deg": {
+            "legs_mean": 5.08,
+            "legs_p95": 14.03,
+            "arms_mean": 7.14
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.554,
+            "hip_knee": 0.381,
+            "arms": 0.92
+          }
+        },
+        "12.6-13.2s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 81.2,
+            "max": 81.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 3.24,
+            "p95": 7.38,
+            "max": 7.42
+          },
+          "tracking_err_deg": {
+            "legs_mean": 3.7,
+            "legs_p95": 10.92,
+            "arms_mean": 5.23
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.415,
+            "hip_knee": 0.387,
+            "arms": 0.814
+          }
+        },
+        "14.6-16.4s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 127.1,
+            "max": 165.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 9.74,
+            "p95": 21.06,
+            "max": 24.73
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.8,
+            "legs_p95": 24.92,
+            "arms_mean": 10.88
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.764,
+            "hip_knee": 0.826,
+            "arms": 1.218
+          }
+        },
+        "17.07-18.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 182.2,
+            "max": 232.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.41,
+            "p95": 12.79,
+            "max": 14.0
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.9,
+            "legs_p95": 18.2,
+            "arms_mean": 9.28
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.921,
+            "hip_knee": 0.706,
+            "arms": 0.834
+          }
+        },
+        "18.63-19.37s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 132.8,
+            "max": 153.1
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 4.18,
+            "p95": 7.79,
+            "max": 8.92
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.89,
+            "legs_p95": 18.08,
+            "arms_mean": 5.74
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.548,
+            "hip_knee": 0.467,
+            "arms": 1.057
+          }
+        },
+        "20.8-21.3s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 94.2,
+            "max": 100.4
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 17.6,
+            "p95": 22.87,
+            "max": 23.04
+          },
+          "tracking_err_deg": {
+            "legs_mean": 10.14,
+            "legs_p95": 31.74,
+            "arms_mean": 5.21
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.739,
+            "hip_knee": 0.514,
+            "arms": 0.78
+          }
+        },
+        "22.97-23.63s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 76.5,
+            "max": 87.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 10.92,
+            "p95": 18.68,
+            "max": 19.05
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.94,
+            "legs_p95": 23.65,
+            "arms_mean": 5.02
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.532,
+            "hip_knee": 0.446,
+            "arms": 0.698
+          }
+        },
+        "24.13-24.8s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 66.4,
+            "max": 78.9
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.96,
+            "p95": 17.29,
+            "max": 17.64
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.1,
+            "legs_p95": 24.6,
+            "arms_mean": 5.55
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.466,
+            "hip_knee": 0.533,
+            "arms": 1.125
+          }
+        },
+        "25.1-26.63s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 128.9,
+            "max": 154.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 11.13,
+            "p95": 23.06,
+            "max": 24.79
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.76,
+            "legs_p95": 29.64,
+            "arms_mean": 8.68
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.643,
+            "hip_knee": 0.621,
+            "arms": 1.139
+          }
+        },
+        "27.37-28.13s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 124.9,
+            "max": 125.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 10.03,
+            "p95": 14.1,
+            "max": 21.2
+          },
+          "tracking_err_deg": {
+            "legs_mean": 10.99,
+            "legs_p95": 27.26,
+            "arms_mean": 5.57
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 1.413,
+            "hip_knee": 1.046,
+            "arms": 1.205
+          }
+        },
+        "29.27-30.17s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 79.0,
+            "max": 92.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.09,
+            "p95": 10.93,
+            "max": 11.34
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.48,
+            "legs_p95": 21.24,
+            "arms_mean": 6.41
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.579,
+            "hip_knee": 0.51,
+            "arms": 1.076
+          }
+        },
+        "31.03-32.03s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 114.9,
+            "max": 122.2
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.23,
+            "p95": 11.97,
+            "max": 12.43
+          },
+          "tracking_err_deg": {
+            "legs_mean": 11.34,
+            "legs_p95": 29.66,
+            "arms_mean": 5.91
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.983,
+            "hip_knee": 0.628,
+            "arms": 0.981
+          }
+        },
+        "33.23-35.27s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 140.4,
+            "max": 172.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.15,
+            "p95": 14.9,
+            "max": 20.2
+          },
+          "tracking_err_deg": {
+            "legs_mean": 9.68,
+            "legs_p95": 26.3,
+            "arms_mean": 8.58
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.637,
+            "hip_knee": 0.494,
+            "arms": 0.963
+          }
+        },
+        "35.8-38.07s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 147.2,
+            "max": 178.7
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 7.91,
+            "p95": 19.43,
+            "max": 23.25
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.96,
+            "legs_p95": 24.62,
+            "arms_mean": 6.72
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.784,
+            "hip_knee": 0.847,
+            "arms": 0.899
+          }
+        },
+        "39.67-40.47s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 138.5,
+            "max": 151.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 10.76,
+            "p95": 17.97,
+            "max": 19.47
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.07,
+            "legs_p95": 21.03,
+            "arms_mean": 4.17
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.499,
+            "hip_knee": 0.555,
+            "arms": 0.775
+          }
+        },
+        "40.6-41.3s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 139.4,
+            "max": 158.2
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 9.5,
+            "p95": 16.17,
+            "max": 16.35
+          },
+          "tracking_err_deg": {
+            "legs_mean": 8.77,
+            "legs_p95": 24.77,
+            "arms_mean": 8.35
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.794,
+            "hip_knee": 0.809,
+            "arms": 1.208
+          }
+        },
+        "41.43-42.23s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 128.3,
+            "max": 135.1
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 11.59,
+            "p95": 21.23,
+            "max": 22.07
+          },
+          "tracking_err_deg": {
+            "legs_mean": 7.77,
+            "legs_p95": 23.11,
+            "arms_mean": 5.22
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.844,
+            "hip_knee": 1.183,
+            "arms": 0.934
+          }
+        },
+        "42.37-43.1s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 117.3,
+            "max": 121.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 5.5,
+            "p95": 8.84,
+            "max": 9.46
+          },
+          "tracking_err_deg": {
+            "legs_mean": 6.89,
+            "legs_p95": 17.94,
+            "arms_mean": 8.04
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.775,
+            "hip_knee": 0.816,
+            "arms": 0.853
+          }
+        },
+        "44.17-44.73s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 120.4,
+            "max": 126.6
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 9.12,
+            "p95": 15.38,
+            "max": 16.14
+          },
+          "tracking_err_deg": {
+            "legs_mean": 11.39,
+            "legs_p95": 28.83,
+            "arms_mean": 6.97
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.989,
+            "hip_knee": 1.016,
+            "arms": 0.902
+          }
+        },
+        "45.43-47.27s": {
+          "tag": "FLAG",
+          "predicted_demand_nm": {
+            "p95": 130.7,
+            "max": 165.8
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 6.28,
+            "p95": 19.21,
+            "max": 27.05
+          },
+          "tracking_err_deg": {
+            "legs_mean": 11.65,
+            "legs_p95": 33.93,
+            "arms_mean": 8.59
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.956,
+            "hip_knee": 0.906,
+            "arms": 1.399
+          }
+        },
+        "2.0-8.0s": {
+          "tag": "calm",
+          "predicted_demand_nm": {
+            "p95": 56.1,
+            "max": 94.3
+          },
+          "measured_ankle_pitch_nm": {
+            "mean": 4.74,
+            "p95": 12.27,
+            "max": 17.59
+          },
+          "tracking_err_deg": {
+            "legs_mean": 4.64,
+            "legs_p95": 13.79,
+            "arms_mean": 2.83
+          },
+          "amplitude_ratio_vs_reference": {
+            "legs": 0.601,
+            "hip_knee": 0.504,
+            "arms": 0.911
+          }
+        }
+      }
+    }
+  }
+}
