@@ -72,15 +72,23 @@ LEG_ORI_STD = float(os.environ.get("G1_LEG_ORI_STD", "0.40"))
 LEG_POS_W = float(os.environ.get("G1_LEG_POS_W", "1.0"))
 LEG_ORI_W = float(os.environ.get("G1_LEG_ORI_W", "1.0"))
 
-# v11 softens the stance linvel penalty by default (still a slip penalty, no
-# longer a step-freezer). Set BEFORE v10 reads it so _apply_v10 picks it up.
-os.environ.setdefault("G1_STANCE_LINVEL_W", "-0.20")
+# v11 softens the stance linvel penalty (still a slip guard, no longer a step-
+# freezer — the under-sway finding shows the lower body was over-suppressed).
+# Applied by OVERRIDING the weight on the built cfg in _apply_v11, NOT via env:
+# v10 captures G1_STANCE_LINVEL_W at its own import (before this module runs), so
+# a late setdefault here would silently no-op (caught by the box selfcheck).
+STANCE_LINVEL_SOFT = float(os.environ.get("G1_STANCE_LINVEL_SOFT", "-0.20"))
 
 
 def _apply_v11(cfg, train: bool):
   # full v10 stack (which applies v8: obs history, ankle barrier + clamp + DR,
   # waist slack, drift termination, latency DR; then v10 stance + saturation).
   v10._apply_v10(cfg, train=train)
+
+  # soften the stance-foot linear-velocity penalty on the BUILT cfg (robust to
+  # v10's import-time capture of the env var — see STANCE_LINVEL_SOFT note).
+  if "stance_foot_lin_vel" in cfg.rewards:
+    cfg.rewards["stance_foot_lin_vel"].weight = STANCE_LINVEL_SOFT
 
   # dedicated leg-fidelity tracking, mirroring v5's arm terms. Mean over the 6
   # leg bodies; sits ON TOP of the whole-body motion_body_pos/ori so the lower
@@ -134,9 +142,10 @@ def _selfcheck() -> int:
     print(f"  {k:22s}: {'present' if present else 'MISSING'}")
 
   lv = cfg.rewards["stance_foot_lin_vel"].weight if "stance_foot_lin_vel" in cfg.rewards else None
-  lv_ok = lv is not None and abs(lv - (-0.20)) < 1e-9
+  lv_ok = lv is not None and abs(lv - STANCE_LINVEL_SOFT) < 1e-9
   ok &= lv_ok
-  print(f"  stance_foot_lin_vel W : {lv}  {'OK (softened)' if lv_ok else 'UNEXPECTED'}")
+  print(f"  stance_foot_lin_vel W : {lv} (want {STANCE_LINVEL_SOFT})  "
+        f"{'OK (softened)' if lv_ok else 'UNEXPECTED'}")
 
   # deploy contract unchanged vs v10
   pf, flat, hist, unknown = v10._actor_obs_dim(cfg)
