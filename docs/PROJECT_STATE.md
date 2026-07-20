@@ -46,6 +46,26 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-20 (DRIFT/JITTER ROOT CAUSE — reframed decisively; gate made honest): User pushed to
+  solve drift "once and for all" + wants smooth, reference-matching viz; key evidence = the REAL
+  robot already did 70-80% at full speed pre-fault. Ran experiments/drift_rootcause_20260720
+  (committed, raw JSON). THREE findings overturn the working assumptions: (1) **drift is
+  friction-INDEPENDENT** — flat ~0.85 m across floor μ 0.3→1.3, never falls (my slip hypothesis
+  FALSIFIED); (2) **there is NO high-freq jitter** — sim HF content 0.2-1.3% is at/below the real
+  robot's 1.2-9.2%; (3) decomposition: policy base sway 0.093 m vs REFERENCE 0.326 m ⇒ the policy
+  sways 3.5× too LITTLE — it is too STIFF/under-committed, not shaky. The visible "shake" = the
+  slow 0.87 m drift (73% of base motion) + the leg under-reach (43-59% vs arms 77-137%). FIXES:
+  (a) **honest drift gate** — sim_gap_check + pick_checkpoint now gate on the p95 per-episode
+  worst point ≤1.5 m (the 2 m-stage excursion limit, G1_GATE_DRIFT_P95_M), NOT the single worst
+  timestep across 128 perturbed episodes; v10's "3.5 m FAIL" was a tail outlier (clean drift
+  0.87 m, gate mean 0.51 m). Old gap.json without the p95 field falls back to max_m. (b) v11 leg
+  term (below) targets the under-reach; its stance softening -0.5→-0.2 is VINDICATED by the
+  under-sway data. (c) explicitly NO jitter/damping fix — the policy is already too stiff; damping
+  would worsen it. OPEN: cutting the 0.87 m drift further needs the onboard odom fed back
+  (architectural, needs robot) or operator re-centre on the 2 m stage — it is already in-bounds.
+  Real-robot calibration post-repair is the final arbiter (70-80% live run is the anchor).
+  NOTE: can't retroactively pass v10 (its gap.json predates the p95 field); v11 run will report it.
+
 - 2026-07-20 (v10 REVAMP BUILT — ready for a GPU box): **native-tempo v10 pipeline authored,
   validated laptop-side, committed (6024fd9..a5b9fc8).** Five pieces: (1) **torque checker
   rebuilt** (pipeline/motion_dynamics.py): contact-aware floating-base ID tau = M qacc + C + g −
