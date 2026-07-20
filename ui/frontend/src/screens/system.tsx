@@ -12,6 +12,7 @@ import { EmptyState, InlineAlert, Metric, PageHeader, StatusBadge } from "@/comp
 import type { ConsoleData } from "@/hooks/use-console-data"
 import { api } from "@/lib/api"
 import { fmtDate, fmtHMS, fmtMoney } from "@/lib/utils"
+import { RefreshSystemButton } from "@/components/refresh-system"
 
 interface CloudInfo { config?: Record<string, string | number | null>; last_test?: { ok?: boolean; detail?: string; [key: string]: unknown } | null }
 interface BodyModels { ready?: boolean; smpl?: boolean; smplx?: boolean; detail?: string; [key: string]: unknown }
@@ -53,5 +54,5 @@ function SettingsPanel({ data }: { data: ConsoleData }) {
 }
 
 export function SystemScreen({ data }: { data: ConsoleData }) {
-  return <div><PageHeader eyebrow="Infrastructure" title="System" description="Read-only compute telemetry plus configuration for the local engine, cloud box, and portable dance library." actions={<Badge variant={data.system?.reachable ? "success" : "secondary"}>{data.system?.reachable ? <Cloud className="mr-1.5 h-3.5 w-3.5" /> : <CloudOff className="mr-1.5 h-3.5 w-3.5" />}{data.system?.reachable ? "connected" : "offline"}</Badge>} /><Tabs defaultValue="monitor"><TabsList><TabsTrigger value="monitor">Monitor</TabsTrigger><TabsTrigger value="settings">Configuration</TabsTrigger></TabsList><TabsContent value="monitor"><SystemOverview data={data} /></TabsContent><TabsContent value="settings"><SettingsPanel data={data} /></TabsContent></Tabs></div>
+  return <div><PageHeader eyebrow="Infrastructure" title="System" description="Read-only compute telemetry plus configuration for the local engine, cloud box, and portable dance library." actions={<div className="flex items-center gap-2"><Badge variant={data.system?.reachable ? "success" : "secondary"}>{data.system?.reachable ? <Cloud className="mr-1.5 h-3.5 w-3.5" /> : <CloudOff className="mr-1.5 h-3.5 w-3.5" />}{data.system?.reachable ? "connected" : "offline"}</Badge><RefreshSystemButton /></div>} /><Tabs defaultValue="monitor"><TabsList><TabsTrigger value="monitor">Monitor</TabsTrigger><TabsTrigger value="settings">Configuration</TabsTrigger></TabsList><TabsContent value="monitor"><SystemOverview data={data} /></TabsContent><TabsContent value="settings"><SettingsPanel data={data} /></TabsContent></Tabs></div>
 }

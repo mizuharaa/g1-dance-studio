@@ -499,6 +499,16 @@ def system_status() -> dict:
     return _system_snapshot
 
 
+@app.post("/api/system/refresh")
+def system_refresh() -> dict:
+    """Force an immediate box snapshot (bypasses the 8 s cache loop). Used by
+    the frontend's manual Refresh button; blocks up to the ssh timeout."""
+    global _system_snapshot
+    snap = monitor.snapshot()
+    _system_snapshot = snap
+    return snap
+
+
 # ---- body models ----------------------------------------------------------------
 
 @app.get("/api/bodymodels")

@@ -13,6 +13,7 @@ import type { ConsoleData } from "@/hooks/use-console-data"
 import { api, type Show } from "@/lib/api"
 import { fmtDate, fmtDuration, fmtHMS, fmtMoney, fmtPercent, shortHash } from "@/lib/utils"
 import { dancePreviewUrl } from "@/lib/preview"
+import { RefreshSystemButton } from "@/components/refresh-system"
 
 const STATES = [
   { key: "preflight", label: "Preflight" },
@@ -146,7 +147,7 @@ export function OverviewScreen({ data, onPerform }: { data: ConsoleData; onPerfo
         <LiveRunCard data={data} onPerform={onPerform} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
           <Card>
-            <CardHeader className="pb-4"><div className="panel-kicker"><Cpu /> System</div><CardTitle className="mt-2">Compute & training</CardTitle></CardHeader>
+            <CardHeader className="flex-row items-end justify-between space-y-0 pb-4"><div><div className="panel-kicker"><Cpu /> System</div><CardTitle className="mt-2">Compute & training</CardTitle></div><RefreshSystemButton /></CardHeader>
             <CardContent className="space-y-5">
               <div className="grid grid-cols-2 gap-5"><Metric label="GPU utilization" value={gpu?.utilization_pct != null ? `${Math.round(gpu.utilization_pct)}%` : "Offline"} accent={gpu ? "blue" : undefined} detail={gpu?.name ?? data.system?.detail} /><Metric label="Cloud spend" value={fmtMoney(cost?.accrued_vnd)} accent={cost?.over_cap ? "red" : undefined} detail={`${cost?.hours?.toFixed(1) ?? "—"} box hours`} /></div>
               <div className="rounded-lg border border-border bg-background/35 p-3">
