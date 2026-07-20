@@ -202,6 +202,262 @@ def adaptive_time_warp(m: np.ndarray, fps: float = FPS, margin: float = 0.85,
     return m, report
 
 
+def beat_preserving_warp(m: np.ndarray, fps: float = FPS, margin: float = 0.90,
+                         pad_s: float = 0.10, smooth_s: float = 0.15,
+                         max_gain: float = 1.8, donor_speedup: float = 1.25,
+                         locality_s: float = 4.0, rounds: int = 4,
+                         verbose: bool = True):
+    """TIME-CONSERVING local retiming (v10): stretch ONLY the over-envelope
+    transitions and pay the borrowed time back from nearby easy moments, so the
+    total duration — and every pose's alignment to the music — is preserved.
+
+    Differs from adaptive_time_warp (v9), which lengthened the dance 1.53x:
+    here s(T_end) == T_end (up to a reported residual when donors run out).
+
+    Per round:
+      1. contact-aware dynamic pass -> per-frame binding_ratio (max over the 29
+         joints of |tau| / speed-derated limit, from pipeline.motion_dynamics)
+      2. STRETCH gain g_i = clip(sqrt(binding/margin), 1, max_gain) where the
+         ratio exceeds `margin` (tau ~ 1/T^2 under local time-scaling), dilated
+         +-pad_s and cosine-smoothed over smooth_s — the 100-400 ms hard
+         transitions get more time, poses stay sharp
+      3. DONORS: frames that are dynamically easy AND kinematically slack —
+         binding_ratio < margin/donor_speedup^2 and per-joint velocity below
+         0.7/donor_speedup of the velocity limit — i.e. holds, small arm
+         motions, upright double-support moments. Speeding a donor by up to
+         `donor_speedup` therefore cannot push it over the envelope.
+      4. repayment weights = donor slack x exp(-dist to nearest stretched
+         segment / locality_s): time is repaid CLOSE to where it was borrowed,
+         bounding the transient beat drift, not just the end-of-dance total.
+         The repayment scale is solved by bisection so the integral of (g-1)
+         is exactly zero (per-frame donor gain floored at 1/donor_speedup).
+      5. integrate g -> monotone C1 warped clock, resample uniformly at fps
+         (never duplicate frames — resampling keeps velocity/accel continuous).
+
+    Returns (motion, report): duration_ratio (~1.0), beat_drift_max_s (max
+    |warped_t - source_t| over the dance), native_speed_fraction, residual
+    lengthening if donors were insufficient, per-round log, time_map.
+    """
+    src_dur = (len(m) - 1) / fps
+    orig_t = np.arange(len(m)) / fps
+    log = []
+    max_gain_seen, native_frac = 1.0, None
+    for r in range(rounds):
+        fe = _feas(m, fps, arrays=True)
+        arrs = fe.pop("_arrays")
+        binding = arrs["binding_ratio"]
+        jvel = arrs["jvel"]
+        N = len(m)
+        need = binding / margin
+        if (need <= 1.0).all():
+            break
+        # --- stretch profile -------------------------------------------------
+        g = np.clip(np.sqrt(np.maximum(need, 1.0)), 1.0, max_gain)
+        if native_frac is None:
+            native_frac = float((g <= 1.0 + 1e-9).mean())
+        w = max(1, int(round(pad_s * fps)))
+        gd = np.copy(g)
+        for i in range(N):
+            gd[i] = g[max(0, i - w):i + w + 1].max()
+        k = max(3, int(round(smooth_s * fps)) | 1)
+        hann = np.hanning(k)
+        hann /= hann.sum()
+        gs = np.maximum(np.convolve(gd, hann, mode="same"), 1.0)
+        stretched = gs > 1.0 + 1e-6
+        extra_s = float(np.sum(gs - 1.0) / fps)          # borrowed time
+        max_gain_seen = max(max_gain_seen, float(gs.max()))
+        # --- donor selection -------------------------------------------------
+        vel_frac = (np.abs(jvel) / L.VELOCITY_LIMIT).max(axis=1)
+        donor_ok = ((binding < margin / donor_speedup ** 2)
+                    & (vel_frac < 0.7 / donor_speedup) & ~stretched)
+        slack = np.where(donor_ok, (1.0 - binding).clip(0, 1), 0.0)
+        # locality: repay near the borrowed segments
+        t = np.arange(N) / fps
+        if stretched.any():
+            ts = t[stretched]
+            dist = np.abs(t[:, None] - ts[None, :]).min(axis=1)
+            slack *= np.exp(-dist / locality_s)
+        cap = 1.0 - 1.0 / donor_speedup                   # max per-frame repayment
+        # --- bisection: alpha so repaid time == borrowed time -----------------
+        def repaid(alpha):
+            return float(np.sum(np.minimum(alpha * slack, cap)) / fps)
+        residual_s = 0.0
+        if slack.sum() > 0 and extra_s > 0:
+            lo_a, hi_a = 0.0, 1e6
+            if repaid(hi_a) < extra_s:                    # donors insufficient
+                alpha = hi_a
+                residual_s = extra_s - repaid(hi_a)
+            else:
+                for _ in range(60):
+                    mid = 0.5 * (lo_a + hi_a)
+                    if repaid(mid) < extra_s:
+                        lo_a = mid
+                    else:
+                        hi_a = mid
+                alpha = hi_a
+            g_donor = 1.0 - np.minimum(alpha * slack, cap)
+            # smooth the donor profile too (no tempo steps), renormalize the
+            # smoothing's small accounting error into the residual report
+            g_donor = np.convolve(g_donor, hann, mode="same")
+            g_donor = np.clip(g_donor, 1.0 / donor_speedup, 1.0)
+            g_total = np.where(stretched, gs, g_donor)
+        else:
+            g_total = gs
+            residual_s = extra_s
+        # --- integrate + resample --------------------------------------------
+        t_src = np.arange(N) / fps
+        warped = np.concatenate([[0], np.cumsum((g_total[1:] + g_total[:-1]) / 2) / fps])
+        # keep the endpoint: arange(0, T, dt) drops up to a full frame per
+        # round, silently shortening the dance ~0.03 s x rounds
+        t_dst = np.arange(int(round(warped[-1] * fps)) + 1) / fps
+        src_time_at = np.interp(t_dst, warped, t_src)
+        orig_t = np.interp(src_time_at, t_src, orig_t)
+        m = _resample(m, t_src, src_time_at)
+        log.append({"round": r + 1, "frames_over_pct": round(100 * float((need > 1).mean()), 2),
+                    "borrowed_s": round(extra_s, 3), "residual_s": round(residual_s, 3),
+                    "max_gain": round(float(gs.max()), 2)})
+        if verbose:
+            print(f"  round {r+1}: {log[-1]['frames_over_pct']}% frames over, "
+                  f"borrowed {extra_s:.2f}s, unrepaid {residual_s:.2f}s, "
+                  f"max local gain x{gs.max():.2f}, dur {src_dur:.1f}->{warped[-1]:.1f}s")
+    fe = _feas(m, fps)
+    new_t = np.arange(len(m)) / fps
+    beat_drift = float(np.abs(new_t - orig_t).max())
+    report = {
+        "op": "beat_preserving_warp", "margin": margin, "max_gain": max_gain,
+        "donor_speedup": donor_speedup, "locality_s": locality_s,
+        "rounds": log,
+        "duration_ratio": round(((len(m) - 1) / fps) / src_dur, 4),
+        "beat_drift_max_s": round(beat_drift, 3),
+        "max_local_gain": round(max_gain_seen, 2),
+        "native_speed_fraction": (round(native_frac, 3) if native_frac is not None else 1.0),
+        "time_map": {"warped_t": [round(float(x), 3) for x in new_t],
+                     "source_t": [round(float(x), 3) for x in orig_t]},
+        "final": fe,
+    }
+    return m, report
+
+
+def reduce_ankle_amplitude(m: np.ndarray, windows_s, scale: float = 0.7,
+                           fps: float = FPS, ramp_s: float = 0.3) -> np.ndarray:
+    """Retarget-priority operator: inside flagged windows, pull the four ankle
+    joint references toward their window-local median by `scale` (Thriller's
+    visual identity lives in torso/arms/timing, not exact ankle angles; the RL
+    policy's hips/waist take over the balance work). Cosine-ramped, timing
+    untouched."""
+    out = m.copy()
+    N = len(m)
+    t = np.arange(N) / fps
+    cols = [7 + int(j) for j in L.ANKLE_IDX]
+    for (s, e) in windows_s:
+        sel = (t >= s) & (t <= e)
+        if not sel.any():
+            continue
+        med = np.median(out[sel][:, cols], axis=0)
+        w = np.zeros(N)
+        for i in range(N):
+            ti = t[i]
+            if s - ramp_s <= ti <= e + ramp_s:
+                if ti < s:
+                    w[i] = 0.5 * (1 - np.cos(np.pi * (ti - (s - ramp_s)) / ramp_s))
+                elif ti > e:
+                    w[i] = 0.5 * (1 + np.cos(np.pi * (ti - e) / ramp_s))
+                else:
+                    w[i] = 1.0
+        f = 1 - w[:, None] * (1 - scale)
+        out[:, cols] = med + (out[:, cols] - med) * f
+    return out
+
+
+def repair_ladder(m: np.ndarray, fps: float = FPS, margin: float = 0.90,
+                  target_over_pct: float = 0.5, verbose: bool = True):
+    """The 3C ordered repair ladder — apply the LEAST destructive fix first and
+    re-score after each step; stop as soon as any-joint-over-envelope frames
+    fall below target_over_pct. Order (user-decided 2026-07-20):
+
+      1. re-ground (re-solve foot contacts; spikes are already removed by
+         prep's clean_motion with the choreography guard)
+      2. reduce unnecessary ankle motion in the flagged windows only
+      3. reduce root sway in the flagged windows only
+      4. beat-preserving local retiming (time-conserving)
+      5. LAST RESORT: mild global slowdown (<=1.2x)
+
+    One bad ankle/wrist window can no longer slow the whole routine.
+    Returns (motion, ops, final_feas)."""
+    from pipeline.grounding import ground_motion
+    ops = []
+
+    def score(mm):
+        fe = _feas(mm, fps, arrays=True)
+        arrs = fe.pop("_arrays")
+        over = float((arrs["binding_ratio"] > 1.0).mean() * 100)
+        return fe, arrs, over
+
+    fe, arrs, over = score(m)
+    if verbose:
+        print(f"  ladder start: {over:.2f}% frames over envelope")
+    # 1. contacts
+    if over > target_over_pct:
+        model = L.build_model()
+        m2, _ = ground_motion(m.copy(), model)
+        fe2, arrs2, over2 = score(m2)
+        if over2 < over:
+            m, fe, arrs, over = m2, fe2, arrs2, over2
+            ops.append({"op": "reground"})
+        if verbose:
+            print(f"  after reground: {over:.2f}%")
+    # 2. ankle amplitude in flagged windows
+    if over > target_over_pct and fe["windows"]:
+        m2 = reduce_ankle_amplitude(m, fe["windows"], scale=0.7, fps=fps)
+        fe2, arrs2, over2 = score(m2)
+        if over2 < over:
+            m, fe, arrs, over = m2, fe2, arrs2, over2
+            ops.append({"op": "reduce_ankle_amplitude", "scale": 0.7,
+                        "windows_s": fe["windows"]})
+        if verbose:
+            print(f"  after ankle-amp: {over:.2f}%")
+    # 3. root sway in flagged windows
+    if over > target_over_pct and fe["windows"]:
+        m2 = amplitude_scale_root(m, fe["windows"], scale=0.85, fps=fps)
+        fe2, arrs2, over2 = score(m2)
+        if over2 < over:
+            m, fe, arrs, over = m2, fe2, arrs2, over2
+            ops.append({"op": "amplitude_scale_root", "scale": 0.85,
+                        "windows_s": fe["windows"]})
+        if verbose:
+            print(f"  after root-sway: {over:.2f}%")
+    # 4. beat-preserving retime
+    rep_bp = None
+    if over > target_over_pct:
+        m, rep_bp = beat_preserving_warp(m, fps=fps, margin=margin,
+                                         verbose=verbose)
+        ops.append({"op": "beat_preserving_warp",
+                    "duration_ratio": rep_bp["duration_ratio"],
+                    "beat_drift_max_s": rep_bp["beat_drift_max_s"]})
+        fe, arrs, over = score(m)
+        if verbose:
+            print(f"  after beat-preserving warp: {over:.2f}%")
+    # 5. last resort: mild global slowdown
+    if over > target_over_pct:
+        for f in (1.05, 1.1, 1.2):
+            m2 = global_slowdown(m, f, fps)
+            fe2, arrs2, over2 = score(m2)
+            if verbose:
+                print(f"  global x{f}: {over2:.2f}%")
+            if over2 <= target_over_pct:
+                m, fe, over = m2, fe2, over2
+                ops.append({"op": "global_slowdown", "factor": f})
+                break
+    ladder_report = {"ops": ops, "final_over_pct": round(over, 2)}
+    if rep_bp is not None:
+        ladder_report["beat_preserving"] = {
+            k: rep_bp[k] for k in ("duration_ratio", "beat_drift_max_s",
+                                   "max_local_gain", "native_speed_fraction",
+                                   "rounds")}
+        ladder_report["time_map"] = rep_bp["time_map"]
+    return m, ladder_report, fe
+
+
 def map_source_windows(report: dict, windows_s) -> list:
     """Map source-time [start,end] windows through an adaptive_time_warp report's
     time_map onto the warped clock (for e.g. the v8/v9 waist-slack beat windows)."""
@@ -272,6 +528,9 @@ def _feas(m_or_path, fps=FPS, tmp=None, arrays=False):
         "ankle_tau_max_nm": d["ankle_tau_max_nm"],
         "ankle_tau_p95_nm": d["ankle_tau_p95_nm"],
         "ankle_over_headroom_pct": d["ankle_frames_over_headroom_pct"],
+        "any_joint_over_pct": d.get("any_joint_frames_over_pct"),
+        "binding_ratio_p95": d.get("binding_ratio_p95"),
+        "binding_ratio_max": d.get("binding_ratio_max"),
         "windows": r["ankle_flag_windows_s"],
     }
     if arrays:
@@ -314,14 +573,49 @@ def main():
     ap.add_argument("--adaptive", action="store_true",
                     help="v9 mode: NO global slowdown — demand-shaped local retiming only "
                          "(adaptive_time_warp); feasible parts keep native 1.0x speed")
+    ap.add_argument("--beat-preserve", action="store_true",
+                    help="v10 mode: TIME-CONSERVING retiming — stretch only the "
+                         "over-envelope transitions, repay the time from nearby "
+                         "holds/easy moments; total duration and musical beat kept")
+    ap.add_argument("--ladder", action="store_true",
+                    help="v10 full repair ladder: reground -> ankle-amp -> root-sway "
+                         "-> beat-preserving warp -> (last resort) mild global slowdown")
     ap.add_argument("--margin", type=float, default=0.85,
-                    help="adaptive mode: target = margin x ankle headroom")
+                    help="adaptive/beat-preserve/ladder: target = margin x envelope")
     args = ap.parse_args()
 
     m0 = load_motion_csv(args.csv)
     base = _feas(args.csv, args.fps)
     print(f"SOURCE {args.csv}: {base['seconds']:.1f}s  ankle p95 {base['ankle_tau_p95_nm']} "
           f"max {base['ankle_tau_max_nm']}  over-headroom {base['ankle_over_headroom_pct']}%")
+
+    if args.beat_preserve or args.ladder:
+        mode = "LADDER" if args.ladder else "BEAT-PRESERVE"
+        print(f"\n[{mode}] time-conserving repair (margin {args.margin}):")
+        if args.ladder:
+            m, rep, f = repair_ladder(m0.copy(), fps=args.fps, margin=args.margin)
+        else:
+            m, rep = beat_preserving_warp(m0.copy(), fps=args.fps, margin=args.margin)
+            f = rep["final"]
+        style = style_similarity(m0, m)
+        rep["style_similarity"] = round(style, 3)
+        bp = rep if not args.ladder else rep.get("beat_preserving", {})
+        print(f"RESULT: {f['seconds']:.1f}s (duration x{bp.get('duration_ratio', 1.0)}), "
+              f"beat drift max {bp.get('beat_drift_max_s', 0)}s, "
+              f"any-joint-over {f.get('any_joint_over_pct')}%, "
+              f"ankle p95 {f['ankle_tau_p95_nm']} Nm, style {style:.3f}")
+        if args.out:
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            np.savetxt(args.out, m, delimiter=",")
+            rep.update(source=str(args.csv), source_sha256=sha256(args.csv),
+                       repaired=str(args.out), repaired_sha256=sha256(args.out),
+                       final=f)
+            print(f"wrote {args.out}")
+        if args.scorecard:
+            args.scorecard.parent.mkdir(parents=True, exist_ok=True)
+            args.scorecard.write_text(json.dumps(rep, indent=1))
+            print(f"wrote {args.scorecard}")
+        return 0 if (f.get("any_joint_over_pct") or 0) <= 0.5 else 1
 
     if args.adaptive:
         print("\n[ADAPTIVE] demand-shaped local retiming (no global slowdown):")
