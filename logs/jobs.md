@@ -432,3 +432,11 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - Late-stage collapse persists even at native tempo: screen surv 84%(7500)->56%(9496); picker took 7500.
 - Stance rewards did NOT rescue drift; the "policy can't see position" problem is still the wall.
 - Artifacts pulled to exports/train-thriller_v10spd-0720/. BOX STILL BILLING -> DELETE (console-only).
+
+## 2026-07-20 — v11 (attempt 8) READY, box unreachable
+- v11 = v10 + dedicated leg-tracking reward (motion_leg_pos/ori on 6 leg bodies,
+  mirrors arm term) + stance linvel -0.5->-0.20 + drift band loosened 0.5/0.4->0.6/0.8.
+- Fixes measured leg under-reach (v10: legs 43-59% vs arms 77-137% of ref amplitude).
+- Files: cloud/{sim2real_task_v11.py,train_v11_curriculum.sh,run_attempt8.sh}. Reuses v10 tempo npz.
+- BOX 103.245.250.152:54606 now REFUSES connections (stopped/deleted after v10). To run v11:
+  provision a box (20_training.sh mjlab), push cloud/, then run_attempt8.sh (skips retiming if npz present).
