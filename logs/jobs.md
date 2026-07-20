@@ -412,3 +412,14 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   OLD v8 s2 via the bare *-s2 glob and started s3 from the WRONG lineage -> killed within ~2 min,
   wrong s3 dir deleted, resolve() now anchors on ${RUN}. Verified resume from v9 s1 model_3999.
   Stage 1 was NOT retrained (skip logic). Fixes committed.
+
+## 2026-07-20 — Attempt 7 (v10, native tempo) — box 103.245.250.152:54606
+- Box: GreenNode RTX 4090, notebook nb-d4a17e68, ssh -p 54606 -i .secrets/greennode_rsa root@103.245.250.152
+- BILLING started ~2026-07-20 (creation). DELETE when exports pulled + signed.
+- Pushed: cloud task chain v5..v10 + retimer + launchers + verify scripts + env_lock,
+  motions/thriller_g1_v10_beatsync.csv (native 49.3s, ladder-repaired), .wandb_key.
+- 03:57 UTC: 20_training.sh mjlab provisioning started (frozen lock) -> provision.out
+- Next: on mjlab_ready -> nohup bash cloud/run_attempt7.sh > attempt7.out (preflight:
+  retime 4 tempo variants, csv_to_npz x4, selfcheck, 64-env smoke; then 4-stage speed
+  curriculum 0.60/0.75/0.90/1.00x, hard stop 9.5k iters; verify chain with
+  G1_GATE_ANKLE_P95_NOMINAL_NM=22 G1_GATE_ANKLE_P95_WORST_NM=25).
