@@ -423,3 +423,12 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   retime 4 tempo variants, csv_to_npz x4, selfcheck, 64-env smoke; then 4-stage speed
   curriculum 0.60/0.75/0.90/1.00x, hard stop 9.5k iters; verify chain with
   G1_GATE_ANKLE_P95_NOMINAL_NM=22 G1_GATE_ANKLE_P95_WORST_NM=25).
+
+## 2026-07-20 — Attempt 7 (v10) RESULT: native tempo achieved, gate FAIL
+- Winner iter 7500 (final stage, NATIVE 1.0x). Episode 49.48s (v8 88.7 / v9 75.3) — FULL SPEED.
+- Gate FAIL: nominal survival 85.2% (bar 99), drift_max 3.54m mean 0.51 (bar 1.0),
+  ankle p95 22.6Nm (bar 22 — AT hardware-measured reality, essentially passes the calibrated bar),
+  rr_mpkpe 0.065 (BEST yet — tracks tightest). Heldout 84.8/59.8.
+- Late-stage collapse persists even at native tempo: screen surv 84%(7500)->56%(9496); picker took 7500.
+- Stance rewards did NOT rescue drift; the "policy can't see position" problem is still the wall.
+- Artifacts pulled to exports/train-thriller_v10spd-0720/. BOX STILL BILLING -> DELETE (console-only).
