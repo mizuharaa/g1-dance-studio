@@ -1,0 +1,6 @@
+npz: 4435 frames, 30 bodies
+foot body indices (by lowest mean z): [ 6 12], mean z = [0.06085856 0.06831786]
+stance fraction: left-ish 0.763, right-ish 0.694
+double-support fraction: 0.494
+no-stance-foot frames (aerial/violation): 0.0368
+ref foot speed while stance: mean 0.0470 m/s, p95 0.1553

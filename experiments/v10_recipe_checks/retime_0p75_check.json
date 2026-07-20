@@ -1,0 +1,18 @@
+{
+  "input": "data/motions/thriller/thriller_g1_grounded.csv",
+  "output": "experiments/v10_recipe_checks/thriller_g1_grounded_0p75.csv",
+  "speed": 0.75,
+  "interp": "scipy.CubicSpline",
+  "frames_in": 1479,
+  "frames_out": 1972,
+  "frames_out_expected": 1972,
+  "duration_in_s": 49.267,
+  "duration_out_s": 65.7,
+  "quat_norm_min": 0.9999999999999999,
+  "quat_norm_max": 1.0,
+  "max_joint_vel_in_rad_s": 8.4748,
+  "max_joint_vel_out_rad_s": 7.2782,
+  "vel_ratio_out_over_in": 0.8588,
+  "vel_ratio_expected": 0.75,
+  "pass": true
+}

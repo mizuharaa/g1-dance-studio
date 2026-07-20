@@ -1,0 +1,7 @@
+joint |vel| p90: in 1.7145 out 1.2920 ratio 0.7536 (expect ~0.75)
+joint |vel| p99: in 5.0674 out 3.8398 ratio 0.7577 (expect ~0.75)
+joint |vel| p99.9: in 8.1029 out 6.1260 ratio 0.7560 (expect ~0.75)
+root speed max: in 0.9977 out 0.7501 ratio 0.7518
+root speed p99: in 0.8739 out 0.6556 ratio 0.7503
+root ang rate p99: in 3.4120 out 2.5961 ratio 0.7609
+first-frame max abs diff: 0.0  last-frame: 0.0

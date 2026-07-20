@@ -1,0 +1,18 @@
+{
+  "input": "data/motions/thriller/thriller_g1_grounded.csv",
+  "output": "/tmp/claude-1000/-home-alois/9447aaaf-123a-4f13-8d70-6e25dbe4e703/scratchpad/thriller_1p00.csv",
+  "speed": 1.0,
+  "interp": "scipy.CubicSpline",
+  "frames_in": 1479,
+  "frames_out": 1479,
+  "frames_out_expected": 1479,
+  "duration_in_s": 49.267,
+  "duration_out_s": 49.267,
+  "quat_norm_min": 0.9999992975877533,
+  "quat_norm_max": 1.000000703018753,
+  "max_joint_vel_in_rad_s": 8.4748,
+  "max_joint_vel_out_rad_s": 8.4748,
+  "vel_ratio_out_over_in": 1.0,
+  "vel_ratio_expected": 1.0,
+  "pass": true
+}

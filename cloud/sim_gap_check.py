@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -89,8 +90,12 @@ GATE = {
   "survival_worst_min": 0.95,
   "ankle_mean_nominal_max_nm": 6.0,
   "ankle_mean_worst_max_nm": 8.0,
-  "ankle_p95_nominal_max_nm": 15.0,
-  "ankle_p95_worst_max_nm": 20.0,
+  # Ankle p95 bars are env-overridable (defaults unchanged for v5-v9 reruns).
+  # v10 exports 22/25: the real robot measured ankle p95 15-19 Nm at NATIVE tempo
+  # (decision log 2026-07-20, experiments/torque_crosscheck_20260720) — the old
+  # 15 Nm nominal bar sat BELOW physical reality.
+  "ankle_p95_nominal_max_nm": float(os.environ.get("G1_GATE_ANKLE_P95_NOMINAL_NM", "15.0")),
+  "ankle_p95_worst_max_nm": float(os.environ.get("G1_GATE_ANKLE_P95_WORST_NM", "20.0")),
   "ankle_rms_worst_max_nm": 12.0,  # thermal projection
   # Quality bar is ROOT-RELATIVE mpkpe (baseline a2 = 0.089 on this harness): the
   # 2026-07-05 s2r eval showed global mpkpe conflates stage DRIFT with dance

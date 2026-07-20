@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -26,13 +27,15 @@ from pathlib import Path
 # lines that don't gate). Names must match cloud/sim_gap_check.py CONDITIONS.
 SCREEN_ONLY = "nominal,delay40ms_push"
 
-# gate thresholds (mirror cloud/sim_gap_check.py + PROJECT_STATE gate)
+# gate thresholds (mirror cloud/sim_gap_check.py + PROJECT_STATE gate). The two
+# ankle p95 bars are env-overridable exactly like sim_gap_check.py's (v10 exports
+# 22/25 per the 2026-07-20 torque-crosscheck decision log; defaults unchanged).
 GATE = {
   "nominal_survival": 0.99,
   "nominal_drift_max": 1.0,
-  "nominal_ankle_p95": 15.0,
+  "nominal_ankle_p95": float(os.environ.get("G1_GATE_ANKLE_P95_NOMINAL_NM", "15.0")),
   "push_survival": 0.95,     # delay40ms_push
-  "push_ankle_p95": 20.0,
+  "push_ankle_p95": float(os.environ.get("G1_GATE_ANKLE_P95_WORST_NM", "20.0")),
 }
 
 
