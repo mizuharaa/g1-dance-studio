@@ -440,3 +440,11 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - Files: cloud/{sim2real_task_v11.py,train_v11_curriculum.sh,run_attempt8.sh}. Reuses v10 tempo npz.
 - BOX 103.245.250.152:54606 now REFUSES connections (stopped/deleted after v10). To run v11:
   provision a box (20_training.sh mjlab), push cloud/, then run_attempt8.sh (skips retiming if npz present).
+
+## 2026-07-20 — Attempt 8 (v11 leg-fidelity) — box 103.245.250.152:53665
+- Fresh GreenNode RTX 4090, notebook nb-0ba4539e. BILLING from ~09:10 UTC. DELETE when pulled+signed.
+- v11 = v10 + dedicated leg-tracking reward + softened stance (-0.2) + loosened late drift (0.6/0.8).
+  Native tempo. Honest drift gate (p95 per-episode <=1.5m via G1_GATE_DRIFT_P95_M).
+- Pushed v11 stack + gate files + beatsync CSV + wandb. 09:10 provisioning (frozen lock).
+- Launch: G1_GATE_ANKLE_P95_NOMINAL_NM=22 G1_GATE_ANKLE_P95_WORST_NM=25 run_attempt8.sh
+  (retimes 4 tempo npz on this fresh box, selfcheck, smoke, then v11 4-stage curriculum, 9.5k stop).
