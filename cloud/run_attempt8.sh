@@ -20,17 +20,43 @@
 set -uo pipefail
 NB=${NB:-/workspace/notebook-data}
 PY=$NB/envs/mjlab/bin/python
+CSV=${G1_MOTION_CSV:-$NB/motions/thriller_g1_v10_beatsync.csv}
+CSV2NPZ=$NB/repos/mjlab/src/mjlab/scripts/csv_to_npz.py
 [ -f "$NB/.wandb_key" ] && export WANDB_API_KEY=$(tr -d '[:space:]' < "$NB/.wandb_key")
 
 cd "$NB"
 say() { echo "== $* == $(date -Is)"; }
 die() { echo "!! $*"; exit 1; }
 
-say "preflight (reuse v10 tempo npz)"
-for k in 060 075 090 100; do
-  [ -f "$NB/motions/thriller_v10_${k}.npz" ] || die "missing thriller_v10_${k}.npz — run attempt7 retime first"
-done
 nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader >/dev/null || die "no GPU"
+
+# Tempo npz: reuse if a prior attempt already made them; else retime from the
+# beatsync CSV (fresh box). Same 4 variants v10 used — identical motion, v11
+# only changes the reward, so the npz are shared.
+declare -A SPEED=( [060]=0.60 [075]=0.75 [090]=0.90 [100]=1.00 )
+if [ ! -f "$NB/motions/thriller_v10_100.npz" ]; then
+  [ -f "$CSV" ] || die "motion CSV missing: $CSV — push it from the laptop"
+  head -1 "$CSV" | awk -F, 'NF != 36 { exit 1 }' || die "CSV not 36-column"
+  say "retime tempo variants (fresh box: 0.60/0.75/0.90/1.00 from $CSV)"
+  for k in 060 075 090 100; do
+    OUT=$NB/motions/thriller_v10_${k}.csv
+    [ -f "$OUT" ] || "$PY" "$NB/cloud/retime_motion.py" --input "$CSV" --output "$OUT" \
+        --speed "${SPEED[$k]}" --check-json "$NB/motions/thriller_v10_${k}_check.json" \
+      || die "retime ${SPEED[$k]}x FAILED"
+    NPZ=$NB/motions/thriller_v10_${k}.npz
+    if [ ! -f "$NPZ" ]; then
+      MUJOCO_GL=egl "$PY" "$CSV2NPZ" --input-file "$OUT" \
+          --output-name "thriller_v10_${k}" --input-fps 30 --output-fps 50 || true
+      [ -f /tmp/motion.npz ] && cp /tmp/motion.npz "$NPZ"
+    fi
+    [ -f "$NPZ" ] || die "npz absent after conversion: $NPZ"
+    echo "  thriller_v10_${k}.npz ready"
+  done
+fi
+say "preflight OK (tempo npz present)"
+for k in 060 075 090 100; do
+  [ -f "$NB/motions/thriller_v10_${k}.npz" ] || die "missing thriller_v10_${k}.npz"
+done
 
 say "selfcheck (v11 task, stage-1 clock 0.60x -> G1_SLOWDOWN=1.6667)"
 G1_SLOWDOWN=1.6667 G1_OBS_HISTORY=5 G1_PHASE_OBS=${G1_PHASE_OBS:-0} \
