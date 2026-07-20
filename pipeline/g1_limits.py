@@ -135,24 +135,35 @@ ANKLE_HEADROOM_NM = 40.0
 GLOBAL_HEADROOM = 0.90
 
 
+# Fraction of the no-load speed up to which full peak torque is available
+# (the constant-torque region of a FOC-driven PMSM before the voltage/back-EMF
+# knee). Beyond the knee, available torque falls linearly to 0 at no-load speed.
+TORQUE_KNEE_FRAC = 0.5
+
+
 def effective_torque_limit(joint_vel: np.ndarray) -> np.ndarray:
     """Speed-dependent effective torque limit [Nm], broadcast over ``joint_vel``.
 
-    MODEL (documented assumption — we could NOT obtain Isaac's exact Y1/Y2/X1/X2
-    knee-points on this box, so we use a conservative DC-motor linear derate):
+    MODEL (documented assumption; revised 2026-07-20): flat-until-knee PMSM
+    torque-speed curve —
 
-        tau_eff(w) = effort_limit * (1 - |w| / w_free) ,  clamped to [0, effort_limit]
+        tau_eff(w) = effort_limit                          for |w| <= k*w_free
+        tau_eff(w) = effort_limit * (1-|w|/w_free)/(1-k)   for |w| >  k*w_free
 
-    with ``w_free = VELOCITY_LIMIT`` (the sim no-load speed). Stall torque is set
-    EQUAL to the effort limit, so torque derates from the peak the instant the
-    joint moves — intentionally pessimistic (real stall torque is higher, so the
-    real usable-at-low-speed torque is >= this). This guarantees we never call a
-    frame feasible that the flat-clamp sim would, and it bites hardest exactly at
-    the fast beats, which is the point. It is STILL optimistic vs. a true T-N knee
-    curve at very high speed; callers additionally cap the ankle at
-    ANKLE_HEADROOM_NM. ``joint_vel`` may be (29,) or (N,29)."""
+    with ``w_free = VELOCITY_LIMIT`` (sim no-load speed) and k=TORQUE_KNEE_FRAC.
+    Unitree describes the G1 joints as low-inertia high-speed PMSMs; a FOC drive
+    holds peak torque through a constant-torque region and derates toward the
+    no-load speed. The PREVIOUS model (stall torque == effort limit, derating
+    from |w|=0) was audited as one of three compounding over-estimation
+    mechanisms in the torque checker (real robot measured 6-10x below its
+    predictions at native dance speed — decision log 2026-07-20): at half the
+    velocity limit it granted only 50% torque where the drive still delivers
+    ~100%. The exact per-motor knee points are not published; k=0.5 is the
+    conservative end of typical PMSM envelopes and still derates the fast beats.
+    ``joint_vel`` may be (29,) or (N,29)."""
     jv = np.abs(np.asarray(joint_vel, dtype=float))
-    derate = np.clip(1.0 - jv / VELOCITY_LIMIT, 0.0, 1.0)
+    derate = np.clip((1.0 - jv / VELOCITY_LIMIT) / (1.0 - TORQUE_KNEE_FRAC),
+                     0.0, 1.0)
     return derate * EFFORT_LIMIT_NM
 
 
@@ -228,7 +239,9 @@ def summary() -> dict:
         "global_headroom": GLOBAL_HEADROOM,
         "pos_lo": None if POS_LO is None else POS_LO.tolist(),
         "pos_hi": None if POS_HI is None else POS_HI.tolist(),
-        "torque_speed_model": "DCMotor linear derate, w_free=velocity_limit, stall=effort_limit",
+        "torque_speed_model": ("PMSM flat-until-knee derate: full effort to "
+                               f"{TORQUE_KNEE_FRAC:.0%} of velocity_limit, linear to 0 "
+                               "at no-load speed (revised 2026-07-20)"),
         "crosscheck": CROSSCHECK_NOTE,
     }
 
