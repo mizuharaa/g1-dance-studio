@@ -1,0 +1,21 @@
+{
+  "sim": {
+    "base_xy_hf_frac_above5hz": 0.002,
+    "base_z_hf_frac_above5hz": 0.0018,
+    "target_hf_frac_above5hz": 0.0129,
+    "q_hf_frac_above5hz": 0.0022,
+    "base_xy_std_m": 0.2448
+  },
+  "real": {
+    "20260710-145111": {
+      "target_hf_frac_above5hz": 0.0124,
+      "q_hf_frac_above5hz": 0.0044,
+      "gyro_hf_frac_above5hz": 0.0967
+    },
+    "20260708-192839": {
+      "target_hf_frac_above5hz": 0.0229,
+      "q_hf_frac_above5hz": 0.0041,
+      "gyro_hf_frac_above5hz": 0.092
+    }
+  }
+}

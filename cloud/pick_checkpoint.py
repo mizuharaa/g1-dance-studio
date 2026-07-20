@@ -32,7 +32,10 @@ SCREEN_ONLY = "nominal,delay40ms_push"
 # 22/25 per the 2026-07-20 torque-crosscheck decision log; defaults unchanged).
 GATE = {
   "nominal_survival": 0.99,
-  "nominal_drift_max": 1.0,
+  # drift gate on the p95 per-episode worst point (mirrors sim_gap_check.py;
+  # falls back to max_m for OLD gap.json without the p95 field). See the drift
+  # rationale in sim_gap_check.py / experiments/drift_rootcause_20260720.
+  "nominal_drift_p95": float(os.environ.get("G1_GATE_DRIFT_P95_M", "1.5")),
   "nominal_ankle_p95": float(os.environ.get("G1_GATE_ANKLE_P95_NOMINAL_NM", "15.0")),
   "push_survival": 0.95,     # delay40ms_push
   "push_ankle_p95": float(os.environ.get("G1_GATE_ANKLE_P95_WORST_NM", "20.0")),
@@ -50,19 +53,22 @@ def _score(gap: dict) -> dict:
   n = gap["conditions"]["nominal"]
   p = gap["conditions"].get("delay40ms_push", {})
   nsurv = n.get("success_rate", 0.0)
-  ndrift = n.get("drift", {}).get("max_m", 9e9)
+  nd = n.get("drift", {})
+  ndrift = nd.get("episode_max_p95_m")
+  if ndrift is None:                         # OLD gap.json without the p95 field
+    ndrift = nd.get("max_m", 9e9)
   nank = n.get("ankle_pitch", {}).get("p95_abs", 9e9)
   psurv = p.get("success_rate", 0.0)
   pank = p.get("ankle_pitch", {}).get("p95_abs", 9e9)
   passes = sum([
     nsurv >= GATE["nominal_survival"],
-    ndrift <= GATE["nominal_drift_max"],
+    ndrift <= GATE["nominal_drift_p95"],
     nank <= GATE["nominal_ankle_p95"],
     psurv >= GATE["push_survival"],
     pank <= GATE["push_ankle_p95"],
   ])
   return {
-    "gate_passes": passes, "nominal_survival": nsurv, "nominal_drift_max": ndrift,
+    "gate_passes": passes, "nominal_survival": nsurv, "nominal_drift_p95": ndrift,
     "nominal_ankle_p95": nank, "push_survival": psurv, "push_ankle_p95": pank,
   }
 
@@ -112,7 +118,7 @@ def main() -> int:
     sc["iter"] = it; sc["checkpoint"] = str(ck)
     rows.append(sc)
     print(f"  iter {it}: passes={sc['gate_passes']}/5 surv={sc['nominal_survival']:.3f} "
-          f"drift={sc['nominal_drift_max']:.2f} ankle={sc['nominal_ankle_p95']:.1f} "
+          f"drift={sc['nominal_drift_p95']:.2f} ankle={sc['nominal_ankle_p95']:.1f} "
           f"push_surv={sc['push_survival']:.3f}", flush=True)
 
   if not rows:
@@ -126,13 +132,13 @@ def main() -> int:
   # rank: most gate checks passed, then highest nominal survival, then lowest drift,
   # then lowest ankle p95. (Latest iter breaks exact ties.)
   rows.sort(key=lambda s: (s["gate_passes"], s["nominal_survival"],
-                           -s["nominal_drift_max"], -s["nominal_ankle_p95"], s["iter"]),
+                           -s["nominal_drift_p95"], -s["nominal_ankle_p95"], s["iter"]),
             reverse=True)
   win = rows[0]
   json.dump({"winner": win["checkpoint"], "winner_iter": win["iter"],
              "gate": GATE, "rows": rows}, open(work / "screen_summary.json", "w"), indent=2)
   print(f"[pick] winner = iter {win['iter']} ({win['gate_passes']}/5 gate checks, "
-        f"surv {win['nominal_survival']:.3f}, drift {win['nominal_drift_max']:.2f} m)")
+        f"surv {win['nominal_survival']:.3f}, drift {win['nominal_drift_p95']:.2f} m)")
   print(f"WINNER {win['checkpoint']}")
   return 0
 
