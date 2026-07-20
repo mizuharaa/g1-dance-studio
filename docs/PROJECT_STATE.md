@@ -46,6 +46,24 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-20 (v11 DONE — BEST POLICY YET, native tempo, legs fixed): Attempt 8 on box 53665
+  (nb-0ba4539e) finished; winner iter 9496 (final native stage, NO late collapse — picker took the
+  last ckpt, unlike v7/v9/v10). Two box gates caught real bugs pre-spend (stance env-ordering +
+  __main__ not delegating to mjlab train). **Results vs v10/v8:** native 49.5s; nominal survival
+  **98.4%** (v10 85.2%, v8 99.2% — closed most of the gap v10 opened); rr_mpkpe **0.056 (BEST
+  ever)**; ankle p95 21.5 (PASS ≤22). ⭐ **LEG REACH FIXED** (the user's core complaint): 10-25s
+  arm-swing window knees **75-84%** of reference (v10 49-59%), hips 57-91% (v10 43-80%), arms
+  ~81-85% — the dedicated motion_leg_pos/ori term + softened stance (-0.2) worked. Drift: clean
+  deterministic rollout **0.31 m/26s (BETTER than v10's 0.56)**; gate mean 0.68 m, episode-max
+  median 1.06 m, p95 2.21 m (FAILs the new 1.5 m bar on the perturbed tail only). Gate = FAIL but
+  CLOSEST yet: survival 0.6 pt short of 99%, drift p95 tail, ankle mean/RMS (the known stabilization
+  floor), push survival 40ms. Heldout 96.1/93.8. Published dance 20260721-36bb7844 (full 49s
+  preview, 109% amplitude — moves fully). Artifacts exports/train-thriller_v11leg-0720/.
+  **v11 is the new best (fast + legs move + stable); v8 still edges nominal survival (99.2 vs 98.4)
+  but is slow (88.7s) and leg-stiff. NEXT candidate: v12 could nudge survival over 99 (tiny) + trade
+  a hair of the stance-softening back for drift, OR accept v11 + real-robot calibration post-repair.
+  BOX 53665 BILLING since 09:10 → DELETE (console-only, user).**
+
 - 2026-07-20 (DRIFT/JITTER ROOT CAUSE — reframed decisively; gate made honest): User pushed to
   solve drift "once and for all" + wants smooth, reference-matching viz; key evidence = the REAL
   robot already did 70-80% at full speed pre-fault. Ran experiments/drift_rootcause_20260720
