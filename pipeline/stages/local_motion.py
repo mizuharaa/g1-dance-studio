@@ -210,6 +210,27 @@ class RetargetStage:
                 "refusing to spend GPU on it")
         job.log(f"retarget: deployable motion ready — {deploy_csv.name} "
                 f"({st.meta['ramp']['seconds']}s incl. 2.5s activation ramp)")
+
+        # Pre-training success estimate (ADVISORY, never blocking): run the
+        # dynamic feasibility crosscheck on the prepped show motion and predict
+        # a rough nominal-survival band from historical calibration — surfaced
+        # in the UI BEFORE the operator spends GPU money on training. Mirrors
+        # the vet-record pattern (json file + stage meta); any failure here is
+        # logged and swallowed — it must never fail an otherwise good prep.
+        report(0.98, "estimating show readiness (pre-training physics crosscheck)")
+        try:
+            from ..success_estimate import estimate
+            est = estimate(show_csv, vet_report=vet_report)
+            (out_dir / "success_estimate.json").write_text(
+                json.dumps(est, indent=2))
+            st.meta["success_estimate"] = est
+            job.log("retarget: predicted show readiness "
+                    f"{est['predicted_survival_pct_range']} nominal survival "
+                    f"({est['confidence']})")
+        except Exception as e:  # noqa: BLE001 — advisory only
+            job.log(f"retarget: success estimate failed (non-blocking): "
+                    f"{type(e).__name__}: {e}")
+
         report(1.0, "motion ready — review the preview, then approve training")
 
 

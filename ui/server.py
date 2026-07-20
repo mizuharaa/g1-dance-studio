@@ -172,6 +172,12 @@ def _job_dict(job: store.Job) -> dict:
     vet = job.dir / "retarget" / "vet.json"
     if vet.exists():
         d["vet"] = json.loads(vet.read_text())
+    est = job.dir / "retarget" / "success_estimate.json"  # pre-training crosscheck
+    if est.exists():
+        try:
+            d["success_estimate"] = json.loads(est.read_text())
+        except (ValueError, OSError):
+            pass
     quality = job.dir / "quality.json"          # upload-time video quality gate (video_quality)
     if quality.exists():
         try:
@@ -623,6 +629,24 @@ def dances() -> list[dict]:
 @app.get("/api/dances/{dance_id}")
 def dance_detail(dance_id: str) -> dict:
     return _dance_dict(_load_dance_or_404(dance_id))
+
+
+@app.get("/api/dances/{dance_id}/success-estimate")
+def dance_success_estimate(dance_id: str) -> dict:
+    """Pre-training predicted-show-readiness estimate for a dance (written by the
+    retarget stage next to vet.json). 404 only for a missing dance; a dance
+    without an estimate returns {available: false} so the UI can render an
+    honest empty state instead of an error."""
+    dance = _load_dance_or_404(dance_id)
+    job_id = getattr(dance, "source_job", None)
+    if job_id:
+        try:
+            est_file = store.load_job(job_id).dir / "retarget" / "success_estimate.json"
+            if est_file.exists():
+                return {"available": True, "estimate": json.loads(est_file.read_text())}
+        except (FileNotFoundError, ValueError, OSError):
+            pass  # missing/corrupt job record => same honest "not available"
+    return {"available": False, "estimate": None}
 
 
 @app.post("/api/dances")

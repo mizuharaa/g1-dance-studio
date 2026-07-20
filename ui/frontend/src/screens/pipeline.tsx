@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { EmptyState, InlineAlert, PageHeader, StatusBadge } from "@/components/console-ui"
 import { RobotPreview } from "@/components/robot-preview"
+import { SuccessEstimateCard } from "@/components/success-estimate"
 import type { ConsoleData } from "@/hooks/use-console-data"
 import { api, type PipelineJob, type StageState, type VideoQuality } from "@/lib/api"
 import { cn, fmtDate } from "@/lib/utils"
@@ -207,6 +208,8 @@ export function PipelineScreen({ data }: { data: ConsoleData }) {
           </Card>
 
           {selected.quality && <QualityGate q={selected.quality} />}
+
+          {selected.success_estimate && <SuccessEstimateCard est={selected.success_estimate} />}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>

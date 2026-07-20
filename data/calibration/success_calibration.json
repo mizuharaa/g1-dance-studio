@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "generated_at": "2026-07-20T10:35:51",
+  "primary_metric": "ankle_frames_over_headroom_pct",
+  "checker": {
+    "module": "pipeline.motion_dynamics",
+    "note": "metrics computed with the checker as of generated_at; regenerate with `python -m pipeline.success_estimate --recalibrate` after any checker upgrade"
+  },
+  "rows": [
+    {
+      "attempt": "train-thriller_v6sk-0714",
+      "gap_file": "exports/train-thriller_v6sk-0714/gap.json",
+      "motion": "data/motions/thriller/thriller_deploy.csv",
+      "metrics": {
+        "ankle_frames_over_headroom_pct": 1.54,
+        "ankle_tau_p95_nm": 31.69,
+        "ankle_tau_max_nm": 51.85,
+        "zmp_outside_support_pct": 100.0,
+        "vel_frames_over_limit_pct": 0.0
+      },
+      "nominal_survival_pct": 92.19,
+      "provenance": "v6 skills recipe, native speed; nominal survival from 128-episode gate"
+    },
+    {
+      "attempt": "train-thriller_v7ank-0715",
+      "gap_file": "exports/train-thriller_v7ank-0715/gap.json",
+      "motion": "data/motions/thriller/thriller_deploy.csv",
+      "metrics": {
+        "ankle_frames_over_headroom_pct": 1.54,
+        "ankle_tau_p95_nm": 31.69,
+        "ankle_tau_max_nm": 51.85,
+        "zmp_outside_support_pct": 100.0,
+        "vel_frames_over_limit_pct": 0.0
+      },
+      "nominal_survival_pct": 85.94,
+      "provenance": "v7 ankle-penalty recipe, native speed; best-checkpoint-selected"
+    },
+    {
+      "attempt": "thriller_csv_ankle_penalty-anchor",
+      "gap_file": "exports/train-thriller_v8s2r-0716/calibration_anchor_gap.json",
+      "motion": "data/motions/thriller/thriller_deploy.csv",
+      "metrics": {
+        "ankle_frames_over_headroom_pct": 1.54,
+        "ankle_tau_p95_nm": 31.69,
+        "ankle_tau_max_nm": 51.85,
+        "zmp_outside_support_pct": 100.0,
+        "vel_frames_over_limit_pct": 0.0
+      },
+      "nominal_survival_pct": 100.0,
+      "provenance": "2026-07-08 anchor policy (live-deployed, ~70% IRL mimicry) re-gated 2026-07-17 via --onnx mode; trained on the native deploy CSV"
+    },
+    {
+      "attempt": "train-thriller_v8s2r-0716",
+      "gap_file": "exports/train-thriller_v8s2r-0716/gap.json",
+      "motion": "data/motions/thriller/thriller_g1_grounded_repaired_1p8x.csv",
+      "metrics": {
+        "ankle_frames_over_headroom_pct": 0.15,
+        "ankle_tau_p95_nm": 32.52,
+        "ankle_tau_max_nm": 41.9,
+        "zmp_outside_support_pct": 100.0,
+        "vel_frames_over_limit_pct": 0.0
+      },
+      "nominal_survival_pct": 99.22,
+      "provenance": "v8 stage-2-repair recipe on the 1.8x-slowed repaired motion"
+    },
+    {
+      "attempt": "train-thriller_v9adpt-0717",
+      "gap_file": "exports/train-thriller_v9adpt-0717/gap.json",
+      "motion": "data/motions/thriller/thriller_g1_grounded_adaptive.csv",
+      "metrics": {
+        "ankle_frames_over_headroom_pct": 0.13,
+        "ankle_tau_p95_nm": 33.15,
+        "ankle_tau_max_nm": 41.02,
+        "zmp_outside_support_pct": 100.0,
+        "vel_frames_over_limit_pct": 0.0
+      },
+      "nominal_survival_pct": 89.84,
+      "provenance": "v9 adaptive-slowdown motion (1.53x avg); winner iter 9500"
+    }
+  ],
+  "notes": [
+    "Survival = nominal-condition success_rate from the 128-episode sim gate (exports/*/gap.json), NOT live-show survival.",
+    "v6/v7/anchor trained the SAME native-speed motion and spanned 85.9-100% survival: at fixed feasibility the recipe dominates \u2014 hence envelope bands, never point predictions.",
+    "The checker over-estimated ankle torque 6-10x vs hardware (decision log 2026-07-20); metric values here are inflated consistently for ALL rows, so the RELATIVE mapping still holds."
+  ]
+}

@@ -14,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, InlineAlert, Metric, PageHeader, StatusBadge } from "@/components/console-ui"
 import { RobotPreview } from "@/components/robot-preview"
 import type { ConsoleData } from "@/hooks/use-console-data"
-import { api, type Dance } from "@/lib/api"
+import { SuccessEstimateCard } from "@/components/success-estimate"
+import { api, type Dance, type SuccessEstimate } from "@/lib/api"
 import { dancePreviewUrl } from "@/lib/preview"
 import { cn, fmtDate, fmtDuration, fmtPercent, shortHash } from "@/lib/utils"
 
@@ -58,6 +59,12 @@ function DanceDetail({ dance, data }: { dance: Dance; data: ConsoleData }) {
   const queryClient = useQueryClient()
   const [manage, setManage] = useState(false)
   const runs = data.shows.filter((show) => show.dance_id === dance.id)
+  // Pre-training predicted show readiness (written by the retarget stage; {available:false} when absent)
+  const readiness = useQuery({
+    queryKey: ["success-estimate", dance.id],
+    queryFn: () => api.get<{ available?: boolean; estimate?: SuccessEstimate | null }>(`/api/dances/${dance.id}/success-estimate`),
+  })
+  const estimate = readiness.data?.available ? readiness.data.estimate : null
   const nominal = dance.sim_exam?.metrics?.nominal
   const push = dance.sim_exam?.metrics?.push
   const chart = [
@@ -94,6 +101,7 @@ function DanceDetail({ dance, data }: { dance: Dance; data: ConsoleData }) {
               </div>
               <div className="h-60 rounded-lg border border-border bg-background/25 p-3"><ResponsiveContainer width="100%" height="100%"><BarChart data={chart} margin={{ top: 12, right: 8, left: -18, bottom: 0 }}><CartesianGrid stroke="#1e293b" vertical={false} /><XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ background: "#0b101a", border: "1px solid #1e293b", borderRadius: 8, fontSize: 11 }} /><Bar dataKey="survival" name="Survival %" fill="#3b82f6" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
             </div>
+            {estimate && <SuccessEstimateCard className="mt-4" est={estimate} />}
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <div className="rounded-lg border border-dashed border-border p-3"><div className="metric-label">40 / 60 / 80 ms latency gate</div><div className="mt-2 text-sm font-semibold text-muted-foreground">Not exposed by API</div><div className="mt-1 text-[10px] leading-4 text-muted-foreground">Frontend will render these results once the dance API includes gap_check conditions.</div></div>
               <div className="rounded-lg border border-dashed border-border p-3"><div className="metric-label">Training iterations</div><div className="mt-2 text-sm font-semibold text-muted-foreground">Not exposed by API</div><div className="mt-1 text-[10px] leading-4 text-muted-foreground">The global training monitor is available under System.</div></div>

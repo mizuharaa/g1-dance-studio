@@ -33,7 +33,27 @@ export interface PipelineJob {
   preview_url?: string
   vet?: VetReport
   quality?: VideoQuality
+  success_estimate?: SuccessEstimate
   log_tail?: string[]
+}
+
+export interface RiskWindow { start_s?: number; end_s?: number; duration_s?: number; label?: string }
+
+/** Pre-training predicted show readiness (pipeline/success_estimate.py). */
+export interface SuccessEstimate {
+  version?: number
+  generated_at?: string
+  motion_csv?: string
+  predicted_survival_pct_range?: string
+  predicted_survival_lo_pct?: number | null
+  predicted_survival_hi_pct?: number | null
+  confidence?: string
+  primary_metric?: { name?: string; value?: number | null }
+  metrics?: Record<string, number | null>
+  risk_windows?: RiskWindow[]
+  hard_blockers?: string[]
+  notes?: string[]
+  calibration?: { path?: string; generated_at?: string; n_rows?: number }
 }
 
 export interface VetReport {
