@@ -21,6 +21,8 @@ import threading
 import time
 from pathlib import Path
 
+import numpy as np
+
 from pipeline.config import DATA_DIR
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -165,11 +167,24 @@ def _render(dance, sha: str) -> None:
         conda_lib = Path.home() / "miniconda3/envs/g1dance/lib"
         if conda_lib.exists():
             env["LD_LIBRARY_PATH"] = f"{conda_lib}:{env.get('LD_LIBRARY_PATH', '')}"
+        # Render the WHOLE dance: derive the step count from the reference motion
+        # length (deploy npz frames) rather than a fixed cap — a hardcoded 1600
+        # (=32 s @50 Hz) silently truncated any longer dance (Thriller is 49 s,
+        # so the zombie-walk tail was cut). +50 steps lets a surviving policy
+        # settle past the final pose. Falls back to 1600 if the npz is unreadable.
+        steps = 1600
+        try:
+            npz = next(_policy_dir(dance).glob("*_deploy.npz"), None)
+            if npz is not None:
+                with np.load(npz) as z:
+                    steps = int(z["joint_pos"].shape[0]) + 50
+        except Exception:
+            pass
         subprocess.run(
             [sys.executable, "-m", "tools.sim_studio", "--dance", str(_policy_dir(dance)),
-             "--steps", "1600", "--tether-kp", "0",     # 0 = honest amplitude (no base pinning)
+             "--steps", str(steps), "--tether-kp", "0",   # 0 = honest amplitude (no base pinning)
              "--out", str(mp4), "--overlay-out", str(overlay), "--report", str(meta_p)],
-            cwd=str(PROJECT_ROOT), check=True, timeout=2400, env=env)
+            cwd=str(PROJECT_ROOT), check=True, timeout=3600, env=env)
         report = json.loads(meta_p.read_text()) if meta_p.exists() else {}
         (d / f"{sha}.json").write_text(json.dumps({
             "label": getattr(dance, "name", dance.id),
