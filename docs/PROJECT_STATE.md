@@ -46,6 +46,41 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-20 (v10 REVAMP BUILT — ready for a GPU box): **native-tempo v10 pipeline authored,
+  validated laptop-side, committed (6024fd9..a5b9fc8).** Five pieces: (1) **torque checker
+  rebuilt** (pipeline/motion_dynamics.py): contact-aware floating-base ID tau = M qacc + C + g −
+  Σ J_i^T f_i, GRF split per stance foot by ZMP lever rule, per-foot CoP clamped to its own sole,
+  6 Hz zero-phase low-pass vs GVHMR/GMR jitter; g1_limits derate now flat-until-knee PMSM (k=0.5,
+  old stall=peak was over-pessimistic); per-joint peak/RMS torque, power, saturation-duration,
+  binding_ratio, requires-stepping windows. Validated: static stand knee 11.5/ankle 5 Nm; native
+  Thriller per-joint p95 = 1.4–2.0x real tau_est (was 6–10x); over-frames 49.9%→3.0%. ALSO fixed
+  a latent inverted ZMP support-margin sign (every centred ZMP read "outside support").
+  (2) **beat-preserving retiming + 3C ladder** (tools/motion_repair --beat-preserve / --ladder):
+  stretch only over-envelope 100–400 ms transitions, repay time in nearby low-binding donors
+  (bisection, time-conserving, C1 warp, no frame duplication); ladder order reground → ankle-amp
+  → root-sway → beat-warp → mild global LAST. Thriller: **49.3 s → 49.3 s (x1.000, NATIVE tempo,
+  vs v8 88.7 s / v9 75.3 s), over-frames 3.0%→0.41%, beat drift ≤0.34 s transient, ankle p95
+  35.3 ≤ 40**. Training motion committed: data/motions/thriller/thriller_g1_v10_beatsync.csv
+  (canonical 1479-frame lineage; the 1329-frame thriller_g1.csv is an OLDER take, raw of the
+  canonical take not retained locally). (3) **v10 recipe** (cloud/sim2real_task_v10.py +
+  train_v10_curriculum.sh + run_attempt7.sh + retime_motion.py): 4-stage SPEED CURRICULUM
+  0.60/0.75/0.90/1.00x via per-stage npz retiming (mjlab MotionCommand has no playback-rate hook;
+  ±5% speed DR skipped — needs a fork), 2500/5000/7250/9500 iters HARD stop 9.5k, stance-foot
+  rewards (lin-vel/yaw-rate residuals + foot-flat from a reference stance schedule),
+  saturation-duration soft penalty, phase obs behind G1_PHASE_OBS=1 default OFF (deploy contract
+  unchanged), ankle p95 gate bars env-overridable → v10 exports 22/25 (real robot measures 15–19
+  at native). 64-env box smoke is the runtime gate for the new term plumbing. (4) **uploader
+  crosscheck** (pipeline/success_estimate.py + stage wiring + UI): every prepared dance now gets
+  a pre-GPU "Predicted show readiness" band from a 5-row historical calibration
+  (v6/v7/v8/v9/anchor; envelope interpolation over ankle-over-%, honest wide bands + caveats),
+  GET /api/dances/{id}/success-estimate + card on pipeline/dance screens; v10 beatsync motion
+  predicts 89–99%. `--recalibrate` after any checker change. (5) clean_motion choreography guard
+  (see entry below) — NOTE existing thriller motions were cleaned with the OLD rejector; guard
+  benefits the NEXT extraction. KNOWN PRE-EXISTING BREAKAGE (bisected, predates today):
+  tests/test_cloud_stages.py::test_extract_video_walkthrough KeyError on pushed-video key.
+  **NEXT: user provisions a GPU box → push cloud/ + the beatsync motion per run_attempt7.sh
+  header → launch attempt 7 (v10). Robot repair still blocks deploy.**
+
 - 2026-07-20 (clean_motion audit): **THE OUTLIER REJECTOR WAS DELETING GENUINE DANCE HITS —
   choreography guard added + automated fidelity report (no more eye-checking).** Audit
   (experiments/clean_motion_audit_20260720/, synthetic ground truth + real Thriller + robot-PSD
