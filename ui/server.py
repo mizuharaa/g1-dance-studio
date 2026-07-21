@@ -485,7 +485,7 @@ def _system_refresh_loop() -> None:
     global _system_snapshot
     while True:
         try:
-            _system_snapshot = monitor.snapshot()
+            _system_snapshot = monitor.snapshot_all()
         except Exception:  # snapshot() shouldn't raise, but never kill the thread
             pass
         time.sleep(8)  # box snapshot cadence (was 20) — training status feels live
@@ -495,7 +495,7 @@ def _system_refresh_loop() -> None:
 def system_status() -> dict:
     """Latest cached box snapshot (GPU, training jobs, cost). Cheap to poll."""
     if not _system_snapshot:
-        return monitor.snapshot()
+        return monitor.snapshot_all()
     return _system_snapshot
 
 
@@ -504,7 +504,7 @@ def system_refresh() -> dict:
     """Force an immediate box snapshot (bypasses the 8 s cache loop). Used by
     the frontend's manual Refresh button; blocks up to the ssh timeout."""
     global _system_snapshot
-    snap = monitor.snapshot()
+    snap = monitor.snapshot_all()
     _system_snapshot = snap
     return snap
 

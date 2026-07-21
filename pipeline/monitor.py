@@ -208,7 +208,7 @@ def parse_gather(raw: str) -> dict:
 
 # ---- live gather (cached, degrades gracefully) -------------------------------
 
-_last_good: dict = {}
+_last_good: dict = {}   # per-box cache, keyed by box name/port
 
 
 def augment_job_plan(job: dict, plan: dict) -> dict:
@@ -232,17 +232,39 @@ def augment_job_plan(job: dict, plan: dict) -> dict:
     return job
 
 
-def snapshot(timeout: int = 20) -> dict:
-    """Read the box once and assemble the full System-panel payload.
+def _instance_cfgs(cfg: dict) -> list[dict]:
+    """Expand the config into one cfg-dict per box. A multi-box sweep sets an
+    ``instances`` list ([{name,host,port,user,key_path}, ...]); each entry becomes
+    a full ssh cfg sharing the top-level billing/training_plan. With no
+    ``instances`` the single top-level ``ssh`` block is the one box (backward
+    compatible)."""
+    insts = cfg.get("instances") or []
+    if not insts:
+        return [{**cfg, "_name": cfg.get("ssh", {}).get("name", "box")}]
+    out = []
+    for it in insts:
+        out.append({
+            "transport": "ssh",
+            "ssh": {k: it.get(k) for k in ("host", "port", "user", "key_path")},
+            "billing": cfg.get("billing", {}),
+            "training_plan": cfg.get("training_plan", {}),
+            "_name": it.get("name") or f"{it.get('host')}:{it.get('port')}",
+        })
+    return out
 
-    Never raises: on any failure returns the last good snapshot marked stale, or an
-    unreachable placeholder. Cost is always computed locally (no box needed)."""
-    global _last_good
-    cfg = cloud.load_config()
+
+def snapshot(timeout: int = 20, cfg: dict | None = None) -> dict:
+    """Read ONE box and assemble the System-panel payload. ``cfg`` overrides the
+    stored config (used per-box by snapshot_all); otherwise the single stored box.
+
+    Never raises: on any failure returns that box's last good snapshot marked
+    stale, or an unreachable placeholder. Cost is computed locally (no box)."""
+    cfg = cfg if cfg is not None else cloud.load_config()
+    key = cfg.get("_name") or str(cfg.get("ssh", {}).get("port", "box"))
     cost = compute_cost(cfg.get("billing", {}))
-    out: dict = {"checked_at": time.time(), "reachable": False, "stale": False,
-                 "gpu": None, "jobs": [], "tmux_sessions": [], "cost": cost,
-                 "detail": ""}
+    out: dict = {"checked_at": time.time(), "name": cfg.get("_name", "box"),
+                 "reachable": False, "stale": False, "gpu": None, "jobs": [],
+                 "tmux_sessions": [], "cost": cost, "detail": ""}
     if not cfg.get("transport"):
         out["detail"] = "cloud box not configured (Studio → Cloud GPU)"
         return out
@@ -252,18 +274,33 @@ def snapshot(timeout: int = 20) -> dict:
             raise RuntimeError((stderr or "gather failed").strip()[-200:])
         parsed = parse_gather(stdout)
         out.update(parsed)
+        out["name"] = cfg.get("_name", "box")   # parse_gather must not clobber name
         plan = cfg.get("training_plan") or {}
         for job in out.get("jobs", []):
             augment_job_plan(job, plan)
         out["reachable"] = True
         out["detail"] = "ok"
-        _last_good = {**out}
+        _last_good[key] = {**out}
     except Exception as e:  # noqa: BLE001 — panel must never hang/crash the UI
         out["detail"] = f"box unreachable: {type(e).__name__}: {e}"[:200]
-        if _last_good:
-            out["gpu"] = _last_good.get("gpu")
-            out["jobs"] = _last_good.get("jobs", [])
-            out["tmux_sessions"] = _last_good.get("tmux_sessions", [])
+        lg = _last_good.get(key)
+        if lg:
+            out["gpu"] = lg.get("gpu")
+            out["jobs"] = lg.get("jobs", [])
+            out["tmux_sessions"] = lg.get("tmux_sessions", [])
             out["stale"] = True
-            out["last_good_at"] = _last_good.get("checked_at")
+            out["last_good_at"] = lg.get("checked_at")
     return out
+
+
+def snapshot_all(timeout: int = 15) -> dict:
+    """Gather EVERY configured box. Returns the primary box's payload (backward
+    compatible: /api/system consumers keep working) plus an ``instances`` list of
+    per-box payloads for the multi-box sweep view."""
+    cfg = cloud.load_config()
+    boxes = _instance_cfgs(cfg)
+    snaps = [snapshot(timeout=timeout, cfg=b) for b in boxes]
+    primary = {**snaps[0]}
+    primary["instances"] = snaps
+    primary["instance_count"] = len(snaps)
+    return primary

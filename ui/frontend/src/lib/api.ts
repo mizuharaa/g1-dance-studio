@@ -137,6 +137,9 @@ export interface SystemStatus {
   training_active?: boolean
   cost?: { hours?: number; rate_vnd_per_hour?: number; accrued_vnd?: number; accrued_usd?: number; cap_vnd?: number; cap_fraction?: number; over_cap?: boolean }
   detail?: string
+  name?: string
+  instance_count?: number
+  instances?: SystemStatus[]
 }
 
 export interface Venue {
