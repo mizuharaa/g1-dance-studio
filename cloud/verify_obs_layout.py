@@ -24,7 +24,43 @@ import importlib
 import sys
 
 import numpy as np
-import torch
+
+
+def rebuild_term_major(term_history: dict[str, np.ndarray], term_order) -> np.ndarray:
+    """Flatten ``{term: [history, width]}`` in deploy's exact actor order."""
+    parts = []
+    for name in term_order:
+        if name not in term_history:
+            raise KeyError(f"missing history for actor term {name!r}")
+        history = np.asarray(term_history[name])
+        if history.ndim < 2:
+            raise ValueError(
+                f"actor term {name!r} history must be [history, dim...], "
+                f"got shape {history.shape}"
+            )
+        parts.append(history.reshape(-1))  # oldest -> newest within each term
+    if not parts:
+        raise ValueError("actor term order is empty")
+    return np.concatenate(parts)
+
+
+def _rebuild_frame_major(term_history: dict[str, np.ndarray], term_order) -> np.ndarray:
+    histories = [np.asarray(term_history[name]) for name in term_order]
+    lengths = {history.shape[0] for history in histories}
+    if len(lengths) != 1:
+        raise ValueError(f"actor terms have inconsistent history lengths: {sorted(lengths)}")
+    return np.concatenate([
+        np.concatenate([history[frame].reshape(-1) for history in histories])
+        for frame in range(histories[0].shape[0])
+    ])
+
+
+def _api_unavailable(path: str, exc: BaseException) -> int:
+    print(
+        f"API-UNAVAILABLE: {path}: {type(exc).__name__}: {exc}",
+        file=sys.stderr,
+    )
+    return 3
 
 
 def main() -> int:
@@ -36,55 +72,124 @@ def main() -> int:
     a = ap.parse_args()
 
     if a.task_module:
-        importlib.import_module(a.task_module)   # registers the custom task
-    from mjlab.envs import ManagerBasedRlEnv
-    from mjlab.tasks.registry import load_env_cfg
+        try:
+            importlib.import_module(a.task_module)   # registers the custom task
+        except Exception as exc:  # noqa: BLE001 — box API gate must degrade loudly
+            return _api_unavailable(
+                f"importlib.import_module({a.task_module!r})", exc
+            )
+    try:
+        from mjlab.envs import ManagerBasedRlEnv
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable("mjlab.envs.ManagerBasedRlEnv", exc)
+    try:
+        from mjlab.tasks.registry import load_env_cfg
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable("mjlab.tasks.registry.load_env_cfg", exc)
 
-    cfg = load_env_cfg(a.task)
-    cfg.scene.num_envs = a.num_envs
-    cfg.commands.motion.motion_file = a.motion_file
-    env = ManagerBasedRlEnv(cfg)
-    obs, _ = env.reset()
+    try:
+        cfg = load_env_cfg(a.task)
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable(f"load_env_cfg({a.task!r})", exc)
+    try:
+        cfg.scene.num_envs = a.num_envs
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable("cfg.scene.num_envs", exc)
+    try:
+        cfg.commands["motion"].motion_file = a.motion_file
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable('cfg.commands["motion"].motion_file', exc)
+    try:
+        actor_cfg = cfg.observations["actor"]
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable('cfg.observations["actor"]', exc)
+    try:
+        hist = int(actor_cfg.history_length or 0) or 1
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable('cfg.observations["actor"].history_length', exc)
+    try:
+        flatten_history = bool(actor_cfg.flatten_history_dim)
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable('cfg.observations["actor"].flatten_history_dim', exc)
+    if hist > 1 and not flatten_history:
+        print(
+            '!! FAIL: cfg.observations["actor"].flatten_history_dim is false; '
+            "the actor does not have the deploy flat-history contract.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        env = ManagerBasedRlEnv(cfg)
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable("ManagerBasedRlEnv(cfg)", exc)
+    try:
+        obs, _ = env.reset()
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable("ManagerBasedRlEnv.reset()", exc)
 
-    actor = obs["actor"] if isinstance(obs, dict) else obs
-    flat = actor[0].detach().cpu().numpy().reshape(-1)
-    om = env.observation_manager
+    try:
+        actor = obs["actor"] if isinstance(obs, dict) else obs
+        flat = actor[0].detach().cpu().numpy().reshape(-1)
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable('env.reset()[0]["actor"][0]', exc)
+    try:
+        om = env.observation_manager
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable("env.observation_manager", exc)
     group = "actor"
-    terms = om.active_terms[group]
-    dims = om.group_obs_term_dim[group]
-    hist = int(getattr(cfg.observations.actor, "history_length", 0) or 0) or 1
-    per_frame = sum(int(np.prod(d)) for d in dims)
-
-    print(f"task={a.task}  n_hist={hist}  per_frame={per_frame}  flat={flat.shape[0]}")
-    print(f"terms (in order): {list(terms)}")
+    try:
+        terms = list(om.active_terms[group])
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable('env.observation_manager.active_terms["actor"]', exc)
 
     # Rebuild the term-major oldest->newest layout our HistoryStacker produces from
     # the manager's own per-term history buffer, and byte-compare to the env's flat.
-    # The manager stores each term's history; we read it the same way and stack.
     try:
-        buf = om._group_obs_term_history_buffer[group]   # term -> [envs, hist, dim]
-    except Exception:
-        print("!! cannot access history buffer on this mjlab build — inspect om internals",
-              file=sys.stderr)
-        return 3
-
-    parts = []
+        buffers = om._group_obs_term_history_buffer[group]
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable(
+            'env.observation_manager._group_obs_term_history_buffer["actor"]', exc
+        )
+    term_history: dict[str, np.ndarray] = {}
     for name in terms:
-        h = buf[name][0].detach().cpu().numpy()          # [hist, dim]
-        for f in range(h.shape[0]):                      # oldest -> newest
-            parts.append(h[f].reshape(-1))
-    expect = np.concatenate(parts)
+        path = (
+            'env.observation_manager._group_obs_term_history_buffer'
+            f'["actor"][{name!r}].buffer[0]'
+        )
+        try:
+            # CircularBuffer.buffer is [batch, history, dim...] in chronological
+            # order. Select env 0; indexing the CircularBuffer itself is not valid.
+            term_history[name] = buffers[name].buffer[0].detach().cpu().numpy()
+        except Exception as exc:  # noqa: BLE001
+            return _api_unavailable(path, exc)
+    try:
+        expect = rebuild_term_major(term_history, terms)
+    except Exception as exc:  # noqa: BLE001
+        return _api_unavailable("rebuild_term_major(actor history)", exc)
 
-    ok = expect.shape == flat.shape and np.allclose(expect, flat, atol=1e-5)
+    lengths = {history.shape[0] for history in term_history.values()}
+    if lengths != {hist}:
+        print(
+            f"!! FAIL: live history lengths {sorted(lengths)} != cfg history_length "
+            f"{hist}. Do NOT deploy.",
+            file=sys.stderr,
+        )
+        return 1
+    per_frame = sum(int(np.prod(history.shape[1:])) for history in term_history.values())
+    print(f"task={a.task}  n_hist={hist}  per_frame={per_frame}  flat={flat.shape[0]}")
+    print(f"terms (in order): {terms}")
+
+    ok = expect.shape == flat.shape and np.array_equal(expect, flat)
     if ok:
         print(f"PASS: term-major oldest->newest layout matches the live actor obs "
               f"({flat.shape[0]} dims). HistoryStacker is deploy-correct.")
         return 0
     # diagnose the most common transposition to make the failure actionable
-    frame_major = np.concatenate([
-        np.concatenate([buf[n][0].detach().cpu().numpy()[f].reshape(-1) for n in terms])
-        for f in range(hist)])
-    hint = "FRAME-MAJOR" if np.allclose(frame_major, flat, atol=1e-5) else "UNKNOWN"
+    try:
+        frame_major = _rebuild_frame_major(term_history, terms)
+        hint = "FRAME-MAJOR" if np.array_equal(frame_major, flat) else "UNKNOWN"
+    except (KeyError, ValueError):
+        hint = "UNKNOWN"
     print(f"!! FAIL: our term-major layout does NOT match the live obs; live layout "
           f"looks {hint}. Do NOT deploy — reconcile HistoryStacker before signing.",
           file=sys.stderr)
