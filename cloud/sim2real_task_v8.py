@@ -163,6 +163,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import torch
 
+import effort_scope                # pure per-control scope resolution (F1; CPU-tested)
 import sim2real_task as base       # recipe v2 builder; registers the base task
 import sim2real_task_v7 as v7      # ankle pair + drift termination + arm/station-keeping
 
@@ -193,16 +194,21 @@ ANKLE_EFFORT_DR = (
   float(os.environ.get("G1_ANKLE_EFFORT_DR_LO", "0.65")),
   float(os.environ.get("G1_ANKLE_EFFORT_DR_HI", "0.95")),
 )
-# AUDIT FIX F (2026-07-21): mjlab dr.effort_limits with operation="scale" reads the
-# PRISTINE default forcerange (50 Nm) every time — scales do NOT compose. With two
-# startup events on the ankles (clamp 0.80 then DR 0.65-0.95), the LAST-inserted wins,
-# so the trained envelope was 50*U(0.65,0.95)=32.5-47.5 Nm, NOT the intended
-# clamp-then-DR 26-38 Nm (and the 40 Nm cap was silently exceeded up to 47.5).
-# Fix: the clamp event becomes a no-op (kept only so the presence selfcheck passes),
-# and the single effective DR event carries the FULL composed range off the 50 Nm
-# default = clamp * DR.
+# AUDIT F1 (external audit 2026-07-21 — supersedes the earlier "FIX F" note, which
+# was itself WRONG): mjlab's dr.effort_limits selects asset_cfg.ACTUATOR_ids and
+# never reads joint_names (PINNED_MJLAB_EVIDENCE.md). Every joint_names-scoped
+# effort event therefore applied to ALL actuator groups, and the last-inserted one
+# won globally: the whole robot trained at that scale (wrists 2.6-3.8 Nm, arms
+# 13-19, hips 45.8-66.9, knee/hipR 72.3-105.6 — REPORT.md F1). The fix is ONE
+# custom event (scoped_effort_limits below) that resolves exact per-CONTROL ids via
+# cloud/effort_scope.py and applies non-ankle U(0.80,1.00) + ankle composed
+# clamp*DR, writing from the pristine defaults exactly like the wheel. The legacy
+# event KEYS remain as (1.0,1.0) true no-ops ONLY because v10's selfcheck asserts
+# their presence; they run before the scoped event (dict insertion order == event
+# execution order), so they cannot undo it.
 ANKLE_EFFORT_DR_COMPOSED = (ANKLE_CLAMP_SCALE * ANKLE_EFFORT_DR[0],
                             ANKLE_CLAMP_SCALE * ANKLE_EFFORT_DR[1])   # 0.52-0.76 -> 26-38 Nm
+NON_ANKLE_EFFORT_DR = (0.80, 1.00)   # the stock band, now applied per-control
 
 # Ankle soft-barrier: relu(|tau| - TAU_SOFT)^2, weight BARRIER_W.
 # AUDIT FIX G (2026-07-21): tau_soft=35 was tuned for the FALSIFIED 1.8x/114 Nm regime
@@ -379,6 +385,73 @@ def _scaled_windows():
   return tuple((a * G1_SLOWDOWN, b * G1_SLOWDOWN) for a, b in WAIST_SLACK_WINDOWS_S)
 
 
+def scoped_effort_limits(env, env_ids, non_ankle_range=NON_ANKLE_EFFORT_DR,
+                         ankle_range=ANKLE_EFFORT_DR_COMPOSED,
+                         asset_cfg=None):
+  """AUDIT F1: the ONLY effective effort-limit event. Resolves exact per-control
+  ids (cloud/effort_scope.py, fail-loud), applies non_ankle_range to every
+  non-ankle control and ankle_range to the 4 ankle controls, writing from
+  pristine defaults exactly like the pinned wheel's dr.effort_limits. Then
+  READS BACK env 0's realized forcerange and hard-asserts every control is
+  inside its intended band — a violated band kills startup, which is the
+  box-preflight gate the old presence-only selfcheck never gave us."""
+  asset = env.scene[(asset_cfg.name if asset_cfg is not None else "robot")]
+  scopes = effort_scope.resolve_effort_scopes(asset.actuators,
+                                              base.ANKLE_JOINT_NAMES)
+  if env_ids is None:
+    env_ids = torch.arange(env.scene.num_envs, device=env.device)
+  default = env.sim.get_default_field("actuator_forcerange")
+  model = env.sim.model
+  bands = {}
+  for ids, (lo, hi) in ((scopes["non_ankle_ctrl_ids"], tuple(non_ankle_range)),
+                        (scopes["ankle_ctrl_ids"], tuple(ankle_range))):
+    if not ids:
+      continue
+    ids_t = torch.as_tensor(ids, device=env.device, dtype=torch.long)
+    s = torch.empty((len(env_ids), len(ids)), device=env.device).uniform_(lo, hi)
+    model.actuator_forcerange[env_ids[:, None], ids_t, 0] = default[ids_t, 0] * s
+    model.actuator_forcerange[env_ids[:, None], ids_t, 1] = default[ids_t, 1] * s
+    for i in ids:
+      bands[int(i)] = (lo, hi)
+  # realized readback: env 0 must sit inside its band relative to the DEFAULT
+  e0 = env_ids[0]
+  fr = model.actuator_forcerange[e0]
+  bad = []
+  for i, (lo, hi) in bands.items():
+    d = float(default[i, 1])
+    if d <= 0:
+      continue
+    scale = float(fr[i, 1]) / d
+    if not (lo * 0.999 <= scale <= hi * 1.001):
+      bad.append(f"ctrl {i}: realized scale {scale:.3f} outside [{lo},{hi}]")
+  n_ank = len(scopes["ankle_ctrl_ids"])
+  print(f"[scoped_effort_limits] ankle ctrls={scopes['ankle_ctrl_ids']} "
+        f"({ankle_range[0]}-{ankle_range[1]}x), non-ankle "
+        f"{len(scopes['non_ankle_ctrl_ids'])} ctrls "
+        f"({non_ankle_range[0]}-{non_ankle_range[1]}x); env0 readback "
+        f"{'OK' if not bad else 'VIOLATIONS: ' + '; '.join(bad)}")
+  if n_ank != len(base.ANKLE_JOINT_NAMES) or bad:
+    raise RuntimeError("scoped_effort_limits realized-range check FAILED: "
+                       + ("; ".join(bad) or f"ankle ctrl count {n_ank}"))
+
+
+# actuator_forcerange must be per-env expanded before an event writes it with an
+# env index. dr.effort_limits gets that via @requires_model_fields; attach the
+# same marker to our custom event so expansion never depends on the legacy no-op
+# events happening to run first. Defensive across wheel layouts; the readback
+# assert inside the event is the runtime backstop either way.
+for _mod_name in ("mjlab.envs.mdp.dr.actuator", "mjlab.envs.mdp.dr",
+                  "mjlab.envs.mdp"):
+  try:
+    _m = __import__(_mod_name, fromlist=["requires_model_fields"])
+    _rmf = getattr(_m, "requires_model_fields", None)
+    if _rmf is not None:
+      scoped_effort_limits = _rmf("actuator_forcerange")(scoped_effort_limits)
+      break
+  except Exception:  # noqa: BLE001 - try the next candidate location
+    continue
+
+
 def _drop_privileged_actor_terms(cfg) -> None:
   """Asymmetric actor-critic (Agent 0): drop the two privileged terms from the ACTOR
   group; leave them in the CRITIC group. Runs in BOTH train and play so the exported
@@ -445,35 +518,33 @@ def _apply_v8(cfg, train: bool):
             "waist_body_name": WAIST_BODY_NAME, "windows_s": win},
   )
 
-  # 2. velocity-honest ankle effort clamp + widened downward DR (train only — the DR
-  #    events only exist in train mode; deploy/play clamp at the true motor limit).
+  # 2. AUDIT F1 — effort randomization, correctly scoped per CONTROL. All three
+  #    legacy events are (1.0,1.0) TRUE NO-OPS (joint_names never scoped anything:
+  #    dr.effort_limits reads actuator_ids only, so each of these used to hit the
+  #    whole robot). They keep their KEYS because v10's selfcheck asserts presence,
+  #    and they run BEFORE the one effective event below (dict insertion order ==
+  #    event execution order), so they reset-to-default then get overwritten.
   if train and "dr_effort_limits" in cfg.events:
-    # re-scope the stock global effort DR OFF the ankle channels (keep 0.80-1.00 there)
-    cfg.events["dr_effort_limits"].params["asset_cfg"] = SceneEntityCfg(
-      "robot", joint_names=NON_ANKLE_JOINT_PATTERNS
-    )
-    # AUDIT FIX F: scales read the PRISTINE 50 Nm default (they don't compose) and the
-    # LAST-inserted startup event wins, so this first event is now a documented NO-OP
-    # (scale 1.0) kept only so the presence selfcheck at v8:603 passes; the real
-    # clamp+DR lives entirely in the composed range on dr_effort_limits_ankle below.
-    cfg.events["dr_ankle_effort_clamp"] = EventTermCfg(
+    cfg.events["dr_effort_limits"].params["effort_limit_range"] = (1.0, 1.0)
+    for legacy in ("dr_ankle_effort_clamp", "dr_effort_limits_ankle"):
+      cfg.events[legacy] = EventTermCfg(
+        mode="startup",
+        func=dr.effort_limits,
+        params={
+          "effort_limit_range": (1.0, 1.0),   # no-op alias (see F1 note above)
+          "operation": "scale",
+          "asset_cfg": SceneEntityCfg("robot"),
+        },
+      )
+    # THE single effective event: per-control ankle 0.52-0.76 (26-38 Nm off the
+    # 50 Nm default), everything else 0.80-1.00. Inserted LAST. Includes a
+    # realized-forcerange readback that kills startup on any violation.
+    cfg.events["dr_effort_scoped"] = EventTermCfg(
       mode="startup",
-      func=dr.effort_limits,
+      func=scoped_effort_limits,
       params={
-        "effort_limit_range": (1.0, 1.0),   # no-op (see ANKLE_EFFORT_DR_COMPOSED note)
-        "operation": "scale",
-        "asset_cfg": SceneEntityCfg("robot", joint_names=base.ANKLE_JOINT_NAMES),
-      },
-    )
-    # single effective ankle effort event: composed clamp*DR off the 50 Nm default
-    # (0.52-0.76) -> trained envelope 26-38 Nm, as originally intended.
-    cfg.events["dr_effort_limits_ankle"] = EventTermCfg(
-      mode="startup",
-      func=dr.effort_limits,
-      params={
-        "effort_limit_range": ANKLE_EFFORT_DR_COMPOSED,
-        "operation": "scale",
-        "asset_cfg": SceneEntityCfg("robot", joint_names=base.ANKLE_JOINT_NAMES),
+        "non_ankle_range": NON_ANKLE_EFFORT_DR,
+        "ankle_range": ANKLE_EFFORT_DR_COMPOSED,
       },
     )
 
@@ -621,19 +692,31 @@ def _selfcheck() -> int:
   print(f"  per-frame chk: {'OK (154, NOT 160)' if pf_ok else f'!! got {per_frame}, expected 154'}")
   print(f"  flat chk     : {'OK (' + str(154*G1_OBS_HISTORY) + ')' if flat_ok else f'!! got {flat}, expected {154*G1_OBS_HISTORY}'}")
 
-  print("== velocity-honest ankle effort clamp (Agent D + AUDIT FIX F) ==")
-  clamp_ok = ("dr_ankle_effort_clamp" in cfg.events
-              and "dr_effort_limits_ankle" in cfg.events)
-  ok &= clamp_ok
+  print("== effort randomization (AUDIT F1: per-control scoped event) ==")
   clo, chi = ANKLE_EFFORT_DR_COMPOSED
-  print(f"  dr_ankle_effort_clamp    : NO-OP scale (1.0) "
-        f"{'present OK' if 'dr_ankle_effort_clamp' in cfg.events else '!! MISSING'}")
-  print(f"  dr_effort_limits_ankle   : composed scale {clo:.3f}-{chi:.3f} off "
-        f"{STOCK_ANKLE_EFFORT_NM} Nm -> trained envelope "
-        f"~{STOCK_ANKLE_EFFORT_NM*clo:.0f}-{STOCK_ANKLE_EFFORT_NM*chi:.0f} Nm  "
-        f"{'OK' if 'dr_effort_limits_ankle' in cfg.events else '!! MISSING'}")
-  print(f"  NOTE: mjlab scale reads the 50 Nm DEFAULT (no compose); the box run should "
-        f"dump realized actuator_forcerange for the ankle ctrl_ids to confirm 26-38 Nm.")
+  nlo, nhi = NON_ANKLE_EFFORT_DR
+  scoped_ok = "dr_effort_scoped" in cfg.events
+  legacy_ok = all(k in cfg.events and
+                  tuple(cfg.events[k].params.get("effort_limit_range", ())) == (1.0, 1.0)
+                  for k in ("dr_effort_limits", "dr_ankle_effort_clamp",
+                            "dr_effort_limits_ankle"))
+  last_ok = list(cfg.events.keys())[-1] == "dr_effort_scoped" or \
+      list(cfg.events.keys()).index("dr_effort_scoped") > \
+      max(list(cfg.events.keys()).index(k)
+          for k in ("dr_effort_limits", "dr_ankle_effort_clamp",
+                    "dr_effort_limits_ankle"))
+  ok &= scoped_ok and legacy_ok and last_ok
+  print(f"  dr_effort_scoped         : {'present OK' if scoped_ok else '!! MISSING'}"
+        f"  (ankle {clo:.2f}-{chi:.2f}x -> ~{STOCK_ANKLE_EFFORT_NM*clo:.0f}-"
+        f"{STOCK_ANKLE_EFFORT_NM*chi:.0f} Nm; non-ankle {nlo:.2f}-{nhi:.2f}x)")
+  print(f"  legacy events neutralized: {'OK (all (1.0,1.0))' if legacy_ok else '!! NOT no-ops'}")
+  print(f"  scoped runs after legacy : {'OK' if last_ok else '!! ORDER WRONG (would be overwritten)'}")
+  print("  intended per-joint scale bands (Nm realized only on the box — the event's")
+  print("  startup readback asserts them and KILLS the run on violation):")
+  for jn in effort_scope.G1_JOINT_NAMES:
+    band = (clo, chi) if jn in base.ANKLE_JOINT_NAMES else (nlo, nhi)
+    tag = "ANKLE" if jn in base.ANKLE_JOINT_NAMES else "     "
+    print(f"    {tag} {jn:28s} x[{band[0]:.2f},{band[1]:.2f}]")
 
   print("== slowdown + waist slack ==")
   print(f"  G1_SLOWDOWN              : {G1_SLOWDOWN}x")

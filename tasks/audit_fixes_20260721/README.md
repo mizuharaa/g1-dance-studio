@@ -23,7 +23,7 @@ explicit paths only.
 
 ## Status board (update the checkbox + commit sha when a task lands)
 
-- [ ] A1 effort scope (F1) — 
+- [x] A1 effort scope (F1) — landed (see git log [laneA] F1)
 - [ ] A2 grounding flight (F8) — 
 - [ ] A3 v12 rebuild + manifest (F2) — 
 - [ ] A4 eval harness (F4) — 
@@ -36,6 +36,9 @@ explicit paths only.
 - [ ] B6 show tests green — 
 
 ## Coordination log (append; needed-but-unowned files, schema questions)
+
+- (laneA note) NEW FILE `cloud/effort_scope.py` — pure per-control scope resolver for F1,
+  Lane A owned, mjlab-free so tests import it. Lane B: read-only.
 
 - (open) Lane A wires the frozen `verify_obs_layout.py` CLI (CONVENTIONS §3.5)
   into `run_attempt9.sh` as a guarded box-only step — Lane B must not change the
