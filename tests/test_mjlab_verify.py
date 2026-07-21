@@ -31,8 +31,10 @@ def _files(tmp_path):
 def test_signed_and_method_labeled(tmp_path):
     pol, mot = _files(tmp_path)
     v = mjlab_verify.build_verdict(_eval(1.0, 1.0), pol, mot)
-    assert v["schema"] == "sim_exam/v1"
-    assert v["method"] == "mjlab_heldout_v1"  # never mislabeled as cross-engine
+    assert v["schema"] == "sim_exam/v2"
+    assert v["method"] == "mjlab_heldout_v2"  # never mislabeled as cross-engine
+    assert v["eval_id"]
+    assert v["created_at"]
     assert signature_valid(v)  # tamper-evident
 
 
@@ -40,7 +42,7 @@ def test_perfect_run_authorizes_show_ready(tmp_path):
     pol, mot = _files(tmp_path)
     v = mjlab_verify.build_verdict(_eval(1.0, 1.0), pol, mot)
     ok, reason = authorize(v, policy_sha=full_sha256(pol), motion_sha=full_sha256(mot))
-    assert ok, reason  # 128/128 clean → clean==runs, push force floor met
+    assert ok, reason
 
 
 def test_98pct_does_not_authorize(tmp_path):
@@ -52,10 +54,17 @@ def test_98pct_does_not_authorize(tmp_path):
     assert v["repeatability"]["clean"] < v["repeatability"]["runs"]
 
 
-def test_push_force_meets_floor(tmp_path):
+def test_push_records_honest_delta_velocity_not_force(tmp_path):
     pol, mot = _files(tmp_path)
     v = mjlab_verify.build_verdict(_eval(1.0, 1.0), pol, mot)
-    assert v["push"]["force_n"] >= 150.0  # MIN_PUSH_FORCE_N, honest m*dv/dt equiv
+    assert v["disturbance"] == {
+        "kind": "delta_velocity",
+        "delta_v_mps": 0.5,
+        "axes": ["x", "y", "z"],
+        "seed": 90002,
+    }
+    assert "force_n" not in v["push"]
+    assert "force_n" not in v
 
 
 def test_tamper_breaks_signature(tmp_path):

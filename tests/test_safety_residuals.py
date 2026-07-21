@@ -7,6 +7,8 @@ exam's repeatability phase applies real domain randomization.
 from __future__ import annotations
 
 import threading
+import uuid
+from datetime import datetime, timezone
 
 import pytest
 
@@ -34,11 +36,17 @@ def show_env(tmp_path, monkeypatch):
 
 def _signed_pass_verdict(policy, motion):
     v = {
-        "schema": "sim_exam/v1",
+        "schema": "sim_exam/v2",
+        "eval_id": str(uuid.uuid4()),
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "policy_sha256": ev.full_sha256(policy),
         "motion_sha256": ev.full_sha256(motion),
+        "disturbance": {
+            "kind": "delta_velocity", "delta_v_mps": 0.5,
+            "axes": ["x", "y", "z"], "seed": 1234,
+        },
         "nominal": {"pass": True, "duration_s": 44.3, "tracked": True},
-        "push": {"pass": True, "force_n": 250.0},
+        "push": {"pass": True},
         "repeatability": {"pass": True, "runs": 3, "clean": 3},
         "verdict": "pass",
     }

@@ -18,6 +18,7 @@ import hashlib
 import hmac
 import json
 import os
+import uuid
 from pathlib import Path
 
 # consecutive-clean / clean-run floor a verdict must show to authorize a deploy.
@@ -28,9 +29,10 @@ REQUIRED_CLEAN_RUNS = 3
 # 0.99 deliberately and per explicit authorization. Still needs >= REQUIRED_CLEAN_RUNS
 # episodes so a 1-run "100%" cannot sneak through.
 REQUIRED_CLEAN_RATE = 0.99
-# a push suite below this force floor cannot authorize (findings #22): a 5 N love-tap
-# proving nothing must not read as "push PASS".
+# Legacy sim_exam/v1's real-force MuJoCo producer still imports this constant. New
+# sim_exam/v2 mjlab verdicts do not convert velocity changes into fictional force.
 MIN_PUSH_FORCE_N = 150.0
+MIN_DELTA_V_MPS = 0.5
 
 _SIGNING_KEY_PATH = Path(__file__).resolve().parent.parent / ".secrets" / "exam_signing.key"
 
@@ -90,19 +92,51 @@ def _phase_passed(phase: object) -> bool:
     return isinstance(phase, dict) and phase.get("pass") is True
 
 
+def valid_eval_id(value: object) -> bool:
+    """True only for a canonical UUIDv4 string."""
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = uuid.UUID(value)
+    except (ValueError, AttributeError):
+        return False
+    return parsed.version == 4 and str(parsed) == value
+
+
 def derive_pass(verdict: dict) -> bool:
     """Re-derive the pass decision from phase CONTENTS, ignoring the ``verdict`` string.
 
-    All three phases must be present, have actually run, and passed; repeatability must
-    show >= REQUIRED_CLEAN_RUNS episodes with a survival rate >= REQUIRED_CLEAN_RATE
-    (the user's >=99% show-ready standard); the push suite must meet the force floor.
+    New v2 verdicts require an honest delta-velocity disturbance of at least 0.5 m/s.
+    Legacy v1 remains readable/authorizable for existing non-repeatability consumers,
+    but shows.record_sim_run_from_verdict accepts only v2 with a unique eval_id.
     """
-    if not isinstance(verdict, dict) or verdict.get("schema") != "sim_exam/v1":
+    if not isinstance(verdict, dict) or verdict.get("schema") not in {
+        "sim_exam/v1", "sim_exam/v2"
+    }:
         return False
     nominal, push, repeat = verdict.get("nominal"), verdict.get("push"), verdict.get("repeatability")
     if not (_phase_passed(nominal) and _phase_passed(push) and _phase_passed(repeat)):
         return False
-    if not (isinstance(push.get("force_n"), (int, float)) and push["force_n"] >= MIN_PUSH_FORCE_N):
+    if verdict.get("schema") == "sim_exam/v2":
+        disturbance = verdict.get("disturbance")
+        if not valid_eval_id(verdict.get("eval_id")) or not isinstance(
+            verdict.get("created_at"), str
+        ):
+            return False
+        if not isinstance(disturbance, dict) or disturbance.get("kind") != "delta_velocity":
+            return False
+        delta_v = disturbance.get("delta_v_mps")
+        axes = disturbance.get("axes")
+        seed = disturbance.get("seed")
+        if (not isinstance(delta_v, (int, float)) or isinstance(delta_v, bool)
+                or delta_v < MIN_DELTA_V_MPS):
+            return False
+        if not isinstance(axes, list) or not axes or not all(isinstance(v, str) for v in axes):
+            return False
+        if not isinstance(seed, int) or isinstance(seed, bool):
+            return False
+    elif not (isinstance(push.get("force_n"), (int, float))
+              and push["force_n"] >= MIN_PUSH_FORCE_N):
         return False
     runs, clean = repeat.get("runs"), repeat.get("clean")
     if not (isinstance(runs, int) and isinstance(clean, int)) or runs <= 0:

@@ -1,7 +1,7 @@
 """Turn a box-side held-out mjlab eval (cloud/heldout_eval.py) into a SIGNED
-sim_exam/v1 verdict.
+sim_exam/v2 verdict.
 
-This is `method: "mjlab_heldout_v1"` — same-ENGINE held-out robustness verification
+This is `method: "mjlab_heldout_v2"` — same-ENGINE held-out robustness verification
 (disjoint seeds + observation corruption + external shoves), NOT a different-simulator
 sim2sim check (the plain-MuJoCo G1 model isn't dynamically faithful; see
 docs/exam_physics_fix.md). It catches a policy that overfits training seeds or can't
@@ -9,14 +9,16 @@ take a shove. It does NOT catch mjlab-specific physics exploitation, and it is N
 substitute for gantry-first robot-day validation.
 
 The verdict flows through the same pipeline.exam_verdict gate as any other: show-ready
-authorization still requires derive_pass — all phases pass, the push force floor is met,
-and repeatability is clean==runs (i.e. EVERY held-out episode survived). A policy at
+authorization still requires derive_pass — all phases pass, the delta-velocity
+disturbance is at least 0.5 m/s, and repeatability meets the clean-rate floor. A policy at
 98.4% therefore does NOT authorize show-ready — by design.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from pipeline.exam_verdict import (
@@ -27,13 +29,10 @@ from pipeline.exam_verdict import (
 # show-ready still needs repeatability clean==runs (100%) via derive_pass.
 NOMINAL_MIN = 0.98
 PUSH_MIN = 0.95
-# mjlab push is a base-velocity impulse, not a Newton force. Record the honest
-# impulse-equivalent force (F = m*dv/dt) so the schema's force floor is met on a
-# real physical basis, and document the mechanism alongside it.
-G1_MASS_KG = 35.0
-PUSH_DV_MPS = 0.5           # representative from mjlab VELOCITY_RANGE
-PUSH_DT_S = 0.02            # one 50 Hz control period
-PUSH_FORCE_EQUIV_N = round(G1_MASS_KG * PUSH_DV_MPS / PUSH_DT_S, 1)  # ~875 N
+# Pinned mjlab tracking VELOCITY_RANGE: linear components are sampled independently
+# from x/y ±0.5 m/s and z ±0.2 m/s. This is a state delta, not an applied force.
+PUSH_DV_MPS = 0.5
+PUSH_AXES = ["x", "y", "z"]
 
 
 def build_verdict(eval_json: dict, policy_path: Path, motion_path: Path,
@@ -54,8 +53,10 @@ def build_verdict(eval_json: dict, policy_path: Path, motion_path: Path,
     clean = int(nom["n_success"])
 
     verdict = {
-        "schema": "sim_exam/v1",
-        "method": "mjlab_heldout_v1",
+        "schema": "sim_exam/v2",
+        "method": "mjlab_heldout_v2",
+        "eval_id": str(uuid.uuid4()),
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "dance": eval_json.get("dance", motion_path.stem),
         "policy": str(policy_path),
         "policy_sha256": full_sha256(policy_path) if policy_path.exists() else None,
@@ -67,6 +68,12 @@ def build_verdict(eval_json: dict, policy_path: Path, motion_path: Path,
             if eval_motion_path and eval_motion_path.exists() else None
         ),
         "venue_max_excursion_m": venue_max_excursion_m,
+        "disturbance": {
+            "kind": "delta_velocity",
+            "delta_v_mps": PUSH_DV_MPS,
+            "axes": list(PUSH_AXES),
+            "seed": int(push["seed"]),
+        },
         "nominal": {
             "pass": nom["success_rate"] >= NOMINAL_MIN,
             "success_rate": nom["success_rate"],
@@ -81,9 +88,6 @@ def build_verdict(eval_json: dict, policy_path: Path, motion_path: Path,
             "success_rate": push["success_rate"],
             "n_success": int(push["n_success"]),
             "num_episodes": int(push["num_episodes"]),
-            "force_n": PUSH_FORCE_EQUIV_N,
-            "push_mechanism": "mjlab base-velocity impulse (~%.1f m/s); "
-                              "force_n is the m*dv/dt equivalent" % PUSH_DV_MPS,
             "mpkpe_m": push.get("mpkpe_m"),
             "held_out_seed": push.get("seed"),
         },

@@ -134,6 +134,8 @@ class Dance:
     motion_sha256: str | None = None
     bundle_id: str | None = None
     legacy_bundle: bool = False
+    exam_ids: list[str] = field(default_factory=list)
+    repeat_evidence: str | None = None
     incident: dict | None = None        # last live incident/abort that demoted it (finding #9)
     audio: dict | None = None           # music track + alignment (pipeline/audio.py); see
                                         # docs/show_production.md. None = silent dance.
@@ -164,6 +166,16 @@ def new_dance(name: str, **kw) -> Dance:
 
 def load_dance(dance_id: str) -> Dance:
     payload = json.loads((DANCES_DIR / dance_id / "dance.json").read_text())
+    raw_exam_ids = payload.get("exam_ids") or []
+    payload["exam_ids"] = list(dict.fromkeys(
+        value for value in raw_exam_ids if exam_verdict.valid_eval_id(value)
+    ))
+    if payload.get("status") == "show-ready" and not payload["exam_ids"]:
+        # Historical streaks used null/non-unique identifiers and cannot prove
+        # independent evaluations. Keep the record readable, but label it honestly.
+        payload["repeat_evidence"] = "legacy-unverified"
+    else:
+        payload.setdefault("repeat_evidence", None)
     return Dance(**payload)
 
 
@@ -240,6 +252,10 @@ def dedupe_dances() -> int:
                 if not getattr(keeper, fld) and getattr(loser, fld):
                     setattr(keeper, fld, getattr(loser, fld))
                     changed = True
+            merged_exam_ids = list(dict.fromkeys(keeper.exam_ids + loser.exam_ids))
+            if merged_exam_ids != keeper.exam_ids:
+                keeper.exam_ids = merged_exam_ids
+                changed = True
             # never let a de-dupe downgrade status
             if DANCE_STATUSES.index(loser.status) > DANCE_STATUSES.index(keeper.status):
                 keeper.status = loser.status
@@ -282,20 +298,33 @@ class VerdictError(ValueError):
     """A submitted sim-exam verdict is unauthentic or about a different artifact."""
 
 
+class VerdictReplayError(VerdictError):
+    """A signed eval_id was already submitted for this dance."""
+
+
 def record_sim_run_from_verdict(dance_id: str, verdict: dict) -> Dance:
     """Record one sim-exam run from an AUTHENTICATED verdict (findings #23/#24/#26/#27).
 
     The old endpoint trusted a bare ``passed`` bool from the caller — anyone could
     POST ``{"passed": true}`` and march a dance to show-ready. Now the caller must
-    submit a signed ``sim_exam/v1`` verdict; we (a) verify the HMAC, (b) require it to
+    submit a signed ``sim_exam/v2`` verdict; we (a) verify the HMAC, (b) require it to
     bind to THIS dance's exact policy+motion bytes, and (c) DERIVE pass from phase
-    contents (all phases ran+passed, push force floor, clean==runs). Only then is the
+    contents (all phases ran+passed, honest disturbance, clean-rate floor). Only then is the
     clean streak credited, and the exam-passed policy sha is pinned onto the dance.
     """
     with _record_lock(DANCES_DIR / dance_id):
         dance = load_dance(dance_id)  # fresh read under lock (finding #28)
         if not exam_verdict.signature_valid(verdict):
             raise VerdictError("verdict signature invalid or missing — not authentic")
+        eval_id = verdict.get("eval_id")
+        if not exam_verdict.valid_eval_id(eval_id):
+            raise VerdictError("verdict eval_id is missing or is not a canonical uuid4")
+        if verdict.get("schema") != "sim_exam/v2":
+            raise VerdictError("repeatability credit requires schema sim_exam/v2")
+        if eval_id in dance.exam_ids:
+            raise VerdictReplayError(
+                f"verdict eval_id {eval_id} was already recorded for this dance"
+            )
         if not dance.policy_path or not dance.motion_csv:
             raise VerdictError("dance has no registered policy/motion to bind the verdict to")
         policy_sha = exam_verdict.full_sha256(_abs(dance.policy_path))
@@ -308,24 +337,49 @@ def record_sim_run_from_verdict(dance_id: str, verdict: dict) -> Dance:
         summary = {
             "nominal": verdict.get("nominal"), "push": verdict.get("push"),
             "repeatability": (verdict.get("repeatability") or {}).get("clean"),
+            "disturbance": verdict.get("disturbance"),
         }
+        dance.exam_ids.append(eval_id)
         return _apply_sim_run(dance, passed, policy_sha=policy_sha,
-                              metrics=summary, exam_id=verdict.get("at"),
-                              video=verdict.get("video"))
+                              metrics=summary, exam_id=eval_id,
+                              video=verdict.get("video"), distinct_evidence=True)
 
 
 def _apply_sim_run(dance: Dance, passed: bool, *, policy_sha: str | None = None,
                    metrics: dict | None = None, exam_id: str | None = None,
-                   video: str | None = None) -> Dance:
+                   video: str | None = None, distinct_evidence: bool = False) -> Dance:
     """Mutate + persist one run's effect on the dance. Caller holds the record lock."""
     rep = dance.repeatability
+    rep.setdefault("total_runs", 0)
+    rep.setdefault("consecutive_clean", 0)
+    rep.setdefault("history", [])
     rep["total_runs"] += 1
-    rep["consecutive_clean"] = rep["consecutive_clean"] + 1 if passed else 0
     rep["last_run_at"] = time.time()
     rep["history"].insert(0, {"passed": passed, "at": rep["last_run_at"],
                               "exam_id": exam_id, "metrics": metrics or {},
                               "video": video, "policy_sha256": policy_sha})
     del rep["history"][20:]
+    if distinct_evidence:
+        # Derive the streak from newest-first, distinct, non-legacy IDs for THIS
+        # policy. Null IDs and an older policy boundary provide no current credit.
+        seen: set[str] = set()
+        clean = 0
+        for row in rep["history"]:
+            row_id = row.get("exam_id")
+            if (not exam_verdict.valid_eval_id(row_id)
+                    or row.get("policy_sha256") != policy_sha):
+                break
+            if row.get("passed") is not True:
+                break
+            if row_id in seen:
+                continue
+            seen.add(row_id)
+            clean += 1
+        rep["consecutive_clean"] = clean
+        if clean >= REPEATABILITY_TARGET:
+            dance.repeat_evidence = None
+    else:
+        rep["consecutive_clean"] = rep["consecutive_clean"] + 1 if passed else 0
     verdict_str = "pass" if passed else "fail"
     dance.sim_exam = {"verdict": verdict_str, "at": rep["last_run_at"],
                       "exam_id": exam_id, "metrics": metrics or {},
@@ -338,6 +392,7 @@ def _apply_sim_run(dance: Dance, passed: bool, *, policy_sha: str | None = None,
     elif dance.status == "show-ready":
         # a failed exam demotes: "works every time" no longer holds (finding #9)
         dance.status = "sim-verified"
+        dance.repeat_evidence = None
     dance.save()
     return dance
 
@@ -548,6 +603,7 @@ def attach_policy(dance_id: str, policy_path: str, *, notes: str | None = None) 
         dance.motion_sha256 = None
         dance.bundle_id = None
         dance.legacy_bundle = False
+        dance.repeat_evidence = None
         dance.sim_exam = None
         dance.status = "draft"
         dance.repeatability["consecutive_clean"] = 0
@@ -708,6 +764,7 @@ def record_outcome(show: Show, result: str, notes: str = "") -> Show:
                 dance = None
             if dance is not None:
                 dance.repeatability["consecutive_clean"] = 0
+                dance.repeat_evidence = None
                 dance.incident = {"show_id": show.id, "result": result, "at": time.time()}
                 if dance.status == "show-ready":
                     dance.status = "sim-verified"

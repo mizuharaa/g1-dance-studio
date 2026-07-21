@@ -734,7 +734,7 @@ def promote_dance(dance_id: str, payload: dict = Body(...)) -> dict:
 def record_sim_run(dance_id: str, payload: dict = Body(...)) -> dict:
     """Repeatability contract endpoint — see docs/show_mode_contracts.md §1.
 
-    Findings #23/#24: the caller must submit a signed sim_exam/v1 verdict (inline as
+    Findings #23/#24: the caller must submit a signed sim_exam/v2 verdict (inline as
     `verdict`, or a path as `verdict_path`), NOT a bare `passed` bool. The verdict's
     HMAC is verified, it must bind to this dance's exact policy+motion bytes, and the
     pass is re-derived from phase contents before any clean-streak credit."""
@@ -746,10 +746,12 @@ def record_sim_run(dance_id: str, payload: dict = Body(...)) -> dict:
             raise HTTPException(400, f"verdict_path not found: {vp}")
         verdict = json.loads(vp.read_text())
     if not isinstance(verdict, dict):
-        raise HTTPException(400, "payload needs a signed sim_exam/v1 'verdict' "
+        raise HTTPException(400, "payload needs a signed sim_exam/v2 'verdict' "
                                  "(object) or 'verdict_path'")
     try:
         dance = shows.record_sim_run_from_verdict(dance_id, verdict)
+    except shows.VerdictReplayError as e:
+        raise HTTPException(409, str(e))
     except shows.VerdictError as e:
         raise HTTPException(400, str(e))
     return _dance_dict(dance)
