@@ -150,6 +150,18 @@ export function OverviewScreen({ data, onPerform }: { data: ConsoleData; onPerfo
             <CardHeader className="flex-row items-end justify-between space-y-0 pb-4"><div><div className="panel-kicker"><Cpu /> System</div><CardTitle className="mt-2">Compute & training</CardTitle></div><RefreshSystemButton showTimestamp={false} /></CardHeader>
             <CardContent className="space-y-5">
               <div className="grid grid-cols-2 gap-5"><Metric label="GPU utilization" value={gpu?.utilization_pct != null ? `${Math.round(gpu.utilization_pct)}%` : "Offline"} accent={gpu ? "blue" : undefined} detail={gpu?.name ?? data.system?.detail} /><Metric label="Cloud spend" value={fmtMoney(cost?.accrued_vnd)} accent={cost?.over_cap ? "red" : undefined} detail={`${cost?.hours?.toFixed(1) ?? "—"} box hours`} /></div>
+              {(data.system?.instances?.length ?? 0) > 1 && <div className="grid gap-2 sm:grid-cols-2">
+                {data.system!.instances!.map((inst, i) => {
+                  const job = inst.jobs?.[0]
+                  const pct = job?.iteration && job?.max_iteration ? job.iteration / job.max_iteration * 100 : 0
+                  const online = inst.reachable && !inst.stale
+                  return <div key={inst.name ?? i} className="rounded-lg border border-border bg-background/35 p-2.5">
+                    <div className="flex items-center justify-between gap-2"><span className="truncate text-[11px] font-semibold">{inst.name ?? `box ${i + 1}`}</span><span className={`h-2 w-2 shrink-0 rounded-full ${online ? "bg-emerald-400" : inst.stale ? "bg-amber-400" : "bg-red-400"}`} /></div>
+                    <div className="mt-1 font-mono text-[10px] text-muted-foreground">GPU {inst.gpu?.utilization_pct != null ? `${Math.round(inst.gpu.utilization_pct)}%` : "offline"}</div>
+                    {job ? <><Progress className="mt-1.5 h-1" value={pct} indicatorClassName={job.running ? "bg-blue-500" : "bg-emerald-500"} /><div className="mt-1 text-right font-mono text-[9px] text-muted-foreground">{job.iteration?.toLocaleString() ?? "—"}/{job.max_iteration?.toLocaleString() ?? "—"}</div></> : <div className="mt-1.5 text-[9px] text-muted-foreground">{online ? "provisioning / idle" : "unreachable"}</div>}
+                  </div>
+                })}
+              </div>}
               <div className="rounded-lg border border-border bg-background/35 p-3">
                 <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold">{activeTraining?.name ?? "No active training"}</span><StatusBadge status={activeTraining ? (activeTraining.running ? "running" : (activeTraining.state === "failed" || activeTraining.state === "stopped" ? activeTraining.state : "done")) : "idle"} /></div>
                 <Progress value={activeTraining?.iteration && activeTraining.max_iteration ? activeTraining.iteration / activeTraining.max_iteration * 100 : 0} indicatorClassName={activeTraining && !activeTraining.running ? "bg-emerald-500" : "bg-blue-500"} />
