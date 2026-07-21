@@ -24,8 +24,11 @@ import sys
 from pathlib import Path
 
 # The two gate-critical conditions we screen on (cheap: skips the 60/80 ms stress
-# lines that don't gate). Names must match cloud/sim_gap_check.py CONDITIONS.
-SCREEN_ONLY = "nominal,delay40ms_push"
+# lines that don't gate). Names must match cloud/sim_gap_check.py CONDITIONS_V2
+# (harness v2, audit F4): "clean" = true no-DR/no-delay baseline, and the
+# honestly-named composite "dr_delay40ms_push" (DR + 40 ms cmd delay + obs
+# delay band + noise + push — see the row's `realized` block).
+SCREEN_ONLY = "clean,dr_delay40ms_push"
 
 # gate thresholds (mirror cloud/sim_gap_check.py + PROJECT_STATE gate). The two
 # ankle p95 bars are env-overridable exactly like sim_gap_check.py's (v10 exports
@@ -49,9 +52,14 @@ def _last_checkpoints(rundir: Path, k: int) -> list[Path]:
 
 
 def _score(gap: dict) -> dict:
-  """Turn a screened gap.json into gate-pass counts + tiebreak metrics."""
-  n = gap["conditions"]["nominal"]
-  p = gap["conditions"].get("delay40ms_push", {})
+  """Turn a screened gap.json into gate-pass counts + tiebreak metrics.
+
+  Harness v2 rows ("clean"/"dr_delay40ms_push") are primary; the harness-v1
+  names are read as a FALLBACK only so old screen jsons can still be rescored
+  (v1 semantics differ — check gap["harness_version"] before comparing runs)."""
+  conds = gap.get("conditions", {})
+  n = conds.get("clean") or conds.get("nominal") or {}
+  p = conds.get("dr_delay40ms_push") or conds.get("delay40ms_push") or {}
   nsurv = n.get("success_rate", 0.0)
   nd = n.get("drift", {})
   ndrift = nd.get("episode_max_p95_m")
