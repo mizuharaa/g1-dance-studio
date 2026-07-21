@@ -92,9 +92,9 @@ def _eval_show_ready(ctx: _Ctx) -> tuple[bool, str]:
 def _eval_policy_pinned(ctx: _Ctx) -> tuple[bool, str]:
     """Policy attached AND its on-disk bytes still hash to the exam-pinned sha.
 
-    Re-hashing on disk (via exam_verdict.full_sha256) is the same guard shows.promote
-    uses: it catches a policy file that was swapped/edited after the passing exam, so a
-    checklist can never green-light a robot with an unverified artifact."""
+    The runner performs the full policy/meta/NPZ/manifest authorization separately,
+    under its spawn lock. This checklist item remains append-only for older clients.
+    """
     dance = ctx.dance
     policy_path = getattr(dance, "policy_path", None)
     pinned = getattr(dance, "policy_sha256", None)
@@ -222,6 +222,24 @@ def evaluate_checklist(dance, *, robot_ping=None, venue_active=None,
                       "detail": detail, "kind": item.kind, "severity": item.severity})
         if item.severity == "blocker" and not ok:
             ready = False
+    return {"items": items, "ready": ready}
+
+
+def evaluate_machine_checks(dance, *, robot_ping=None, venue_active=None) -> dict:
+    """Evaluate only server-verifiable blockers immediately before show spawn.
+
+    Physical confirmations stay human-owned. ``show_runner.begin_run`` invokes this
+    under its check-and-spawn lock after resolving the immutable artifact bundle and
+    before accepting the typed consent phrase.
+    """
+    full = evaluate_checklist(
+        dance,
+        robot_ping=robot_ping,
+        venue_active=venue_active,
+        acks=CONFIRM_KEYS,
+    )
+    items = [item for item in full["items"] if item["kind"] == "auto"]
+    ready = all(item["ok"] for item in items if item["severity"] == "blocker")
     return {"items": items, "ready": ready}
 
 

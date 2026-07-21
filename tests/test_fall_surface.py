@@ -128,6 +128,8 @@ def _show_ready_with_audio(shows_mod, name="Faller"):
     """A dance driven to show-ready through the real gate, with music attached
     (verbatim mirror of the tests/test_show_run.py helper)."""
     (shows_mod.PROJECT_ROOT / "policy.onnx").write_bytes(b"fake-policy-bytes")
+    (shows_mod.PROJECT_ROOT / "policy_meta.json").write_text("{}")
+    (shows_mod.PROJECT_ROOT / "motion_deploy.npz").write_bytes(b"fake-motion-npz")
     (shows_mod.PROJECT_ROOT / "motion.csv").write_text("0,0,0.79\n")
     d = shows_mod.new_dance(name, duration_s=30.0, policy_path="policy.onnx",
                             motion_csv="motion.csv")

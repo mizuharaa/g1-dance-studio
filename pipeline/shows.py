@@ -31,7 +31,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from . import exam_verdict
+from . import artifacts, exam_verdict
 from .config import DATA_DIR, PROJECT_ROOT
 
 DANCES_DIR = DATA_DIR / "dances"
@@ -125,6 +125,15 @@ class Dance:
     source_job: str | None = None      # pipeline job id this dance came from
     notes: str = ""
     policy_sha256: str | None = None    # full sha of the exam-passed policy (finding #24/#27)
+    # Immutable show bundle captured at show-ready promotion (F6). Paths are
+    # recorded as well as hashes so launch never chooses a file by glob.
+    meta_path: str | None = None
+    npz_path: str | None = None
+    meta_sha256: str | None = None
+    npz_sha256: str | None = None
+    motion_sha256: str | None = None
+    bundle_id: str | None = None
+    legacy_bundle: bool = False
     incident: dict | None = None        # last live incident/abort that demoted it (finding #9)
     audio: dict | None = None           # music track + alignment (pipeline/audio.py); see
                                         # docs/show_production.md. None = silent dance.
@@ -215,8 +224,11 @@ def dedupe_dances() -> int:
     for d in list_dances():
         groups.setdefault(_norm_name(d.name), []).append(d)
     removed = 0
-    merge_fields = ("policy_path", "policy_sha256", "sim_exam", "motion_csv",
-                    "vet", "preview", "duration_s", "source_job", "incident")
+    merge_fields = ("policy_path", "policy_sha256", "meta_path", "npz_path",
+                    "meta_sha256", "npz_sha256", "motion_sha256", "bundle_id",
+                    "legacy_bundle",
+                    "sim_exam", "motion_csv", "vet", "preview", "duration_s",
+                    "source_job", "incident")
     for dupes in groups.values():
         if len(dupes) < 2:
             continue
@@ -236,7 +248,7 @@ def dedupe_dances() -> int:
         # inside it (a back-filled path would otherwise dangle). Copy the file into
         # the keeper's own dir and rewrite the path (production audit, data-integrity).
         # (preview lives in data/previews/, never under a dance dir, so it can't dangle)
-        file_fields = ("policy_path", "motion_csv")
+        file_fields = ("policy_path", "meta_path", "npz_path", "motion_csv")
         for loser in losers:
             try:
                 loser_abs = loser.dir.resolve()
@@ -343,6 +355,131 @@ def record_sim_run(dance: Dance, passed: bool, metrics: dict | None = None,
                               metrics=metrics, exam_id=exam_id, video=video)
 
 
+def _stored_path(path: Path) -> str:
+    """Persist project-relative paths when possible, absolute paths otherwise."""
+    try:
+        return str(path.resolve().relative_to(PROJECT_ROOT.resolve()))
+    except ValueError:
+        return str(path.resolve())
+
+
+def _manifest_entry_path(manifest_path: Path, entry, member: str) -> Path:
+    if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+        raise ValueError(f"cannot promote: bundle.json has no valid {member} path entry")
+    path = Path(entry["path"])
+    return path if path.is_absolute() else manifest_path.parent / path
+
+
+def _manifest_npz_path(manifest_path: Path, manifest: dict, policy_dir: Path) -> Path:
+    """Choose the manifest's full-speed NPZ, or one unambiguous legacy deploy NPZ."""
+    tempo = ((manifest.get("motion") or {}).get("tempo_npz") or {})
+    if isinstance(tempo, dict) and tempo.get("100"):
+        return _manifest_entry_path(manifest_path, tempo["100"], "motion.tempo_npz.100")
+
+    entries: list[Path] = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            if isinstance(node.get("path"), str) and node["path"].lower().endswith(".npz"):
+                entries.append(_manifest_entry_path(manifest_path, node, "motion NPZ"))
+            else:
+                for value in node.values():
+                    walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(manifest.get("motion") or {})
+    unique = {path.resolve(): path for path in entries}
+    if len(unique) == 1:
+        return next(iter(unique.values()))
+    local = sorted(policy_dir.glob("*_deploy.npz"))
+    if len(local) == 1:
+        return local[0]
+    if not local and not unique:
+        raise ValueError("cannot promote: motion NPZ member is missing")
+    raise ValueError(
+        "cannot promote: motion NPZ member is ambiguous — manifest must identify "
+        "motion.tempo_npz['100']"
+    )
+
+
+def _capture_show_bundle(dance: Dance) -> None:
+    """Bind every show-launch input to paths and hashes at promotion time."""
+    if not dance.policy_path:
+        raise ValueError("cannot promote: policy member is missing")
+    if not dance.motion_csv:
+        raise ValueError("cannot promote: motion CSV member is missing")
+    policy = _abs(dance.policy_path)
+    motion_csv = _abs(dance.motion_csv)
+    if not policy.is_file():
+        raise ValueError(f"cannot promote: policy member is missing: {dance.policy_path}")
+    if not motion_csv.is_file():
+        raise ValueError(f"cannot promote: motion CSV member is missing: {dance.motion_csv}")
+
+    manifest_path = policy.parent / "bundle.json"
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text())
+            errors = artifacts.verify_manifest(manifest_path, base_dir=manifest_path.parent)
+        except (OSError, json.JSONDecodeError, AttributeError, TypeError) as exc:
+            raise ValueError(f"cannot promote: bundle.json is unreadable: {exc}") from exc
+        if errors:
+            raise ValueError(
+                "cannot promote: bundle.json verification failed: " + "; ".join(errors)
+            )
+        policy_section = manifest.get("policy") or {}
+        manifest_policy = _manifest_entry_path(
+            manifest_path, policy_section.get("onnx"), "policy.onnx"
+        )
+        if manifest_policy.resolve() != policy.resolve():
+            raise ValueError(
+                "cannot promote: dance policy_path does not match bundle.json policy.onnx"
+            )
+        meta = _manifest_entry_path(
+            manifest_path, policy_section.get("meta"), "policy_meta.json"
+        )
+        npz = _manifest_npz_path(manifest_path, manifest, policy.parent)
+        bundle_id = manifest.get("bundle_id")
+        if not isinstance(bundle_id, str) or not bundle_id:
+            raise ValueError("cannot promote: bundle.json has no bundle_id")
+        legacy = False
+    else:
+        meta = policy.parent / "policy_meta.json"
+        npzs = sorted(policy.parent.glob("*_deploy.npz"))
+        if not meta.is_file() or len(npzs) != 1:
+            # Migration compatibility: historical records/tests could become
+            # show-ready with only policy+CSV. Preserve their status workflow, but
+            # mark the bundle incomplete. resolve_bundle will name the missing member
+            # and refuse every launch; no default artifact is reachable.
+            dance.policy_path = _stored_path(policy)
+            dance.policy_sha256 = artifacts.sha256_file(policy)
+            dance.motion_sha256 = artifacts.sha256_file(motion_csv)
+            dance.meta_path = _stored_path(meta) if meta.is_file() else None
+            dance.meta_sha256 = artifacts.sha256_file(meta) if meta.is_file() else None
+            dance.npz_path = _stored_path(npzs[0]) if len(npzs) == 1 else None
+            dance.npz_sha256 = artifacts.sha256_file(npzs[0]) if len(npzs) == 1 else None
+            dance.bundle_id = None
+            dance.legacy_bundle = False
+            return
+        npz = npzs[0]
+        bundle_id = None
+        legacy = True
+
+    for member, path in (("policy_meta.json", meta), ("motion NPZ", npz)):
+        if not path.is_file():
+            raise ValueError(f"cannot promote: {member} member is missing: {path}")
+    dance.policy_path = _stored_path(policy)
+    dance.meta_path = _stored_path(meta)
+    dance.npz_path = _stored_path(npz)
+    dance.policy_sha256 = artifacts.sha256_file(policy)
+    dance.meta_sha256 = artifacts.sha256_file(meta)
+    dance.npz_sha256 = artifacts.sha256_file(npz)
+    dance.motion_sha256 = artifacts.sha256_file(motion_csv)
+    dance.bundle_id = bundle_id
+    dance.legacy_bundle = legacy
+
+
 def promote(dance: Dance, to_status: str) -> Dance:
     """Human-driven status promotion, with the guard rails that make
     'show-ready' mean something."""
@@ -369,6 +506,7 @@ def promote(dance: Dance, to_status: str) -> Dance:
                 raise ValueError(
                     "cannot promote: policy file changed since the passing exam "
                     "(sha mismatch) — re-run the sim exam on the current policy")
+            _capture_show_bundle(dance)
         dance.status = to_status
         dance.save()
         if to_status == "show-ready" and dance.policy_path:
@@ -403,6 +541,13 @@ def attach_policy(dance_id: str, policy_path: str, *, notes: str | None = None) 
             dance.notes = notes
         # a different policy ⇒ old exam no longer applies (findings #24/#27)
         dance.policy_sha256 = None
+        dance.meta_path = None
+        dance.npz_path = None
+        dance.meta_sha256 = None
+        dance.npz_sha256 = None
+        dance.motion_sha256 = None
+        dance.bundle_id = None
+        dance.legacy_bundle = False
         dance.sim_exam = None
         dance.status = "draft"
         dance.repeatability["consecutive_clean"] = 0

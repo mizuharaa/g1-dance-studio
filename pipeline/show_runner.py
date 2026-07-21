@@ -20,14 +20,16 @@ Safety posture (CLAUDE.md deploy rule):
 """
 from __future__ import annotations
 
+import json
 import os
 import signal
 import subprocess
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
-from . import shows
+from . import artifacts, preshow, shows
 from .config import PROJECT_ROOT, ROBOT_PC2_IP
 
 # The proven live path (see the context handover + tools/show_run.sh header).
@@ -42,10 +44,9 @@ SHOW_RUN_SH = PROJECT_ROOT / "tools" / "show_run.sh"
 #
 # PROVENANCE — READ BEFORE TRUSTING THIS AS "SIGNED": the free config is validated on
 # the robot but the standtail motion is NOT yet a SIGNED show-ready artifact (the mjlab
-# box must re-exam it). Requesting `free` therefore deploys the validated free config
-# for a TRIAL/LIVE show; it does NOT touch, replace, or re-sign the sha-pinned signed
-# policy the proven tethered path uses. Free is OPT-IN only (payload {"free": true}) so
-# the proven tethered path stays the default.
+# box must re-exam it). `free` therefore remains an explicitly enabled REHEARSAL
+# trial only. Live mode always refuses it; rehearsal additionally requires
+# G1_ALLOW_UNSIGNED_FREE=1 and an internally valid standtail bundle manifest.
 FREE_POLICY_DIR = "data/policies/thriller_standtail_candidate"   # project-relative
 # Side-by-side reference video (Lane B's show_run.sh reads SHOW_VIDEO/SHOW_DISPLAY to
 # launch it; here we only set the env contract — the launch itself is Lane B's).
@@ -56,41 +57,160 @@ FREE_POLICY_DIR = "data/policies/thriller_standtail_candidate"   # project-relat
 # from the actual deploy motion (tools/render_deploy_sim.py) so sim == robot; human-vs-
 # robot reference alignment stays approximate (src_lead=3.76,speed=0.9 — see make_side_by_side).
 FREE_SHOW_VIDEO = "data/previews/thriller_side_by_side_csv.mp4"
+RUN_CONFIRMATION_PHRASE = "I AM PRESENT WITH THE DAMPING REMOTE"
 
 
-def _free_show_args() -> list[str]:
-    """Extra ``show_run.sh "$@"`` args that select the untethered standtail policy.
+class ShowBundleError(ValueError):
+    """A recorded show artifact is missing, changed, or incompletely authorized."""
 
-    These flow through show_run.sh's ``"$@"`` into ``pipeline.deploy_runtime``
-    (--policy/--meta/--motion-npz). Project-relative paths: show_run.sh cds to the repo
-    root and spawn_show_process runs with cwd=PROJECT_ROOT, so they resolve there."""
-    d = FREE_POLICY_DIR
+    def __init__(self, member: str, expected=None, actual=None):
+        self.member, self.expected, self.actual = member, expected, actual
+        if expected is None:
+            detail = f"{member}: no promotion-time path/hash was recorded"
+        elif actual is None:
+            detail = f"{member}: missing (expected sha256 {expected})"
+        else:
+            detail = f"{member}: expected sha256 {expected}, actual {actual}"
+        super().__init__(f"show bundle authorization failed — {detail}")
+
+
+class FreeModeError(RuntimeError):
+    """The explicitly unsigned free-show escape hatch is not authorized."""
+
+
+class RunConsentError(PermissionError):
+    """Typed operator consent is absent or incorrect."""
+
+
+class PreShowError(RuntimeError):
+    """A machine-checkable pre-show blocker failed under the run lock."""
+
+
+@dataclass(frozen=True)
+class ResolvedBundle:
+    policy: Path
+    meta: Path
+    npz: Path
+    motion_csv: Path | None = None
+    bundle_manifest: Path | None = None
+
+
+def _abs(path: str) -> Path:
+    value = Path(path)
+    return value if value.is_absolute() else shows.PROJECT_ROOT / value
+
+
+def _verify_member(member: str, path_value, expected) -> Path:
+    if not path_value or not expected:
+        raise ShowBundleError(member)
+    path = _abs(path_value)
+    if not path.is_file():
+        raise ShowBundleError(member, expected, None)
+    try:
+        actual = artifacts.sha256_file(path)
+    except OSError as exc:
+        raise ShowBundleError(member, expected, f"unreadable: {exc}") from exc
+    if actual != expected:
+        raise ShowBundleError(member, expected, actual)
+    return path
+
+
+def resolve_bundle(dance: "shows.Dance") -> ResolvedBundle:
+    """Re-authorize the exact promotion-recorded show bundle; never glob/fallback."""
+    policy = _verify_member("policy.onnx", dance.policy_path, dance.policy_sha256)
+    meta = _verify_member("policy_meta.json", dance.meta_path, dance.meta_sha256)
+    npz = _verify_member("motion NPZ", dance.npz_path, dance.npz_sha256)
+    motion = _verify_member("motion CSV", dance.motion_csv, dance.motion_sha256)
+
+    manifest_path: Path | None = None
+    if dance.bundle_id:
+        manifest_path = policy.parent / "bundle.json"
+        if not manifest_path.is_file():
+            raise ShowBundleError("bundle.json", dance.bundle_id, None)
+        try:
+            manifest = json.loads(manifest_path.read_text())
+            errors = artifacts.verify_manifest(manifest_path, base_dir=manifest_path.parent)
+        except (OSError, json.JSONDecodeError, AttributeError, TypeError) as exc:
+            raise ShowBundleError("bundle.json", dance.bundle_id, f"unreadable: {exc}") from exc
+        actual_id = manifest.get("bundle_id")
+        if actual_id != dance.bundle_id:
+            raise ShowBundleError("bundle.json", dance.bundle_id, actual_id)
+        if errors:
+            raise ShowBundleError("bundle.json", dance.bundle_id, "; ".join(errors))
+    elif not dance.legacy_bundle:
+        raise ShowBundleError("bundle.json / legacy_bundle authorization")
+    return ResolvedBundle(policy, meta, npz, motion, manifest_path)
+
+
+def _manifest_entries(node, base: Path) -> list[tuple[Path, str]]:
+    entries: list[tuple[Path, str]] = []
+    if isinstance(node, dict):
+        if isinstance(node.get("path"), str) and isinstance(node.get("sha256"), str):
+            path = Path(node["path"])
+            entries.append((path if path.is_absolute() else base / path, node["sha256"]))
+        else:
+            for value in node.values():
+                entries.extend(_manifest_entries(value, base))
+    elif isinstance(node, list):
+        for value in node:
+            entries.extend(_manifest_entries(value, base))
+    return entries
+
+
+def _resolve_unsigned_free_bundle() -> ResolvedBundle:
+    """Resolve the standtail trial from one self-consistent (explicitly unsigned) manifest."""
+    policy_dir = _abs(FREE_POLICY_DIR)
+    manifest_path = policy_dir / "bundle.json"
+    if not manifest_path.is_file():
+        raise ShowBundleError("free bundle.json", "present and internally valid", None)
+    try:
+        manifest = json.loads(manifest_path.read_text())
+        errors = artifacts.verify_manifest(manifest_path, base_dir=policy_dir)
+    except (OSError, json.JSONDecodeError, AttributeError, TypeError) as exc:
+        raise ShowBundleError("free bundle.json", "readable", str(exc)) from exc
+    if errors:
+        raise ShowBundleError("free bundle.json", manifest.get("bundle_id"), "; ".join(errors))
+    policy_entries = manifest.get("policy") or {}
+    all_entries = _manifest_entries(manifest, policy_dir)
+
+    def entry_path(entry, member):
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+            raise ShowBundleError(member)
+        path = Path(entry["path"])
+        return path if path.is_absolute() else policy_dir / path
+
+    policy = entry_path(policy_entries.get("onnx"), "free policy.onnx")
+    meta = entry_path(policy_entries.get("meta"), "free policy_meta.json")
+    tempo = ((manifest.get("motion") or {}).get("tempo_npz") or {})
+    if isinstance(tempo, dict) and tempo.get("100"):
+        npz = entry_path(tempo["100"], "free motion NPZ")
+    else:
+        npzs = [path for path, _sha in all_entries if path.suffix.lower() == ".npz"]
+        if len(npzs) != 1:
+            raise ShowBundleError("free motion NPZ")
+        npz = npzs[0]
+    expected_by_path = {path.resolve(): sha for path, sha in all_entries}
+    for member, path in (("free policy.onnx", policy),
+                         ("free policy_meta.json", meta), ("free motion NPZ", npz)):
+        expected = expected_by_path.get(path.resolve())
+        if not expected:
+            raise ShowBundleError(member)
+        _verify_member(member, str(path), expected)
+    return ResolvedBundle(policy, meta, npz, bundle_manifest=manifest_path)
+
+
+def _cli_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(shows.PROJECT_ROOT.resolve()))
+    except ValueError:
+        return str(path.resolve())
+
+
+def _bundle_args(bundle: ResolvedBundle) -> list[str]:
     return [
-        "--policy", f"{d}/policy.onnx",
-        "--meta", f"{d}/policy_meta.json",
-        "--motion-npz", f"{d}/thriller_deploy.npz",
-    ]
-
-
-def _dance_policy_args(dance: "shows.Dance") -> list[str]:
-    """--policy/--meta/--motion-npz for the SELECTED show-ready dance's bundle, so a normal
-    (non-free) show deploys THAT dance's policy — not deploy_runtime's hardcoded DEFAULT_POLICY.
-    The verify/export pipeline stages policy.onnx + policy_meta.json + <slug>_deploy.npz into the
-    policy dir (data/policies/<slug>/). Backward-compatible: the original Thriller dance's
-    policy_path IS data/policies/thriller/policy.onnx (== DEFAULT_POLICY), so it deploys exactly
-    as before. Returns [] — deploy_runtime falls back to its default policy — only if the dance
-    has no policy_path or the on-disk bundle is incomplete (never silently deploys a half-bundle)."""
-    if not dance.policy_path:
-        return []
-    p = PROJECT_ROOT / dance.policy_path
-    meta = p.parent / "policy_meta.json"
-    npzs = sorted(p.parent.glob("*_deploy.npz"))
-    if not (p.exists() and meta.exists() and npzs):
-        return []
-    return [
-        "--policy", dance.policy_path,
-        "--meta", str(meta.relative_to(PROJECT_ROOT)),
-        "--motion-npz", str(npzs[0].relative_to(PROJECT_ROOT)),
+        "--policy", _cli_path(bundle.policy),
+        "--meta", _cli_path(bundle.meta),
+        "--motion-npz", _cli_path(bundle.npz),
     ]
 
 # PC2 (Jetson Orin) on the robot control net. A single 1 s ping is the reachability
@@ -234,26 +354,56 @@ def why_blocked() -> str | None:
 
 def begin_run(dance: "shows.Dance", *, operator: str, mode: str,
               exit_stand: bool = False, audio_mode: str = "laptop",
-              body: str | None = None, free: bool = False) -> "shows.Show":
+              body: str | None = None, free: bool = False,
+              confirmation: str = "", robot_ping=None,
+              venue_active=None) -> "shows.Show":
     """Atomically re-check the lock, create the Show, and spawn show_run.sh.
 
     Creating the Show INSIDE the lock (after the re-check) means a lost race never
     leaves an orphan open show. Raises RunBusy if a run is active / outcome pending.
 
-    ``free=True`` runs the HARDWARE-VALIDATED untethered config (standtail policy +
-    leg-gain boost + stand-at-end); see FREE_POLICY_DIR. It is a trial/live show and
-    does not alter the sha-pinned signed policy of the proven default path.
+    Bundle resolution and machine checks happen while holding the same lock as spawn.
+    Typed consent is checked only after those checks, so the operator consents to the
+    exact bytes that will be placed in the command.
     """
     with _lock:
         reason = _why_blocked_locked()
         if reason:
             raise RunBusy(reason)
+        # Never trust the caller's potentially stale in-memory dance record.
+        dance = shows.load_dance(dance.id)
+        if free:
+            if mode == "live":
+                raise FreeModeError(
+                    "the unsigned free configuration is forbidden in live mode"
+                )
+            if os.environ.get("G1_ALLOW_UNSIGNED_FREE") != "1":
+                raise FreeModeError(
+                    "the unsigned free rehearsal is disabled; set "
+                    "G1_ALLOW_UNSIGNED_FREE=1 explicitly to enable the trial path"
+                )
+            bundle = _resolve_unsigned_free_bundle()
+        else:
+            bundle = resolve_bundle(dance)
+
+        machine = preshow.evaluate_machine_checks(
+            dance, robot_ping=robot_ping, venue_active=venue_active
+        )
+        failed = [item for item in machine["items"]
+                  if item["severity"] == "blocker" and not item["ok"]]
+        if failed:
+            first = failed[0]
+            raise PreShowError(f"pre-show check '{first['key']}' failed: {first['detail']}")
+        if confirmation != RUN_CONFIRMATION_PHRASE:
+            raise RunConsentError(
+                "confirmation phrase does not match — type it EXACTLY, with the "
+                "damping remote in your hand"
+            )
+
         show = shows.new_show(dance, operator, mode=mode)
         env = _build_env(operator, mode, exit_stand, audio_mode, dance.id, body, free)
         log_path = show.dir / "run.log"
-        # Free adds the standtail --policy/--meta/--motion-npz args through show_run.sh's
-        # "$@"; the proven default spawns show_run.sh with no policy override.
-        cmd = [str(SHOW_RUN_SH)] + (_free_show_args() if free else _dance_policy_args(dance))
+        cmd = [str(SHOW_RUN_SH)] + _bundle_args(bundle)
         proc = spawn_show_process(cmd, env, log_path)
         global _current
         _current = {"show_id": show.id, "dance_id": dance.id, "mode": mode,

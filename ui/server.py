@@ -956,7 +956,7 @@ def record_outcome(show_id: str, payload: dict = Body(...)) -> dict:
 # The operator must type this EXACT phrase to start a run. Typing it while physically
 # holding the damping remote (surfaced in the UI as the big red "REMOTE = ONLY STOP")
 # IS the explicit human confirmation CLAUDE.md requires before any deploy.
-RUN_CONFIRMATION_PHRASE = "I AM PRESENT WITH THE DAMPING REMOTE"
+RUN_CONFIRMATION_PHRASE = show_runner.RUN_CONFIRMATION_PHRASE
 
 
 @app.post("/api/shows/{dance_id}/run")
@@ -971,6 +971,20 @@ def run_show(dance_id: str, payload: dict = Body(...)) -> dict:
     # 2) audio attached — a show plays music; refuse a silent dance.
     if not (dance.audio and dance.audio.get("track")):
         raise HTTPException(409, "dance has no music attached — attach a track first")
+    operator = (payload.get("operator") or "").strip()
+    if not operator:
+        raise HTTPException(400, "operator name is required")
+    mode = payload.get("mode", "rehearsal")
+    if mode not in ("rehearsal", "live"):
+        raise HTTPException(400, "mode must be 'rehearsal' or 'live'")
+    exit_stand = bool(payload.get("exit_stand"))
+    free = bool(payload.get("free"))
+    if free and mode == "live":
+        raise HTTPException(
+            409,
+            "the unsigned free configuration is forbidden in live mode; use a "
+            "promoted, signed dance bundle",
+        )
     # 3) robot reachable: PC2 must answer a single 1 s ping on the control net.
     if not show_runner.robot_reachable():
         raise HTTPException(409, f"robot PC2 ({show_runner.ROBOT_HOST}) is not "
@@ -980,33 +994,31 @@ def run_show(dance_id: str, payload: dict = Body(...)) -> dict:
     busy = show_runner.why_blocked()
     if busy:
         raise HTTPException(409, busy)
-    # 5) exact confirmation phrase — this + the physical remote is the deploy consent.
-    if payload.get("confirmation") != RUN_CONFIRMATION_PHRASE:
-        raise HTTPException(403, "confirmation phrase does not match — type it "
-                                 "EXACTLY, with the damping remote in your hand")
-    operator = (payload.get("operator") or "").strip()
-    if not operator:
-        raise HTTPException(400, "operator name is required")
-    mode = payload.get("mode", "rehearsal")
-    if mode not in ("rehearsal", "live"):
-        raise HTTPException(400, "mode must be 'rehearsal' or 'live'")
     # stand-at-end (keep standing + hand back to remote/phone) is OPT-IN for rehearsal
     # AND live: deploy_runtime's `--exit stand` guard falls back to damping unless the
     # motion ends near the standing pose, so it can never topple a non-stand-ending dance.
-    exit_stand = bool(payload.get("exit_stand"))
     # OPT-IN untethered ("free") config: the HARDWARE-VALIDATED standtail policy + leg-gain
     # boost + stand-at-end (see show_runner.FREE_POLICY_DIR). All guards above still apply;
-    # free only changes what config show_run.sh launches. Off by default so the proven
-    # tethered path stays the default. NOTE: the standtail motion is validated but not yet
-    # a SIGNED show-ready artifact — free is a trial/live show, not a re-signed policy.
-    free = bool(payload.get("free"))
+    # free only changes what config show_run.sh launches. It is forbidden in live mode;
+    # rehearsal requires G1_ALLOW_UNSIGNED_FREE=1 plus a valid standtail bundle manifest.
     try:
         show = show_runner.begin_run(
             dance, operator=operator, mode=mode, exit_stand=exit_stand,
             audio_mode=payload.get("audio_mode") or "laptop",
-            body=payload.get("body"), free=free)
+            body=payload.get("body"), free=free,
+            confirmation=payload.get("confirmation") or "",
+            robot_ping=lambda: show_runner.robot_reachable(),
+            venue_active=venue.get_active_venue())
     except show_runner.RunBusy as e:  # lost the check-and-spawn race
         raise HTTPException(409, str(e))
+    except show_runner.FreeModeError as e:
+        raise HTTPException(409, str(e))
+    except show_runner.ShowBundleError as e:
+        raise HTTPException(422, str(e))
+    except show_runner.PreShowError as e:
+        raise HTTPException(409, str(e))
+    except show_runner.RunConsentError as e:
+        raise HTTPException(403, str(e))
     return {"started": True, "show": _show_dict(show),
             "run": show_runner.current_status()}
 
