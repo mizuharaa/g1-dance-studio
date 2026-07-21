@@ -89,7 +89,9 @@ G1_CMD_DELAY_MAX_LAG=4 G1_OBS_DELAY_MAX_LAG=1 G1_DRIFT_TERM_M=0.8 \
 
 say "LAUNCH v12 = v11 recipe on the FIDELITY motion (full intro, unwarped, guard-cleaned)"
 export G1_WAIST_SRC_WINDOWS="15.5-20.5,27.5-38.5"   # +2.5s: v12 restores the intro
-export RUN_NAME=train-thriller_v12fid-$(date +%m%d)
+# RUN_NAME respects a pre-set value so a multi-box sweep gives each box a distinct
+# name (W&B + exports); falls back to a dated default for a single run.
+export RUN_NAME=${RUN_NAME:-train-thriller_v12fid-$(date +%m%d)}
 M060=$NB/motions/thriller_v12_060.npz \
 M075=$NB/motions/thriller_v12_075.npz \
 M090=$NB/motions/thriller_v12_090.npz \
