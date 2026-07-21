@@ -1,5 +1,29 @@
 # External full-audit prompt (paste into another AI with repo access)
 
+## How to give the auditor (e.g. Codex) access to this repo
+
+The repo is a local git checkout at `/home/alois/g1-dance` (private GitHub remote:
+`mizuharaa/unitree_dance_mimic`). Two ways to run the audit:
+
+- **RECOMMENDED — Codex CLI (or any local coding agent), run in the checkout:**
+  `cd /home/alois/g1-dance && codex` then paste this file (or say "read and follow
+  `docs/EXTERNAL_AUDIT_PROMPT.md`"). It sees the FULL working tree on disk —
+  including the vendored `third_party/whole_body_tracking/` and mujoco models that
+  are gitignored and therefore NOT on GitHub. To verify claims empirically it can use
+  the local conda env: `source ~/miniconda3/etc/profile.d/conda.sh && conda activate
+  g1dance` (has mujoco, numpy, scipy, onnxruntime, torch-CPU).
+- **Codex cloud / GitHub clone:** FIRST `git push` (local is ahead of origin), then
+  point Codex at the GitHub repo. Caveats: `.secrets/` is gitignored (good — keep it
+  that way), but the vendored BeyondMimic source and mujoco models under
+  `third_party/` are ALSO gitignored, so a clone loses them (`third_party/mjlab_mdp_ref/`
+  IS committed and is the most important reference). The repo is ~1.9 GB.
+
+**What the auditor CANNOT and should NOT be given:** the `.secrets/` credentials, SSH
+access to the live GPU boxes, and the robot (down). The audit is code + committed
+data only. **GPU limitation:** mjlab is not installed locally and there is no GPU, so
+NO agent can validate training/GPU-dependent claims by running them — those must be
+reasoned from code + `third_party/mjlab_mdp_ref/` and flagged "needs GPU to confirm."
+
 ---
 
 You are a senior robotics + reinforcement-learning + software engineer brought in
