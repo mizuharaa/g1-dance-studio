@@ -82,7 +82,18 @@ def _kinematic_reference(dance: Path, steps: int) -> dict:
     Uses the FULL pelvis pose from the npz (pos incl. z, and quat). The old version
     pinned z=0.79 and identity orientation, so crouches read as the feet leaving the
     floor and extensions punched through it — the "floating/bouncing" preview artifact
-    (user report 2026-07-17). Body 0 in the npz body arrays is the pelvis."""
+    (user report 2026-07-17). Body 0 in the npz body arrays is the pelvis.
+
+    YAW ALIGNMENT (fix 2026-07-21): run_sandbox (the POLICY pane) starts the sim base at
+    identity and yaw-aligns the policy's reference to that heading — the same call
+    `ref.align_yaw(_anchor_quat(meta, default_pose, identity))` the deploy makes at policy
+    start (sim_sandbox.py:150). The npz pelvis/torso t=0 yaw is ~90.3 deg in its own world
+    frame, so if we render the reference pane in that raw npz yaw while the policy pane sits
+    at yaw~0, a faithfully-tracking policy looks ~90 deg rotated ("reading from the back")
+    under the single fixed camera azimuth. We therefore apply the SAME dyaw to the npz
+    pelvis path here, so both panes share yaw-0 before the fixed camera. Render-side only —
+    joint angles (rec["q"]) are untouched, and the sim init quat in run_sandbox is left
+    alone (it is shared with the deploy heading contract)."""
     meta = D.Meta(dance / "policy_meta.json")
     npz = next(dance.glob("*_deploy.npz"))
     ref = D.Reference(npz)
@@ -91,6 +102,26 @@ def _kinematic_reference(dance: Path, steps: int) -> dict:
     q = np.array([ref.jp[t] for t in range(n)])
     base = d["body_pos_w"][:n, 0, :].copy()          # pelvis world pos (real z)
     quat = d["body_quat_w"][:n, 0, :].copy()         # pelvis world quat (wxyz)
+
+    # Match run_sandbox's align_yaw EXACTLY: dyaw = sim_yaw0 - npz_ref_yaw0.
+    #   sim_yaw0     = yaw of _anchor_quat(meta, default pose, identity base) — the heading
+    #                  the sim aligns TO (base starts at identity [1,0,0,0]; run_sandbox
+    #                  aligns from the settled default pose, ~meta.default -> ~0 deg).
+    #   npz_ref_yaw0 = yaw of the raw npz torso quat at t=0 (ref.aquat is the torso body,
+    #                  TORSO_NPZ_IDX, exactly the frame align_yaw references) -> ~90.3 deg.
+    # So dyaw ~= -90.3 deg. Rotate the pelvis pos path about its frame-0 origin and left-
+    # multiply the pelvis quats by the same +z rotation — the same transform align_yaw
+    # applies to the torso path (deploy_runtime.Reference.align_yaw), so the two panes end
+    # up in one shared yaw-0 frame. Also fixes render_overlay (same source dict).
+    sim_yaw0 = D.yaw_of_quat_wxyz(
+        D._anchor_quat(meta, meta.default, np.array([1.0, 0.0, 0.0, 0.0])))
+    npz_ref_yaw0 = D.yaw_of_quat_wxyz(ref.aquat[0])
+    dyaw = sim_yaw0 - npz_ref_yaw0
+    c, s = np.cos(dyaw), np.sin(dyaw)
+    Rz = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+    base = (base - base[0]) @ Rz.T + base[0]
+    qz = D.quat_axis_angle((0.0, 0.0, 1.0), dyaw)
+    quat = np.array([D.quat_mul_wxyz(qz, qq) for qq in quat])
     return {"q": q, "base_pos": base, "base_quat": quat, "meta": meta,
             "achieved": 1.0, "kind": "REFERENCE (intended)"}
 

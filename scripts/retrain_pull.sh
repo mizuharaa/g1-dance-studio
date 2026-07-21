@@ -14,10 +14,18 @@ DST="data/policies/$TAG"
 DANCE_NAME="${NAME:-$TAG}"
 mkdir -p "$DST"
 
-echo "== pull exports (policy.onnx, policy_meta.json, gap.json, heldout_*.json) =="
+echo "== pull exports (policy.onnx, policy_meta.json, gap.json, heldout_*.json, *_deploy.npz) =="
 scp -P "$PORT" -i "$KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
     'root@'"$IP"':/workspace/notebook-data/exports/train-'"$TAG"'-*/*' "$DST"/
-echo "== pull the deploy CSV (needed for signing) =="
+# Explicitly pull THIS policy's OWN staged reference motion (export_policy.py now stages the
+# training npz into exports/ as *_deploy.npz). Without it the preview fell back to the shared,
+# wrong-lineage thriller_deploy.npz for BOTH the reference pane and the policy command input
+# (audit 2026-07-21 finding C). The exports/* glob above usually already grabs it; this line
+# makes the intent explicit and survives an exports-layout change. Non-fatal if absent.
+echo "== pull this policy's own reference motion (*_deploy.npz) =="
+scp -P "$PORT" -i "$KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+    'root@'"$IP"':/workspace/notebook-data/exports/train-'"$TAG"'-*/*_deploy.npz' "$DST"/ || true
+echo "== pull the deploy CSV (needed for signing + preview-motion fallback) =="
 scp -P "$PORT" -i "$KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
     'root@'"$IP"':/workspace/notebook-data/motions/thriller_g1_clean.csv' "$DST"/ || true
 

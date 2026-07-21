@@ -12,12 +12,38 @@ The app's export stage calls this script to copy that export into the exports di
 This exists because the app's export stage referenced `cloud/export_policy.py` but the
 file was never committed (the export stage had never run end-to-end on a fresh box).
 
+Besides the ONNX, this stages the run's OWN reference motion npz (the <motion.npz> arg,
+the exact file training was conditioned on) into the exports dir as `*_deploy.npz`, so the
+manual pull (scripts/retrain_pull.sh) carries a policy-correct motion for its preview. Before
+this, the arg was accepted but ignored and the pull fell back to a shared, wrong-lineage npz
+(audit 2026-07-21 finding C).
+
 Usage: export_policy.py <checkpoint.pt> <motion.npz> <exports_dir>
 """
 import glob
 import os
 import shutil
 import sys
+
+
+def _stage_motion(npz: str, exports: str) -> None:
+    """Copy the run's reference motion npz into `exports` as a `*_deploy.npz` so the pull
+    carries THIS policy's own motion (both the preview reference pane and the sandbox
+    command input read it). Never fails the export — a missing/odd npz only means the
+    downstream preview falls back to a converted-from-csv or shared motion."""
+    if not npz or not os.path.isfile(npz):
+        print(f"  (motion npz not staged — not a file: {npz!r})")
+        return
+    base = os.path.basename(npz)
+    if not base.endswith("_deploy.npz"):   # guarantee the *_deploy.npz preview glob matches
+        base = f"{os.path.splitext(base)[0]}_deploy.npz"
+    dst = os.path.join(exports, base)
+    try:
+        shutil.copyfile(npz, dst)
+    except OSError as e:
+        print(f"  (motion npz not staged — copy failed: {e})")
+        return
+    print(f"EXPORT motion: {npz} -> {dst} ({os.path.getsize(dst)} bytes)")
 
 
 def _verify(dst: str) -> None:
@@ -60,6 +86,7 @@ def main(ckpt: str, npz: str, exports: str) -> None:
         sys.exit(f"ERROR: staged ONNX is empty: {dst}")
     print(f"EXPORT: {os.path.basename(src)} -> {dst} ({os.path.getsize(dst)} bytes)")
     _verify(dst)
+    _stage_motion(npz, exports)   # stage the run's OWN reference motion alongside policy.onnx
 
 
 if __name__ == "__main__":

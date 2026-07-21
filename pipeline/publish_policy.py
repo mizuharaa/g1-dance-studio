@@ -11,8 +11,10 @@ publish() makes a completed+pulled run ALWAYS appear on the frontend:
 
   1. ensure_preview_assets() — the honest sim (tools/sim_studio via pipeline.sim_preview)
      needs, alongside policy.onnx, a policy-INDEPENDENT policy_meta.json and a *_deploy.npz
-     motion in the same dir. A fresh pull usually has only policy.onnx (+ gap/heldout json),
-     so we copy those two from data/policies/thriller/ (the shared preview motion) if absent.
+     motion in the same dir. A fresh pull supplies policy_meta.json from data/policies/thriller/
+     if absent, and for the motion prefers this policy's OWN lineage (staged npz, else a
+     conversion of the pulled deploy CSV), copying the shared thriller_deploy.npz only as a
+     last resort (finding C: the shared npz is a wrong-lineage Jul-7 retarget).
   2. register_or_update() — find the Dance by name (create it if new) and attach_policy()
      so policy_path points at this run's policy.onnx. Uses the real store code
      (pipeline.shows) — no hand-written dance.json.
@@ -30,6 +32,7 @@ CLI (called from the pull/finalize path):
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -50,11 +53,12 @@ Simulation-tab preview (tools/sim_studio), pipeline/sim_preview needs, next to
 
   - `policy_meta.json`  — joint order / gains, IDENTICAL across Thriller policies
                           (policy-independent), copied from data/policies/thriller/.
-  - `*_deploy.npz`      — the reference Thriller motion the preview plays as the
-                          "intended dance" (left pane). This is the SHARED
-                          `thriller_deploy` motion copied from data/policies/thriller/,
-                          NOT this policy's own trajectory — it only drives the
-                          reference/left side; the right side is this policy rolled out.
+  - `*_deploy.npz`      — the reference motion the preview plays as the "intended dance"
+                          (left pane) AND feeds as the policy's command input (right pane).
+                          Preferred source is THIS policy's own lineage: the staged npz
+                          pulled from the run, else a conversion of the pulled deploy CSV.
+                          Only if neither is available is the SHARED `thriller_deploy`
+                          motion copied as a last resort (wrong-lineage — see finding C).
 
 Both are added automatically by pipeline/publish_policy.py on pull if missing.
 """
@@ -67,12 +71,71 @@ def _rel(p: Path) -> str:
         return str(p)
 
 
+# csv_to_npz (vendored mjlab) hardcodes its output sink to /tmp/motion.npz and does NOT
+# clear it between runs (audit finding B), so we rm it first and copy the fresh file out.
+_CSV2NPZ_SINK = Path("/tmp/motion.npz")
+
+
+def _convert_csv_to_npz(csv_path: Path, dst: Path, *, log=print) -> bool:
+    """Convert a pulled deploy CSV to a *_deploy.npz via mjlab's csv_to_npz FK, so the
+    preview plays THIS policy's own motion (this is the correct-lineage source, unlike the
+    shared thriller_deploy.npz). Mirrors pipeline/stages/cloud_motion.py's CONVERT_SCRIPT
+    (30->50 fps). Returns True iff it staged a non-empty npz.
+
+    DEFENSIVE by contract: mjlab is NOT installed on the laptop, so locally this returns
+    False and the caller falls back to the shared motion. Never raises."""
+    import importlib.util
+    import subprocess
+    import sys
+
+    if importlib.util.find_spec("mjlab") is None:
+        log(f"publish_policy: mjlab not available locally — cannot convert "
+            f"{_rel(csv_path)} to npz (will fall back to shared motion)")
+        return False
+    try:
+        _CSV2NPZ_SINK.unlink()                       # never trust a stale /tmp sink (finding B)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        log(f"publish_policy: could not clear {_CSV2NPZ_SINK} ({e})")
+        return False
+    env = {**os.environ, "MUJOCO_GL": "egl", "WANDB_MODE": "offline"}
+    cmd = [sys.executable, "-m", "mjlab.scripts.csv_to_npz",
+           "--input-file", str(csv_path), "--output-name", dst.stem,
+           "--input-fps", "30", "--output-fps", "50"]
+    try:
+        r = subprocess.run(cmd, env=env, check=False, timeout=900,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    except Exception as e:  # noqa: BLE001 — conversion must never crash publish
+        log(f"publish_policy: csv_to_npz failed ({type(e).__name__}: {e})")
+        return False
+    if not (_CSV2NPZ_SINK.is_file() and _CSV2NPZ_SINK.stat().st_size > 0):
+        tail = (r.stdout or b"").decode("utf-8", "replace")[-300:]
+        log(f"publish_policy: csv_to_npz produced no {_CSV2NPZ_SINK} (rc={r.returncode}); "
+            f"falling back to shared motion. tail: {tail!r}")
+        return False
+    try:
+        shutil.copyfile(_CSV2NPZ_SINK, dst)
+    except OSError as e:
+        log(f"publish_policy: could not stage converted npz ({e})")
+        return False
+    log(f"publish_policy: converted {_rel(csv_path)} -> {_rel(dst)} "
+        "(this policy's OWN motion)")
+    return True
+
+
 def ensure_preview_assets(policy_dir: Path, *, log=print) -> bool:
     """Make policy_dir render-ready. Returns True iff a policy.onnx is present.
 
-    Copies policy_meta.json and a *_deploy.npz from data/policies/thriller/ if absent,
-    and drops a README noting the shared-motion provenance. Never raises for a missing
-    optional asset — logs and continues (the on-demand UI render can still be retried)."""
+    Copies policy_meta.json from data/policies/thriller/ if absent. For the *_deploy.npz
+    preview motion, PREFERS this policy's own lineage: the pulled staged npz, else a
+    conversion of the pulled deploy CSV (mjlab csv_to_npz FK), and only as a LAST resort
+    the shared thriller_deploy.npz. Drops a README noting provenance. Never raises for a
+    missing optional asset — logs and continues (the on-demand UI render can be retried).
+
+    NEVER-RAISE CONTRACT: publish() returns None (an UNregistered dance) when this returns
+    False, which reintroduces the v6/v7 no-preview regression — so this must return True
+    whenever policy.onnx exists, no matter what happens to the optional preview assets."""
     policy_dir = Path(policy_dir)
     onnx = policy_dir / "policy.onnx"
     if not onnx.is_file():
@@ -89,13 +152,25 @@ def ensure_preview_assets(policy_dir: Path, *, log=print) -> bool:
             log(f"publish_policy: WARN shared policy_meta.json missing at {_rel(src)}")
 
     if not any(policy_dir.glob("*_deploy.npz")):
-        src = next(_SHARED.glob("*_deploy.npz"), None)
-        if src is not None:
-            dst = policy_dir / src.name
-            shutil.copyfile(src, dst)
-            log(f"publish_policy: copied shared preview motion {src.name} -> {_rel(dst)}")
+        # Prefer THIS policy's own motion. The manual pull (retrain_pull.sh) now pulls the
+        # staged *_deploy.npz directly; if that is somehow absent, convert the pulled deploy
+        # CSV via mjlab csv_to_npz FK. Only if BOTH are unavailable do we copy the shared
+        # thriller_deploy.npz — the wrong-lineage Jul-7 retarget that used to drive both the
+        # reference pane AND the policy command input for every pulled policy (finding C).
+        dst = policy_dir / f"{policy_dir.name}_deploy.npz"
+        csv = (next(policy_dir.glob("*_clean.csv"), None)
+               or next(policy_dir.glob("*_deploy.csv"), None))
+        if csv is not None and _convert_csv_to_npz(csv, dst, log=log):
+            pass  # staged this policy's own converted motion
         else:
-            log(f"publish_policy: WARN no *_deploy.npz in shared dir {_rel(_SHARED)}")
+            src = next(_SHARED.glob("*_deploy.npz"), None)
+            if src is not None:
+                shared_dst = policy_dir / src.name
+                shutil.copyfile(src, shared_dst)
+                log(f"publish_policy: LAST-RESORT copied shared preview motion {src.name} "
+                    f"-> {_rel(shared_dst)} (NOT this policy's lineage — no own npz/csv)")
+            else:
+                log(f"publish_policy: WARN no *_deploy.npz in shared dir {_rel(_SHARED)}")
 
     readme = policy_dir / "README.md"
     if not readme.exists():
