@@ -10,11 +10,9 @@ why v6 and v7 had no sim preview.
 publish() makes a completed+pulled run ALWAYS appear on the frontend:
 
   1. ensure_preview_assets() — the honest sim (tools/sim_studio via pipeline.sim_preview)
-     needs, alongside policy.onnx, a policy-INDEPENDENT policy_meta.json and a *_deploy.npz
-     motion in the same dir. A fresh pull supplies policy_meta.json from data/policies/thriller/
-     if absent, and for the motion prefers this policy's OWN lineage (staged npz, else a
-     conversion of the pulled deploy CSV), copying the shared thriller_deploy.npz only as a
-     last resort (finding C: the shared npz is a wrong-lineage Jul-7 retarget).
+     needs, alongside policy.onnx, that policy's OWN policy_meta.json and a *_deploy.npz
+     motion. Metadata is never borrowed. Motion prefers this policy's own lineage and uses
+     the shared thriller_deploy.npz only as a last-resort visual reference.
   2. register_or_update() — find the Dance by name (create it if new) and attach_policy()
      so policy_path points at this run's policy.onnx. Uses the real store code
      (pipeline.shows) — no hand-written dance.json.
@@ -40,8 +38,8 @@ from pathlib import Path
 from .config import PROJECT_ROOT
 from . import shows, sim_preview
 
-# The canonical Thriller policy dir supplies the shared, policy-INDEPENDENT preview
-# assets (the deploy motion + meta) when a freshly pulled dir lacks them.
+# The canonical Thriller policy dir supplies only a last-resort preview motion.
+# Metadata is policy-specific and must never be copied between policy graphs.
 _SHARED = PROJECT_ROOT / "data" / "policies" / "thriller"
 
 _README = """\
@@ -51,8 +49,8 @@ This directory holds a policy pulled from a cloud training run. To render the
 Simulation-tab preview (tools/sim_studio), pipeline/sim_preview needs, next to
 `policy.onnx`:
 
-  - `policy_meta.json`  — joint order / gains, IDENTICAL across Thriller policies
-                          (policy-independent), copied from data/policies/thriller/.
+  - `policy_meta.json`  — this policy's export-time contract. Its `onnx_inputs`
+                          must exactly match this directory's ONNX graph.
   - `*_deploy.npz`      — the reference motion the preview plays as the "intended dance"
                           (left pane) AND feeds as the policy's command input (right pane).
                           Preferred source is THIS policy's own lineage: the staged npz
@@ -60,7 +58,8 @@ Simulation-tab preview (tools/sim_studio), pipeline/sim_preview needs, next to
                           Only if neither is available is the SHARED `thriller_deploy`
                           motion copied as a last resort (wrong-lineage — see finding C).
 
-Both are added automatically by pipeline/publish_policy.py on pull if missing.
+The motion may be added automatically. Metadata is never synthesized or borrowed;
+without a matching sidecar this dance is registered without a preview.
 """
 
 
@@ -124,11 +123,69 @@ def _convert_csv_to_npz(csv_path: Path, dst: Path, *, log=print) -> bool:
     return True
 
 
+def _onnx_inputs(path: Path) -> dict[str, list]:
+    """Return graph input names and shapes without running policy code."""
+    import onnx
+
+    model = onnx.load(str(path), load_external_data=False)
+    initializers = {value.name for value in model.graph.initializer}
+    inputs: dict[str, list] = {}
+    for value in model.graph.input:
+        if value.name in initializers:
+            continue
+        shape = []
+        for dim in value.type.tensor_type.shape.dim:
+            if dim.HasField("dim_value"):
+                shape.append(int(dim.dim_value))
+            elif dim.HasField("dim_param") and dim.dim_param:
+                shape.append(str(dim.dim_param))
+            else:
+                shape.append(None)
+        inputs[value.name] = shape
+    return inputs
+
+
+def policy_meta_matches_onnx(policy_dir: Path, *, log=print) -> bool:
+    """Fail closed unless the policy-specific sidecar matches the graph exactly."""
+    policy_dir = Path(policy_dir)
+    meta_path = policy_dir / "policy_meta.json"
+    if not meta_path.is_file():
+        log(
+            "publish_policy: REFUSED preview — no policy-specific policy_meta.json "
+            f"beside {_rel(policy_dir / 'policy.onnx')}"
+        )
+        return False
+    try:
+        import json
+
+        meta = json.loads(meta_path.read_text())
+        actual = _onnx_inputs(policy_dir / "policy.onnx")
+        declared = meta.get("onnx_inputs")
+        if declared != actual:
+            log(
+                "publish_policy: REFUSED preview — policy_meta onnx_inputs "
+                f"{declared!r} != actual ONNX inputs {actual!r}"
+            )
+            return False
+        for field in ("obs_per_frame", "history_length", "flatten_layout",
+                      "requires_ground_contact", "actor_obs_terms_in_order"):
+            if field not in meta:
+                log(f"publish_policy: REFUSED preview — policy_meta missing {field}")
+                return False
+    except Exception as exc:  # noqa: BLE001 — publish must never fail the pull
+        log(
+            "publish_policy: REFUSED preview — cannot verify policy_meta against ONNX "
+            f"({type(exc).__name__}: {exc})"
+        )
+        return False
+    return True
+
+
 def ensure_preview_assets(policy_dir: Path, *, log=print) -> bool:
     """Make policy_dir render-ready. Returns True iff a policy.onnx is present.
 
-    Copies policy_meta.json from data/policies/thriller/ if absent. For the *_deploy.npz
-    preview motion, PREFERS this policy's own lineage: the pulled staged npz, else a
+    Never copies or creates policy metadata. For the *_deploy.npz preview motion,
+    PREFERS this policy's own lineage: the pulled staged npz, else a
     conversion of the pulled deploy CSV (mjlab csv_to_npz FK), and only as a LAST resort
     the shared thriller_deploy.npz. Drops a README noting provenance. Never raises for a
     missing optional asset — logs and continues (the on-demand UI render can be retried).
@@ -141,15 +198,6 @@ def ensure_preview_assets(policy_dir: Path, *, log=print) -> bool:
     if not onnx.is_file():
         log(f"publish_policy: no policy.onnx in {_rel(policy_dir)} — nothing to publish")
         return False
-
-    meta = policy_dir / "policy_meta.json"
-    if not meta.is_file():
-        src = _SHARED / "policy_meta.json"
-        if src.is_file():
-            shutil.copyfile(src, meta)
-            log(f"publish_policy: copied shared policy_meta.json -> {_rel(meta)}")
-        else:
-            log(f"publish_policy: WARN shared policy_meta.json missing at {_rel(src)}")
 
     if not any(policy_dir.glob("*_deploy.npz")):
         # Prefer THIS policy's own motion. The manual pull (retrain_pull.sh) now pulls the
@@ -211,8 +259,13 @@ def publish(policy_dir, name: str, *, notes: str | None = None,
     policy_dir = Path(policy_dir)
     if not ensure_preview_assets(policy_dir, log=log):
         return None
+    contract_ok = policy_meta_matches_onnx(policy_dir, log=log)
     dance = register_or_update(policy_dir, name, notes=notes, log=log)
-    if render:
+    # attach_policy invalidates the exam, and the old preview is equally stale. Save
+    # before attempting a replacement so every failure path remains fail closed.
+    dance.preview = None
+    dance.save()
+    if render and contract_ok:
         try:
             if wait:
                 log(f"publish_policy: rendering honest sim preview for {dance.id} "
@@ -225,6 +278,11 @@ def publish(policy_dir, name: str, *, notes: str | None = None,
         except Exception as e:  # noqa: BLE001 — a preview failure must NOT fail the pull
             log(f"publish_policy: preview render failed for {dance.id} "
                 f"({type(e).__name__}: {e}) — dance is registered; re-render in the UI")
+    elif render:
+        log(
+            f"publish_policy: dance {dance.id} registered WITHOUT preview because its "
+            "policy metadata is missing or does not match the ONNX"
+        )
     return dance
 
 

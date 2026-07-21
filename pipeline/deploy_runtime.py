@@ -345,6 +345,7 @@ def _align_reference(meta, ref, q, imu_quat):
 class Meta:
     def __init__(self, path: Path):
         m = json.loads(path.read_text())
+        self.raw = m
         self.default = np.asarray(m["default_joint_pos_rad"], float)
         self.kp = np.asarray(m["kp_stiffness"], float)
         self.kd = np.asarray(m["kd_damping"], float)
@@ -367,10 +368,153 @@ class Meta:
         # suspension/contact gates (deploy_guards) apply. The PROVEN gantry policy leaves
         # it unset -> feet-off is intentional/in-distribution and the gates stay inert.
         self.requires_ground_contact = bool(m.get("requires_ground_contact", False))
+        self.obs_per_frame = m.get("obs_per_frame")
+        self.history_length = m.get("history_length")
+        self.flatten_layout = m.get("flatten_layout")
+        self.onnx_inputs = m.get("onnx_inputs")
         # joint position limits from the model would be ideal; use a safe default band
         # around the reference range if not present.
         self.q_lo = self.default - np.deg2rad(140)
         self.q_hi = self.default + np.deg2rad(140)
+
+
+def _normalize_onnx_shape(shape) -> list[int | str | None]:
+    return [int(v) if isinstance(v, (int, np.integer)) else v for v in shape]
+
+
+def _actual_onnx_inputs(session) -> dict[str, list[int | str | None]]:
+    return {value.name: _normalize_onnx_shape(value.shape) for value in session.get_inputs()}
+
+
+def _refuse_contract(reason: str) -> None:
+    raise SystemExit(f"REFUSED: invalid policy bundle — {reason}")
+
+
+def validate_policy_bundle(meta_path, policy_path, motion_path, mode, *, session=None) -> dict:
+    """Strict, side-effect-free policy preflight used before any robot interaction.
+
+    Validation may load ONNX/NPZ files, but it never initializes DDS, prompts a human,
+    releases a service, or enters a control loop. It returns the parsed metadata so
+    tests and callers can inspect the resolved history contract.
+    """
+    meta_path, policy_path, motion_path = map(Path, (meta_path, policy_path, motion_path))
+    for label, path in (("policy_meta", meta_path), ("ONNX policy", policy_path),
+                        ("motion NPZ", motion_path)):
+        if not path.is_file():
+            _refuse_contract(f"missing {label}: {path}")
+    try:
+        meta = json.loads(meta_path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        _refuse_contract(f"unreadable policy_meta: {exc}")
+
+    required = (
+        "obs_per_frame", "history_length", "flatten_layout", "onnx_inputs",
+        "actor_obs_terms_in_order", "actor_obs_term_widths",
+    )
+    missing = [field for field in required if field not in meta]
+    if missing:
+        _refuse_contract(f"policy_meta v2 missing field(s): {', '.join(missing)}")
+
+    if session is None:
+        try:
+            session = _ort_session(policy_path)
+        except Exception as exc:  # noqa: BLE001 — turn loader errors into a refusal
+            _refuse_contract(f"cannot load ONNX policy: {type(exc).__name__}: {exc}")
+    actual_inputs = _actual_onnx_inputs(session)
+    declared_inputs = meta.get("onnx_inputs")
+    if declared_inputs != actual_inputs:
+        _refuse_contract(
+            f"meta onnx_inputs {declared_inputs!r} != actual ONNX inputs {actual_inputs!r}"
+        )
+    if "obs" not in actual_inputs or "time_step" not in actual_inputs:
+        _refuse_contract(
+            f"ONNX inputs must include obs and time_step, got {sorted(actual_inputs)}"
+        )
+    obs_shape = actual_inputs["obs"]
+    if not obs_shape:
+        _refuse_contract("ONNX obs input has no dimensions")
+    obs_width = obs_shape[-1]
+    if not isinstance(obs_width, int) or isinstance(obs_width, bool) or obs_width <= 0:
+        _refuse_contract(f"ONNX obs width is dynamic or invalid: {obs_width!r}")
+
+    obs_per_frame = meta.get("obs_per_frame")
+    if (not isinstance(obs_per_frame, int) or isinstance(obs_per_frame, bool)
+            or obs_per_frame <= 0):
+        _refuse_contract(f"meta obs_per_frame is not a positive integer: {obs_per_frame!r}")
+    if obs_width % obs_per_frame:
+        _refuse_contract(
+            f"ONNX obs width {obs_width} is not an exact multiple of "
+            f"obs_per_frame {obs_per_frame}"
+        )
+    actual_history = obs_width // obs_per_frame
+    history = meta.get("history_length")
+    if (not isinstance(history, int) or isinstance(history, bool) or history <= 0
+            or history != actual_history):
+        _refuse_contract(
+            f"meta history_length {history!r} != ONNX-derived history {actual_history}"
+        )
+    if meta.get("flatten_layout") != "term-major-oldest-first":
+        _refuse_contract(
+            "flatten_layout must be 'term-major-oldest-first', got "
+            f"{meta.get('flatten_layout')!r}"
+        )
+
+    names = meta.get("actor_obs_terms_in_order")
+    widths = meta.get("actor_obs_term_widths")
+    try:
+        width_names = [item[0] for item in widths]
+        width_values = [int(item[1]) for item in widths]
+    except (TypeError, ValueError, IndexError) as exc:
+        _refuse_contract(f"actor_obs_term_widths is malformed: {exc}")
+    if not isinstance(names, list) or names != width_names:
+        _refuse_contract(
+            "actor obs term order does not match actor_obs_term_widths: "
+            f"terms={names!r}, widths={width_names!r}"
+        )
+    if any(width <= 0 for width in width_values) or sum(width_values) != obs_per_frame:
+        _refuse_contract(
+            f"actor term widths sum to {sum(width_values)} instead of "
+            f"obs_per_frame {obs_per_frame}"
+        )
+
+    if obs_width == 770 and "requires_ground_contact" not in meta:
+        _refuse_contract("770-contract policy_meta is missing requires_ground_contact")
+    if mode == "ground-run":
+        bad = [name for name in names if name in ESTIMATOR_DEPENDENT_TERMS]
+        if bad:
+            _refuse_contract(
+                f"ground-run actor terms require unavailable estimator values: {bad}"
+            )
+        if meta.get("requires_ground_contact") is not True:
+            _refuse_contract("ground-run policy must declare requires_ground_contact: true")
+    elif actual_history != 1:
+        _refuse_contract(
+            f"mode {mode!r} has no history stacker for history_length {actual_history}; "
+            "use ground-run for this estimator-free policy"
+        )
+
+    try:
+        with np.load(motion_path, allow_pickle=False) as motion:
+            needed = ("joint_pos", "joint_vel", "body_pos_w", "body_quat_w")
+            absent = [key for key in needed if key not in motion.files]
+            if absent:
+                _refuse_contract(f"motion NPZ missing array(s): {', '.join(absent)}")
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 — malformed archives are a refusal
+        _refuse_contract(f"cannot load motion NPZ: {type(exc).__name__}: {exc}")
+    return meta
+
+
+def _load_validated_session(meta_path, policy_path, motion_path, mode):
+    try:
+        session = _ort_session(policy_path)
+    except Exception as exc:  # noqa: BLE001 — refuse before any robot interaction
+        _refuse_contract(f"cannot load ONNX policy: {type(exc).__name__}: {exc}")
+    validate_policy_bundle(
+        meta_path, policy_path, motion_path, mode, session=session
+    )
+    return session
 
 
 class Reference:
@@ -1433,14 +1577,10 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
         _hold(pub, low_cmd, crc, mode_machine, q0, ENTRY_CATCH_S, kp_a, kd_a, meta)
     n_ticks = min(ref.T, int(max_secs * CONTROL_HZ))
     obs_dim = sum(w for _, w in obs_order)
-    # AUDIT FIX E: history-stack the per-frame obs to match the policy's ONNX input
-    # width (154 x N). Without this the loop fed a single 154-dim frame to a 770-input
-    # net -> crash. n_hist derived from the ONNX so a single-frame policy stays 1-frame.
-    try:
-        _onnx_dim = session.get_inputs()[0].shape[-1]
-    except Exception:  # noqa: BLE001
-        _onnx_dim = obs_dim
-    _n_hist = HistoryStacker.n_hist_for(_onnx_dim, obs_dim)
+    # Strict preflight already bound these values to the graph. Never derive a
+    # fallback here: this point is after service release, so contract uncertainty
+    # must have been refused before the human prompt and robot interaction.
+    _n_hist = int(meta.history_length)
     _stacker = HistoryStacker(obs_order, _n_hist)
     print(f"GROUND-RUN: stage-1 firm move-to-default (4s)+hold, then estimator-free policy "
           f"({obs_dim}-dim/frame x {_n_hist} history = {obs_dim * _n_hist}-dim obs) "
@@ -1884,18 +2024,19 @@ def main():
                 "ground. Wait for data/policies/thriller_ground/.")
         if not gmot.exists():   # motion may be shared with the gantry export
             gmot = Path(a.motion_npz)
+        gsession = _load_validated_session(gm, gp, gmot, a.mode)
         gmeta = Meta(gm)
         obs_order = _ground_obs_order(gmeta)   # raises if not estimator-free
         gref = Reference(gmot)
-        gsession = _ort_session(gp)
         # --exit stand honored only if this ground motion ends standing (else -> damp).
         gexit = _resolve_exit_mode(a.exit_mode, gmeta, gref)
         return mode_ground_run(gmeta, gsession, gref, a.iface, a.i_will_watch_the_robot,
                                a.max_secs, obs_order, gexit) or 0
 
-    meta = Meta(Path(a.meta))
-    ref = Reference(Path(a.motion_npz))
-    session = _ort_session(a.policy)
+    meta_path, motion_path, policy_path = Path(a.meta), Path(a.motion_npz), Path(a.policy)
+    session = _load_validated_session(meta_path, policy_path, motion_path, a.mode)
+    meta = Meta(meta_path)
+    ref = Reference(motion_path)
 
     if a.mode == "read":
         return mode_read(meta, ref, session, a.iface, a.timeout_s)
