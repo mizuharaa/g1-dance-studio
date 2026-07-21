@@ -56,14 +56,16 @@ SPEED CURRICULUM rather than a permanently slowed motion.
 
 3. TORQUE SHAPING: v8's ankle soft-barrier relu(|tau|-35)^2 and per-channel
    ankle action-rate are KEPT verbatim (inherited). NEW: torque_saturation_dur —
-   a per-step count of joints whose |tau| exceeds 90% of the per-joint effort
-   limit; summed over time this penalizes saturation DURATION, complementing the
-   ankle barrier's magnitude shaping and covering all 29 joints. Limits come
-   from the same table pipeline/g1_limits.py pinned from the mjlab/BeyondMimic
-   robot cfg, with the ankle rows at v8's 40 Nm trained clamp (the DR floor can
-   sit below the 90% threshold in some envs — there the term simply never fires;
-   it is soft shaping, not a gate). Torque remains a SOFT penalty + the hard
-   actuator clamp — NEVER a termination.
+   a per-step count of joints whose |tau| exceeds a per-joint ABSOLUTE threshold
+   (SAT_THRESHOLD_NM); summed over time this penalizes saturation DURATION,
+   complementing the ankle barrier's magnitude shaping and covering all 29 joints.
+   The thresholds are the term's OWN constants: legs/ankles at ~1.5x the measured
+   native-tempo p95 dance torque so the term actually counts genuine leg/ankle
+   over-exertion, and the upper body pinned at its effort limit so it counts only
+   true saturation and does not tax the arm/wrist motion-fidelity rewards
+   (finding I). Deliberately NOT tied to v8.ANKLE_EFFORT_LIMIT_NM (which drives the
+   real actuator clamp + effort DR and must not move). Torque remains a SOFT
+   penalty + the hard actuator clamp — NEVER a termination.
 
 4. PHASE CONDITIONING — investigated, default OFF.
    The base actor obs already carries dense reference-relative conditioning:
@@ -133,10 +135,10 @@ STANCE_LINVEL_W = float(os.environ.get("G1_STANCE_LINVEL_W", "-0.5"))
 STANCE_YAWRATE_W = float(os.environ.get("G1_STANCE_YAWRATE_W", "-0.1"))
 STANCE_FLAT_W = float(os.environ.get("G1_STANCE_FLAT_W", "-0.5"))
 
-# Saturation-duration penalty (delta 3): count of joints above SAT_FRAC of their
-# effort limit, per control step. -0.02 * 1 saturated joint-step ~ the same order
-# as the ankle barrier at the 40 Nm clamp (25 * 5e-3 = 0.125) without dwarfing it.
-SAT_FRAC = float(os.environ.get("G1_SAT_FRAC", "0.90"))
+# Saturation-duration penalty (delta 3): count of joints above their per-joint
+# absolute threshold (SAT_THRESHOLD_NM), per control step. -0.02 * 1 saturated
+# joint-step ~ the same order as the ankle barrier at the 40 Nm clamp
+# (25 * 5e-3 = 0.125) without dwarfing it.
 SAT_DURATION_W = float(os.environ.get("G1_SAT_DURATION_W", "-0.02"))
 
 # Optional explicit phase obs (delta 4) — default OFF; see WARNING in the header.
@@ -147,20 +149,27 @@ G1_PHASE_OBS = os.environ.get("G1_PHASE_OBS", "0") == "1"
 # kinematics for them are already on-device in the command term.
 FOOT_BODY_NAMES = ("left_ankle_roll_link", "right_ankle_roll_link")
 
-# Per-joint SIM effort limits [Nm] for the saturation threshold. Source:
-# pipeline/g1_limits.py EFFORT_LIMIT_NM (pinned from the mjlab/BeyondMimic G1
-# actuator cfg, cross-checked against policy_meta.json), EXCEPT the 4 ankle
-# channels which use v8's trained 40 Nm clamp (velocity-honest envelope) instead
-# of the stock 50 — saturation must be measured against what training enforces.
-SIM_EFFORT_LIMIT_NM = {
-  ".*_hip_pitch_joint": 88.0,
-  ".*_hip_roll_joint": 139.0,
-  ".*_hip_yaw_joint": 88.0,
-  ".*_knee_joint": 139.0,
-  ".*_ankle_pitch_joint": v8.ANKLE_EFFORT_LIMIT_NM,   # 40 by default
-  ".*_ankle_roll_joint": v8.ANKLE_EFFORT_LIMIT_NM,
-  "waist_yaw_joint": 88.0,
-  "waist_roll_joint": 50.0,
+# Per-joint ABSOLUTE saturation thresholds [Nm] for torque_saturation_duration.
+# These are the term's OWN independent constants — deliberately NOT the effort
+# limits and NOT v8.ANKLE_EFFORT_LIMIT_NM (that symbol also drives the real
+# actuator clamp + effort DR, so it must not move). Audit finding I: at 0.90x the
+# per-joint effort limit the leg/ankle bars (knee 125, hip 79-125, ankle 36 Nm)
+# sat 3-8x above the measured native-tempo dance torques, so the term NEVER fired
+# on a leg and instead only reached the 5 Nm wrists / 25 Nm arms — taxing the
+# w=1.0 arm/wrist motion-fidelity rewards while delivering zero leg shaping.
+# Legs/ankles are now set to ~1.5x the measured p95 dance torque so the term
+# counts genuine over-exertion (not the whole operating band); the upper body is
+# pinned at its effort limit so it only counts TRUE saturation and no longer taxes
+# arm crispness. Measured p95 (decision log 2026-07-20): knee 31-34, ankle 15-19.
+SAT_THRESHOLD_NM = {
+  ".*_hip_pitch_joint": 40.0,    # ~1.5x measured hip envelope
+  ".*_hip_roll_joint": 40.0,
+  ".*_hip_yaw_joint": 40.0,
+  ".*_knee_joint": 50.0,         # ~1.5x knee p95 (31-34)
+  ".*_ankle_pitch_joint": 30.0,  # ~1.5x ankle p95 (15-19); INDEPENDENT of the
+  ".*_ankle_roll_joint": 30.0,   # 40 Nm clamp (v8.ANKLE_EFFORT_LIMIT_NM), untouched
+  "waist_yaw_joint": 88.0,       # upper body pinned AT the effort limit: counts
+  "waist_roll_joint": 50.0,      # only true saturation, no spurious arm/wrist tax
   "waist_pitch_joint": 50.0,
   ".*_shoulder_pitch_joint": 25.0,
   ".*_shoulder_roll_joint": 25.0,
@@ -233,35 +242,42 @@ class StanceFootPenalty:
         - command.body_ang_vel_w[:, self._foot_cols, 2]
       )
       val = dw.square()                                            # [n, 2]
-    else:  # "tilt" — sin^2 of sole tilt from the foot quaternion (wxyz)
-      q = command.robot_body_quat_w[:, self._foot_cols]            # [n, 2, 4]
+    else:  # "tilt" — RESIDUAL of sole tilt vs the REFERENCE sole (a foot-flat
+           # shaping that, like its lin_vel/yaw_rate siblings, is a reference
+           # residual so it never fights the reference weight-shifts / edge-rolls
+           # that v11 motion_leg_ori is paid to track). tilt vector = world-up
+           # expressed in the foot frame; xy components = R[2,0], R[2,1] (wxyz).
+      q = command.robot_body_quat_w[:, self._foot_cols]            # robot  [n,2,4]
       w, x, y, z = q[..., 0], q[..., 1], q[..., 2], q[..., 3]
-      # world-up expressed in the foot frame: xy components = R[2,0], R[2,1]
       a = 2.0 * (x * z - w * y)
       b = 2.0 * (y * z + w * x)
-      val = a.square() + b.square()                                # [n, 2]
+      qr = command.body_quat_w[:, self._foot_cols]                 # ref    [n,2,4]
+      wr, xr, yr, zr = qr[..., 0], qr[..., 1], qr[..., 2], qr[..., 3]
+      a_ref = 2.0 * (xr * zr - wr * yr)
+      b_ref = 2.0 * (yr * zr + wr * xr)
+      val = (a - a_ref).square() + (b - b_ref).square()            # [n, 2]
 
     return (stance * val).sum(dim=1)
 
 
 class torque_saturation_duration:
-  """Count of joints with |tau| > SAT_FRAC * effort_limit, per control step
+  """Count of joints with |tau| > per-joint threshold, per control step
   (v10 delta 3). Integrated by the reward sum over time == time spent saturated.
-  Thresholds resolve per joint NAME from SIM_EFFORT_LIMIT_NM at manager init
-  (order-safe, same qfrc_actuator source as the ankle barrier). SOFT shaping
-  only — torque never terminates an episode.
+  Thresholds resolve per joint NAME from SAT_THRESHOLD_NM (the term's OWN absolute
+  Nm bars — see finding I) at manager init (order-safe, same qfrc_actuator source
+  as the ankle barrier). SOFT shaping only — torque never terminates an episode.
   """
 
   def __init__(self, cfg, env):
     asset = env.scene[cfg.params["asset_cfg"].name]
     ids_all: list[int] = []
     thresh: list[float] = []
-    for pattern, limit in SIM_EFFORT_LIMIT_NM.items():
+    for pattern, limit in SAT_THRESHOLD_NM.items():
       ids, _ = asset.find_joints((pattern,))
       ids_all.extend(ids)
-      thresh.extend([SAT_FRAC * float(limit)] * len(ids))
+      thresh.extend([float(limit)] * len(ids))
     if len(set(ids_all)) != len(ids_all):
-      raise ValueError("SIM_EFFORT_LIMIT_NM patterns overlap — joints double-counted")
+      raise ValueError("SAT_THRESHOLD_NM patterns overlap — joints double-counted")
     self._ids = torch.tensor(ids_all, device=env.device, dtype=torch.long)
     self._thresh = torch.tensor(thresh, device=env.device, dtype=torch.float32)
 
@@ -381,8 +397,9 @@ def _selfcheck() -> int:
           f"{'OK' if w_ok and neg_ok else '!! bad weight (must be the env default, negative)'}")
   print(f"  stance thresholds        : height eps {STANCE_HEIGHT_EPS_M} m, "
         f"speed < {STANCE_SPEED_MAX} m/s")
-  print(f"  saturation threshold     : {SAT_FRAC:.2f} x per-joint limit "
-        f"(ankles vs the {v8.ANKLE_EFFORT_LIMIT_NM} Nm trained clamp)")
+  print(f"  saturation thresholds    : absolute Nm per joint (knee {SAT_THRESHOLD_NM['.*_knee_joint']}, "
+        f"ankle {SAT_THRESHOLD_NM['.*_ankle_roll_joint']}, arm 25); "
+        f"INDEPENDENT of the {v8.ANKLE_EFFORT_LIMIT_NM} Nm ankle clamp")
   # no torque termination may exist (soft-penalty rule)
   torque_terms = [k for k in cfg.terminations if "torque" in k or "saturat" in k]
   ok &= not torque_terms
