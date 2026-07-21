@@ -466,3 +466,13 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - Sharpness vs source: elbows 94-97%, shoulders 87-102%, intro knees restored.
 - G1_WAIST_SRC_WINDOWS=15.5-20.5,27.5-38.5 (+2.5s shift). Gate bars 22/25 ankle, drift p95 1.5.
 - NOTE: pgrep self-match killed the first launch attempt (3rd occurrence — always use [b]racket patterns).
+
+## 2026-07-21 — SWEEP 1 (2-box, post-audit) — boxes 53665 (A) + 54751 (B)
+- First parallel wave. Both = audit-fixed recipe on the rebuilt v12 motion (fix A cleaner),
+  same default seed, gate bars 22/25 ankle + drift p95 1.5. Only knob differs:
+  - Box A (53665) RUN_NAME=sweep1a-ctrl : audit-fixed CONTROL (ankle barrier tau_soft=16).
+  - Box B (54751) RUN_NAME=sweep1b-tau12: G1_ANKLE_BARRIER_TAU=12 (aggressive ankle unload).
+- Purpose: validate the audit fixes produce a good policy + test the headline ankle-recipe knob.
+- Box A launched ~06:45; Box B provisioning (fresh), launches on mjlab_ready.
+- Compare on fix-J recorded bars: survival, leg-reach, drift p95, ankle p95, rr_mpkpe. Both DELETE after pull.
+- CAVEAT: same-seed A/B isolates the knob; seed-variance is a later wave.
