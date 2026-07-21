@@ -46,6 +46,36 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-07-21 (ML PIPELINE AUDIT — 12 confirmed defects FIXED, no train yet): user (10+ sessions on
+  one dance) asked for a codebase rescan for faulty/over-engineered code distorting ML weights +
+  preview↔reference mismatch. Ran an 84-agent Opus adversarial workflow (5 auditors → dedupe → 3
+  verify lenses each → synth; full report experiments/ml_audit_20260721/REPORT.md). 12 CONFIRMED,
+  all fixed + committed (97bc6ca..57e4b2c), 53 tests green. THREE failure classes: **(1) trained
+  against a blunted/wrong-tempo reference** — A: SG low-passed sharp hits ~29% even when NOT flagged
+  (fast-joint MAD hides them); fixed with a velocity-aware SG exemption (knee/elbow/shoulder snaps
+  now 100% vs 71-97%), v12 motion REBUILT; B: run_attempt9 could copy the previous tempo's stale
+  npz on a flaky convert (rm+frame-check added). **(2) preview ≠ policy truth** — C: every manual
+  pull previewed against a frozen Jul-7 npz driving BOTH panes+command (export/pull/convert chain
+  fixed); D: reference pane rendered ~90° rotated ("read from the back") — yaw-aligned; E: deploy
+  had NO history stacking — a real 770-dim v8/v10/v11 deploy would CRASH and the sandbox's layout
+  was never validated → shared HistoryStacker + box obs-layout smoke test (cloud/verify_obs_layout.py).
+  **(3) ankle recipe inverted/dead** — F: the 40 Nm clamp was overwritten by the effort DR (mjlab
+  scales from default, doesn't compose) → trained 32.5-47.5 not 26-38; fixed to a composed single
+  DR event; G: the ankle_torque_barrier tau_soft=35 gave ZERO gradient across the real 15-19 Nm band
+  AND had replaced v7's working ankle_torque_l2 → v8/v10/v11 had LESS ankle shaping than v6/v7;
+  tau_soft→16 (in-band). H: stance_foot_flat used absolute tilt, fighting v11's leg-ori tracking →
+  made a reference residual. I: saturation thresholds sat 3-8× above measured leg torques (inert on
+  legs, taxed arms) → realistic decoupled table. **(4) eval comparability** (didn't corrupt training
+  but made cross-version verdicts meaningless) — J: gate bars now recorded in gap.json; K: drift
+  banner compared max_m vs episode_p95; L: heldout certified only the first 20 s of a ~50 s dance.
+  ⭐ NET: the v8/v10/v11 ankle "safety" recipe was largely inert/inverted; the preview the user
+  judged by was a broken witness (stale motion + 90° rotation); the training reference was pre-blunted.
+  NEXT RUN validates F/G/H/I (need GPU) + E's box layout assert; runs on the v12 motion. Watchlist
+  (12 PLAUSIBLE, immaterial) in experiments/ml_audit_20260721/PLAUSIBLE.md — fix only if symptom
+  appears. **v12 training was STOPPED (user: don't train yet); box 53665 idle-billing — DELETE or
+  reuse for the post-fix run.** NOTE: v8/v9/v10/v11 gap.json predate fixes F-L → NOT comparable to
+  the next run.
+
 - 2026-07-20 (v11 DONE — BEST POLICY YET, native tempo, legs fixed): Attempt 8 on box 53665
   (nb-0ba4539e) finished; winner iter 9496 (final native stage, NO late collapse — picker took the
   last ckpt, unlike v7/v9/v10). Two box gates caught real bugs pre-spend (stance env-ordering +
