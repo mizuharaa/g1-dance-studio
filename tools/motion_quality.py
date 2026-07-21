@@ -60,6 +60,12 @@ SG_POLY = 3
 # this are coherent motion, not impulses — they are protected from rejection
 # (SG smoothing and the downstream velocity clamp still apply to them).
 MAX_GLITCH_CORE = 4
+# Second guard criterion (2026-07-21, the 8.4 rad/s Thriller knee-snap lesson):
+# even a SHORT flagged run is only a glitch if the sample deviates from its
+# neighbour-spline by many times the joint's local motion scale. A genuine
+# impulsive snap sits ON the motion (deviation ~1-2x the local per-frame delta);
+# GVHMR limb flips deviate 10-600x. Short runs below this ratio are protected.
+GLITCH_DEV_RATIO = 3.0
 
 
 def _spike_hit(x: np.ndarray, fps: float) -> np.ndarray:
@@ -84,9 +90,11 @@ def _spike_mask(x: np.ndarray, fps: float,
     If ``info`` is given, per-run bookkeeping is appended to
     info["rejected_runs"] / info["protected_runs"] as (frame_start, frame_end,
     dof_column) tuples on the frame clock."""
+    from scipy.interpolate import CubicSpline
     from scipy.ndimage import binary_closing
     core = np.zeros(x.shape, dtype=bool)
     core[1:-1] = _spike_hit(x, fps)
+    idx = np.arange(len(x))
     for d in np.flatnonzero(core.any(axis=0)):
         col = core[:, d]
         # one physical event = one run: a smooth pulse's |accel| crosses zero
@@ -104,10 +112,26 @@ def _spike_mask(x: np.ndarray, fps: float,
                 col[s:e + 1] = False
                 if info is not None:
                     info.setdefault("protected_runs", []).append(run)
+                continue
+            # short run: glitch only if it deviates from the neighbour-spline
+            # by >= GLITCH_DEV_RATIO x the joint's local per-frame motion scale
+            good = np.ones(len(x), dtype=bool)
+            good[max(0, s - 1):e + 2] = False
+            lo, hi = max(0, s - 30), min(len(x), e + 31)
+            scale = np.percentile(np.abs(np.diff(x[lo:hi, d])), 95) + 1e-6
+            if good.sum() >= 4:
+                spl = CubicSpline(idx[good], x[good, d])(idx[s:e + 1])
+                dev = float(np.max(np.abs(x[s:e + 1, d] - spl)))
             else:
-                col[s:e + 1] = True   # reject the whole event incl. gap samples
+                dev = float("inf")
+            if dev / scale >= GLITCH_DEV_RATIO:
+                col[s:e + 1] = True   # true flip: reject whole event incl. gaps
                 if info is not None:
                     info.setdefault("rejected_runs", []).append(run)
+            else:
+                col[s:e + 1] = False  # choreography-scale snap: protect
+                if info is not None:
+                    info.setdefault("protected_runs", []).append(run)
     return binary_dilation(core, structure=np.ones((3, 1), dtype=bool))
 
 

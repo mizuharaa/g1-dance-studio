@@ -205,7 +205,18 @@ ANKLE_ACTION_RATE_W = float(os.environ.get("G1_ANKLE_ACTION_RATE_W", "-0.05"))
 # scaled by G1_SLOWDOWN at build time to the slowed clock the motion npz runs on.
 WAIST_BODY_NAME = "torso_link"
 WAIST_SLACK = float(os.environ.get("G1_WAIST_SLACK", "0.5"))
-WAIST_SLACK_WINDOWS_S = ((13.0, 18.0), (25.0, 36.0))
+# Source-clock beat windows. Default = the classic 13-18/25-36 on the ORIGINAL
+# (intro-less grounded) lineage. G1_WAIST_SRC_WINDOWS="a-b,c-d" overrides them
+# while KEEPING the per-stage G1_SLOWDOWN scaling (unlike G1_WAIST_WINDOWS which
+# bypasses scaling) — needed for v12+, whose motion restores the 2.5 s intro so
+# every source-time landmark shifts +2.5 s (windows 15.5-20.5, 27.5-38.5).
+_src_env = os.environ.get("G1_WAIST_SRC_WINDOWS", "")
+if _src_env:
+  WAIST_SLACK_WINDOWS_S = tuple(
+    (float(a), float(b)) for a, b in
+    (w.split("-") for w in _src_env.split(",")))
+else:
+  WAIST_SLACK_WINDOWS_S = ((13.0, 18.0), (25.0, 36.0))
 # v9 (adaptive time-warp): the motion clock is NON-uniformly warped, so a uniform
 # G1_SLOWDOWN scale can't place the beat windows. The launcher maps the source-time
 # windows through the warp's time_map (tools/motion_repair.map_source_windows) and
