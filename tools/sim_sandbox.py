@@ -79,28 +79,19 @@ V8_GROUND_ORDER = (("command", 58), ("motion_anchor_ori_b", 6), ("base_ang_vel",
 
 
 class _V8HistoryObs:
-    """770-dim history-stacked obs per the v8 DEPLOY CONTRACT: per-TERM blocks, each
-    term's N frames oldest->newest concatenated, then terms concatenated (mjlab
-    flatten_history_dim=True layout — NOT frame-major). Warmup = repeat the first
-    frame (mjlab CircularBuffer pads with the first obs), never zero-pad."""
+    """770-dim history-stacked obs per the v8 DEPLOY CONTRACT. AUDIT FIX E: this now
+    delegates the stacking to the SHARED pipeline.deploy_runtime.HistoryStacker so the
+    preview and the real deploy loop can never diverge (previously the sandbox
+    re-implemented the layout and deploy had none at all)."""
 
     def __init__(self, n_hist: int = 5):
         self.n = n_hist
-        self.frames: deque = deque(maxlen=n_hist)
+        self._stacker = D.HistoryStacker(V8_GROUND_ORDER, n_hist)
 
     def __call__(self, meta, ref, q, dq, imu_quat, gyro, last_action, tick):
         _obs, terms = D.build_obs_ground(meta, ref, q, dq, imu_quat, gyro,
                                          last_action, tick, V8_GROUND_ORDER)
-        if not self.frames:
-            for _ in range(self.n):
-                self.frames.append(terms)
-        else:
-            self.frames.append(terms)
-        parts = []
-        for name, _w in V8_GROUND_ORDER:
-            for fr in self.frames:  # oldest -> newest
-                parts.append(np.asarray(fr[name], float).reshape(-1))
-        obs = np.concatenate(parts)
+        obs = self._stacker.push(terms)
         assert obs.shape[0] == 154 * self.n, f"v8 obs dim {obs.shape[0]} != {154*self.n}"
         return obs, terms
 

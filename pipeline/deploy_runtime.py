@@ -733,6 +733,54 @@ def build_obs_ground(meta: Meta, ref: Reference, q, dq, imu_quat, gyro,
     return obs, terms
 
 
+class HistoryStacker:
+    """Frame-history stacker for the estimator-free ground obs (AUDIT FIX E,
+    2026-07-21). v8/v10/v11 export a history-stacked actor (154 dims/frame x N
+    frames); the DEPLOY loop was feeding a single 154-dim frame straight to the
+    770-input ONNX -> shape-mismatch crash. History stacking previously existed
+    ONLY in tools/sim_sandbox._V8HistoryObs, so deploy was broken for the whole
+    trained lineage AND the preview's layout had no deploy implementation to
+    match. This class is the single shared implementation used by BOTH.
+
+    Layout = mjlab ObservationManager flatten_history_dim=True: per TERM (in obs
+    order), that term's N frames oldest->newest concatenated, THEN terms
+    concatenated (term-major, NOT frame-major). Warmup backfills the first frame
+    (mjlab's CircularBuffer pads with the first observation), never zeros.
+    n_hist=1 degrades to a plain single-frame pass-through.
+
+    WARNING: a transposed flatten is silent (no crash) and would drive a fall, so
+    a box smoke test must dump one real actor obs and assert this exact layout
+    before any 770-dim build is signed for deploy."""
+
+    def __init__(self, order, n_hist):
+        from collections import deque
+        self.order = list(order)
+        self.n = max(1, int(n_hist))
+        self._frames = deque(maxlen=self.n)
+
+    @staticmethod
+    def n_hist_for(onnx_obs_dim, per_frame_dim):
+        """History length from the ONNX input width; 1 if not an exact multiple
+        (a genuine single-frame policy) so deploy never fabricates frames."""
+        if isinstance(onnx_obs_dim, int) and per_frame_dim > 0 \
+                and onnx_obs_dim % per_frame_dim == 0:
+            return onnx_obs_dim // per_frame_dim
+        return 1
+
+    def push(self, terms):
+        """Append the current per-term dict, return the flat history-stacked obs."""
+        if not self._frames:
+            for _ in range(self.n):
+                self._frames.append(terms)
+        else:
+            self._frames.append(terms)
+        parts = []
+        for name, _w in self.order:
+            for fr in self._frames:            # oldest -> newest
+                parts.append(np.asarray(fr[name], float).reshape(-1))
+        return np.concatenate(parts)
+
+
 def _ort_session(path):
     """CPU inference session tuned for the 50 Hz loop: single-threaded (the policy MLP
     is tiny — thread fan-out adds scheduling jitter, not speed) and pre-warmed so the
@@ -1385,8 +1433,18 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
         _hold(pub, low_cmd, crc, mode_machine, q0, ENTRY_CATCH_S, kp_a, kd_a, meta)
     n_ticks = min(ref.T, int(max_secs * CONTROL_HZ))
     obs_dim = sum(w for _, w in obs_order)
+    # AUDIT FIX E: history-stack the per-frame obs to match the policy's ONNX input
+    # width (154 x N). Without this the loop fed a single 154-dim frame to a 770-input
+    # net -> crash. n_hist derived from the ONNX so a single-frame policy stays 1-frame.
+    try:
+        _onnx_dim = session.get_inputs()[0].shape[-1]
+    except Exception:  # noqa: BLE001
+        _onnx_dim = obs_dim
+    _n_hist = HistoryStacker.n_hist_for(_onnx_dim, obs_dim)
+    _stacker = HistoryStacker(obs_order, _n_hist)
     print(f"GROUND-RUN: stage-1 firm move-to-default (4s)+hold, then estimator-free policy "
-          f"({obs_dim}-dim obs) {n_ticks}/{ref.T} ticks @ {CONTROL_HZ:.0f}Hz "
+          f"({obs_dim}-dim/frame x {_n_hist} history = {obs_dim * _n_hist}-dim obs) "
+          f"{n_ticks}/{ref.T} ticks @ {CONTROL_HZ:.0f}Hz "
           f"[--max-secs {max_secs:.1f}], action cap {GROUND_MAX_ACTION:.1f}. "
           f"Tethered. Ctrl-C / remote-damp to stop.")
     global _TELEM
@@ -1418,7 +1476,9 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
             if _need_contact and _cest.lost_contact():
                 watchdog.raise_fault("foot contact lost mid-run")
                 raise RuntimeError(f"foot contact lost at tick {tick} -> damp")
-            obs, _ = build_obs_ground(meta, ref, q, dq, imu_quat, gyro, last_action, tick, obs_order)
+            _single, _terms = build_obs_ground(meta, ref, q, dq, imu_quat, gyro,
+                                               last_action, tick, obs_order)
+            obs = _stacker.push(_terms)   # history-stack to the ONNX width (fix E)
             if not np.all(np.isfinite(obs)):
                 raise RuntimeError(f"non-finite obs at tick {tick}")
             action = run_policy(session, obs, tick)
