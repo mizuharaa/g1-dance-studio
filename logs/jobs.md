@@ -476,3 +476,11 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - Box A launched ~06:45; Box B provisioning (fresh), launches on mjlab_ready.
 - Compare on fix-J recorded bars: survival, leg-reach, drift p95, ankle p95, rr_mpkpe. Both DELETE after pull.
 - CAVEAT: same-seed A/B isolates the knob; seed-variance is a later wave.
+
+## 2026-07-21 — DEPRECATED MOTION (audit F2)
+- data/motions/thriller/thriller_v12_full.csv: sha matches NO retained scorecard
+  (post-scorecard rewrite; source was a deleted /tmp path; re-scores binding 2.865,
+  74.8% floaty). MUST NEVER BE TRAINED ON AGAIN. Superseded by
+  data/motions/thriller/v12_bundle/ (bundle_id 2595068f9243..., built by
+  tools/build_motion_bundle.py from the immutable thriller_deploy.csv through the
+  flight-aware grounding; feasibility 2.96% over, floaty 0.0%, byte-reproducible).

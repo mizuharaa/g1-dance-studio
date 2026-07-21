@@ -1,0 +1,49 @@
+{
+  "bundle_id": "2595068f924383317c993a8c456787c533a59d9c1cb3ac07d76ec8da4737b988",
+  "created_at": "2026-07-21T18:07:43+0700",
+  "motion": {
+    "final_csv": {
+      "path": "final.csv",
+      "sha256": "349bb850555fb0741e0fcab47de981b0e373bc3b83042fdb936580bde3b54572"
+    },
+    "grounding": {
+      "flight_aware": true,
+      "info": {
+        "drift_removed_mm": 161.9,
+        "flight_frames": 0,
+        "flight_windows_s": [],
+        "floor_drift_m": -0.0339,
+        "grounded_start": true,
+        "mean_shift_m": 0.0625,
+        "mode": "per_frame",
+        "resid_lift_mm": -0.0,
+        "support_pct": 99.9
+      },
+      "params": {
+        "flight_band_m": 0.08,
+        "flight_min_s": 0.12,
+        "floor_tau_s": 0.08,
+        "relock_vmax_mps": 0.35,
+        "seed_s": 0.5,
+        "support_band_m": 0.03,
+        "support_vmax_mps": 0.2
+      }
+    },
+    "scorecard": {
+      "path": "scorecard.json",
+      "sha256": "e7dfd7de56bd76e4bc6f2d1823c0483d5999d63dba6446cc01de8ef1652b5bed"
+    },
+    "source_csv": {
+      "path": "source.csv",
+      "sha256": "8ffd1a17639ee93bfa1e5cb164afd59cccc8193f7985329cf3b5cd6ae962db27"
+    },
+    "source_origin": "data/motions/thriller/thriller_deploy.csv",
+    "tempo_npz": {
+      "060": {},
+      "075": {},
+      "090": {},
+      "100": {}
+    }
+  },
+  "schema": "g1.bundle/1"
+}

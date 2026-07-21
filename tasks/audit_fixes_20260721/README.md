@@ -25,7 +25,7 @@ explicit paths only.
 
 - [x] A1 effort scope (F1) — landed (see git log [laneA] F1)
 - [x] A2 grounding flight (F8) — landed ([laneA] F8)
-- [ ] A3 v12 rebuild + manifest (F2) — 
+- [x] A3 v12 rebuild + manifest (F2) — landed ([laneA] F2)
 - [x] A4 eval harness (F4) — landed ([laneA] F4)
 - [x] A5 cloud tests green — landed ([laneA] A5)
 - [ ] B1 policy manifest/meta v2 (F3) — 

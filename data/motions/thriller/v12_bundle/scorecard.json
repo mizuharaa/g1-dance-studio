@@ -1,0 +1,1048 @@
+{
+  "clean": {
+    "choreo_runs_protected": 32,
+    "dof_p99_delta_rad": 0.0184,
+    "dof_rms_delta_rad": 0.0046,
+    "fidelity": {
+      "arms": {
+        "amp_retention": 0.993,
+        "peakvel_retention": 1.0,
+        "worst_5s_tile": {
+          "amp_retention": 0.981,
+          "t0_s": 15.0
+        }
+      },
+      "legs": {
+        "amp_retention": 1.001,
+        "peakvel_retention": 1.0,
+        "worst_5s_tile": {
+          "amp_retention": 0.987,
+          "t0_s": 15.0
+        }
+      },
+      "waist": {
+        "amp_retention": 0.988,
+        "peakvel_retention": 0.888,
+        "worst_5s_tile": {
+          "amp_retention": 0.971,
+          "t0_s": 15.0
+        }
+      },
+      "warnings": [
+        "waist: peak-velocity retention 0.89 (< 0.9) \u2014 smoothing is blunting sharp hits; check the SG/protected-run blend before training"
+      ]
+    },
+    "glitch_runs_rejected": 0,
+    "jerk_p99_after": 1723.0,
+    "jerk_p99_before": 2649.0,
+    "jerk_peak_after": 11545.0,
+    "jerk_peak_before": 11939.0,
+    "outlier_frames_replaced": 0,
+    "spike_frames_after": 29,
+    "spike_frames_before": 25
+  },
+  "feasibility": {
+    "ankle_flag_windows_s": [
+      [
+        14.8,
+        14.87
+      ],
+      [
+        15.57,
+        15.8
+      ],
+      [
+        16.7,
+        16.7
+      ],
+      [
+        16.9,
+        16.97
+      ],
+      [
+        17.63,
+        17.9
+      ],
+      [
+        18.73,
+        18.73
+      ],
+      [
+        25.53,
+        25.53
+      ],
+      [
+        26.47,
+        26.47
+      ],
+      [
+        27.97,
+        28.0
+      ],
+      [
+        31.97,
+        32.0
+      ],
+      [
+        33.5,
+        33.53
+      ],
+      [
+        34.17,
+        34.17
+      ],
+      [
+        36.03,
+        36.07
+      ],
+      [
+        38.07,
+        38.07
+      ],
+      [
+        41.63,
+        41.7
+      ],
+      [
+        44.13,
+        44.13
+      ],
+      [
+        45.83,
+        45.83
+      ],
+      [
+        46.17,
+        46.2
+      ],
+      [
+        47.13,
+        47.3
+      ],
+      [
+        47.7,
+        47.7
+      ],
+      [
+        48.23,
+        48.23
+      ]
+    ],
+    "ankle_headroom_nm": 40.0,
+    "balance": {
+      "double_support_pct": 60.36,
+      "floaty_feet_pct": 0.0,
+      "frames_flight_pct": 0.0,
+      "requires_stepping_pct": 65.96,
+      "zmp_deficit_max_m": 0.608,
+      "zmp_margin_min_m": -0.608,
+      "zmp_outside_support_pct": 54.25
+    },
+    "dynamic": {
+      "ankle_frames_over_headroom_pct": 2.12,
+      "ankle_tau_max_nm": 50.25,
+      "ankle_tau_p95_nm": 34.7,
+      "any_joint_frames_over_pct": 2.96,
+      "binding_ratio_max": 2.801,
+      "binding_ratio_p95": 0.908,
+      "naive_ankle_strategy_p95_nm (legacy diagnostic)": 93.3,
+      "per_joint_effort_limit_nm": [
+        88.0,
+        139.0,
+        88.0,
+        139.0,
+        50.0,
+        50.0,
+        88.0,
+        139.0,
+        88.0,
+        139.0,
+        50.0,
+        50.0,
+        88.0,
+        50.0,
+        50.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        5.0,
+        5.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        25.0,
+        5.0,
+        5.0
+      ],
+      "per_joint_power_peak_w": [
+        130.6,
+        141.9,
+        100.4,
+        185.0,
+        145.7,
+        26.3,
+        116.6,
+        131.9,
+        82.9,
+        217.7,
+        120.4,
+        16.7,
+        73.2,
+        259.7,
+        42.0,
+        137.0,
+        106.1,
+        13.4,
+        27.7,
+        2.4,
+        2.6,
+        3.6,
+        104.2,
+        100.7,
+        20.6,
+        41.4,
+        2.6,
+        2.4,
+        3.9
+      ],
+      "per_joint_saturation_pct": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.19,
+        0.0,
+        0.06,
+        0.0,
+        0.0,
+        0.0,
+        0.39,
+        0.0,
+        0.0,
+        0.97,
+        0.0,
+        0.06,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.13,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "per_joint_tau_max_nm": [
+        69.88,
+        87.15,
+        73.71,
+        73.18,
+        49.0,
+        21.08,
+        82.61,
+        94.34,
+        53.83,
+        86.36,
+        50.25,
+        19.36,
+        34.63,
+        126.06,
+        40.99,
+        26.52,
+        20.17,
+        9.79,
+        8.58,
+        0.92,
+        2.35,
+        1.96,
+        23.24,
+        19.13,
+        7.57,
+        8.9,
+        0.86,
+        2.61,
+        1.27
+      ],
+      "per_joint_tau_rms_nm": [
+        11.17,
+        16.52,
+        9.48,
+        17.56,
+        13.94,
+        5.87,
+        10.91,
+        16.81,
+        10.5,
+        21.94,
+        13.71,
+        6.29,
+        4.89,
+        11.7,
+        9.45,
+        3.2,
+        3.56,
+        1.09,
+        1.68,
+        0.24,
+        0.47,
+        0.22,
+        3.09,
+        3.83,
+        1.06,
+        1.67,
+        0.23,
+        0.46,
+        0.22
+      ]
+    },
+    "file": "final.csv",
+    "fps": 30.0,
+    "frames": 1554,
+    "kinematic": {
+      "accel_peak_rad_s2": 118.7,
+      "pos_worst_violation_rad": 0.0109,
+      "vel_frames_over_limit_pct": 0.0,
+      "vel_peak_rad_s": 8.72
+    },
+    "model": "contact-aware floating-base ID (per-foot ZMP load share, 6 Hz zero-phase low-pass)",
+    "requires_stepping_windows_s": [
+      [
+        3.63,
+        3.83
+      ],
+      [
+        4.0,
+        4.0
+      ],
+      [
+        4.17,
+        4.97
+      ],
+      [
+        5.1,
+        5.13
+      ],
+      [
+        6.07,
+        6.13
+      ],
+      [
+        6.47,
+        6.5
+      ],
+      [
+        6.87,
+        7.23
+      ],
+      [
+        7.83,
+        7.9
+      ],
+      [
+        8.17,
+        8.3
+      ],
+      [
+        9.13,
+        9.2
+      ],
+      [
+        10.07,
+        10.07
+      ],
+      [
+        10.2,
+        10.27
+      ],
+      [
+        10.47,
+        11.3
+      ],
+      [
+        11.53,
+        12.2
+      ],
+      [
+        12.33,
+        12.4
+      ],
+      [
+        12.53,
+        13.27
+      ],
+      [
+        13.4,
+        13.4
+      ],
+      [
+        13.57,
+        14.37
+      ],
+      [
+        14.53,
+        14.57
+      ],
+      [
+        14.7,
+        14.7
+      ],
+      [
+        14.83,
+        18.3
+      ],
+      [
+        18.43,
+        21.57
+      ],
+      [
+        21.73,
+        28.07
+      ],
+      [
+        28.27,
+        28.27
+      ],
+      [
+        28.4,
+        28.53
+      ],
+      [
+        28.8,
+        28.97
+      ],
+      [
+        29.1,
+        29.1
+      ],
+      [
+        29.27,
+        29.43
+      ],
+      [
+        29.67,
+        32.0
+      ],
+      [
+        32.2,
+        32.27
+      ],
+      [
+        32.93,
+        42.33
+      ],
+      [
+        42.47,
+        46.77
+      ],
+      [
+        46.9,
+        48.57
+      ],
+      [
+        48.8,
+        48.8
+      ],
+      [
+        48.97,
+        48.97
+      ]
+    ],
+    "seconds": 51.8,
+    "torque_speed_model": "PMSM flat-until-knee derate: full effort to 50% of velocity_limit, linear to 0 at no-load speed (revised 2026-07-20)",
+    "total_mass_kg": 35.11
+  },
+  "fidelity_retention": {
+    "failures": [],
+    "moving_ptp_rad": 0.05,
+    "peakvel_estimator": {
+      "robust_frames": 3,
+      "window_min_rad_s": 0.5
+    },
+    "per_joint": [
+      {
+        "amp_retention": 1.0017,
+        "joint": 0,
+        "moving": true,
+        "peakvel_retention": 0.9907,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 1.3369,
+        "src_peakvel_rad_s": 4.893,
+        "worst_window_amp": {
+          "amp_retention": 0.9728,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9531,
+          "t0_s": 35.0
+        }
+      },
+      {
+        "amp_retention": 0.999,
+        "joint": 1,
+        "moving": true,
+        "peakvel_retention": 0.9779,
+        "raw_peakvel_retention": 0.887,
+        "src_amp_rad": 1.0018,
+        "src_peakvel_rad_s": 3.502,
+        "worst_window_amp": {
+          "amp_retention": 0.9547,
+          "t0_s": 0.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9184,
+          "t0_s": 5.0
+        }
+      },
+      {
+        "amp_retention": 0.9953,
+        "joint": 2,
+        "moving": true,
+        "peakvel_retention": 0.9838,
+        "raw_peakvel_retention": 0.9111,
+        "src_amp_rad": 0.6691,
+        "src_peakvel_rad_s": 2.581,
+        "worst_window_amp": {
+          "amp_retention": 0.9653,
+          "t0_s": 30.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9253,
+          "t0_s": 35.0
+        }
+      },
+      {
+        "amp_retention": 1.0023,
+        "joint": 3,
+        "moving": true,
+        "peakvel_retention": 1.0,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 1.966,
+        "src_peakvel_rad_s": 7.422,
+        "worst_window_amp": {
+          "amp_retention": 0.9763,
+          "t0_s": 5.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9077,
+          "t0_s": 0.0
+        }
+      },
+      {
+        "amp_retention": 1.011,
+        "joint": 4,
+        "moving": true,
+        "peakvel_retention": 0.939,
+        "raw_peakvel_retention": 0.9559,
+        "src_amp_rad": 0.8727,
+        "src_peakvel_rad_s": 4.847,
+        "worst_window_amp": {
+          "amp_retention": 0.9823,
+          "t0_s": 5.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9029,
+          "t0_s": 35.0
+        }
+      },
+      {
+        "amp_retention": 1.0114,
+        "joint": 5,
+        "moving": true,
+        "peakvel_retention": 0.9676,
+        "raw_peakvel_retention": 0.6575,
+        "src_amp_rad": 0.5236,
+        "src_peakvel_rad_s": 2.042,
+        "worst_window_amp": {
+          "amp_retention": 0.9852,
+          "t0_s": 10.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8668,
+          "t0_s": 35.0
+        }
+      },
+      {
+        "amp_retention": 1.0036,
+        "joint": 6,
+        "moving": true,
+        "peakvel_retention": 0.9773,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 1.5193,
+        "src_peakvel_rad_s": 4.986,
+        "worst_window_amp": {
+          "amp_retention": 0.9852,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9407,
+          "t0_s": 5.0
+        }
+      },
+      {
+        "amp_retention": 0.9917,
+        "joint": 7,
+        "moving": true,
+        "peakvel_retention": 0.9749,
+        "raw_peakvel_retention": 0.9844,
+        "src_amp_rad": 0.8076,
+        "src_peakvel_rad_s": 4.102,
+        "worst_window_amp": {
+          "amp_retention": 0.9625,
+          "t0_s": 40.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8616,
+          "t0_s": 40.0
+        }
+      },
+      {
+        "amp_retention": 0.9552,
+        "joint": 8,
+        "moving": true,
+        "peakvel_retention": 0.988,
+        "raw_peakvel_retention": 0.886,
+        "src_amp_rad": 0.7571,
+        "src_peakvel_rad_s": 3.601,
+        "worst_window_amp": {
+          "amp_retention": 0.9368,
+          "t0_s": 45.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.7994,
+          "t0_s": 35.0
+        }
+      },
+      {
+        "amp_retention": 0.9994,
+        "joint": 9,
+        "moving": true,
+        "peakvel_retention": 1.0,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 2.3793,
+        "src_peakvel_rad_s": 7.905,
+        "worst_window_amp": {
+          "amp_retention": 0.9843,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9553,
+          "t0_s": 30.0
+        }
+      },
+      {
+        "amp_retention": 1.0134,
+        "joint": 10,
+        "moving": true,
+        "peakvel_retention": 0.9787,
+        "raw_peakvel_retention": 0.8818,
+        "src_amp_rad": 0.9044,
+        "src_peakvel_rad_s": 5.595,
+        "worst_window_amp": {
+          "amp_retention": 0.9772,
+          "t0_s": 35.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.89,
+          "t0_s": 5.0
+        }
+      },
+      {
+        "amp_retention": 1.0263,
+        "joint": 11,
+        "moving": true,
+        "peakvel_retention": 0.949,
+        "raw_peakvel_retention": 0.7473,
+        "src_amp_rad": 0.3471,
+        "src_peakvel_rad_s": 1.695,
+        "worst_window_amp": {
+          "amp_retention": 0.978,
+          "t0_s": 25.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8374,
+          "t0_s": 35.0
+        }
+      },
+      {
+        "amp_retention": 0.9728,
+        "joint": 12,
+        "moving": true,
+        "peakvel_retention": 0.898,
+        "raw_peakvel_retention": 0.7864,
+        "src_amp_rad": 0.8179,
+        "src_peakvel_rad_s": 3.098,
+        "worst_window_amp": {
+          "amp_retention": 0.9728,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.898,
+          "t0_s": 45.0
+        }
+      },
+      {
+        "amp_retention": 0.9852,
+        "joint": 13,
+        "moving": true,
+        "peakvel_retention": 0.9004,
+        "raw_peakvel_retention": 0.8884,
+        "src_amp_rad": 0.9158,
+        "src_peakvel_rad_s": 3.45,
+        "worst_window_amp": {
+          "amp_retention": 0.9515,
+          "t0_s": 0.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8443,
+          "t0_s": 15.0
+        }
+      },
+      {
+        "amp_retention": 1.0049,
+        "joint": 14,
+        "moving": true,
+        "peakvel_retention": 0.9628,
+        "raw_peakvel_retention": 0.9098,
+        "src_amp_rad": 0.7857,
+        "src_peakvel_rad_s": 3.393,
+        "worst_window_amp": {
+          "amp_retention": 0.9658,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8865,
+          "t0_s": 40.0
+        }
+      },
+      {
+        "amp_retention": 1.0031,
+        "joint": 15,
+        "moving": true,
+        "peakvel_retention": 1.0,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 3.9723,
+        "src_peakvel_rad_s": 8.469,
+        "worst_window_amp": {
+          "amp_retention": 0.9882,
+          "t0_s": 0.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9269,
+          "t0_s": 5.0
+        }
+      },
+      {
+        "amp_retention": 1.0103,
+        "joint": 16,
+        "moving": true,
+        "peakvel_retention": 1.0,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 2.2202,
+        "src_peakvel_rad_s": 8.354,
+        "worst_window_amp": {
+          "amp_retention": 0.9759,
+          "t0_s": 40.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9588,
+          "t0_s": 40.0
+        }
+      },
+      {
+        "amp_retention": 1.0053,
+        "joint": 17,
+        "moving": true,
+        "peakvel_retention": 1.0,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 3.1469,
+        "src_peakvel_rad_s": 8.105,
+        "worst_window_amp": {
+          "amp_retention": 0.9789,
+          "t0_s": 45.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9351,
+          "t0_s": 20.0
+        }
+      },
+      {
+        "amp_retention": 1.0043,
+        "joint": 18,
+        "moving": true,
+        "peakvel_retention": 1.0,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 1.8628,
+        "src_peakvel_rad_s": 7.354,
+        "worst_window_amp": {
+          "amp_retention": 0.9901,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9419,
+          "t0_s": 45.0
+        }
+      },
+      {
+        "amp_retention": 0.9761,
+        "joint": 19,
+        "moving": true,
+        "peakvel_retention": 0.9332,
+        "raw_peakvel_retention": 0.9305,
+        "src_amp_rad": 1.0777,
+        "src_peakvel_rad_s": 4.231,
+        "worst_window_amp": {
+          "amp_retention": 0.9574,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8856,
+          "t0_s": 40.0
+        }
+      },
+      {
+        "amp_retention": 0.9859,
+        "joint": 20,
+        "moving": true,
+        "peakvel_retention": 0.8556,
+        "raw_peakvel_retention": 0.7112,
+        "src_amp_rad": 0.4011,
+        "src_peakvel_rad_s": 1.551,
+        "worst_window_amp": {
+          "amp_retention": 0.9693,
+          "t0_s": 10.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.81,
+          "t0_s": 10.0
+        }
+      },
+      {
+        "amp_retention": 0.9912,
+        "joint": 21,
+        "moving": true,
+        "peakvel_retention": 0.9761,
+        "raw_peakvel_retention": 0.9936,
+        "src_amp_rad": 1.5475,
+        "src_peakvel_rad_s": 4.948,
+        "worst_window_amp": {
+          "amp_retention": 0.9525,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8382,
+          "t0_s": 5.0
+        }
+      },
+      {
+        "amp_retention": 1.0048,
+        "joint": 22,
+        "moving": true,
+        "peakvel_retention": 1.0,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 3.2856,
+        "src_peakvel_rad_s": 8.322,
+        "worst_window_amp": {
+          "amp_retention": 0.9689,
+          "t0_s": 25.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8983,
+          "t0_s": 5.0
+        }
+      },
+      {
+        "amp_retention": 0.9952,
+        "joint": 23,
+        "moving": true,
+        "peakvel_retention": 1.0,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 2.0883,
+        "src_peakvel_rad_s": 8.408,
+        "worst_window_amp": {
+          "amp_retention": 0.9887,
+          "t0_s": 10.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9309,
+          "t0_s": 20.0
+        }
+      },
+      {
+        "amp_retention": 1.0076,
+        "joint": 24,
+        "moving": true,
+        "peakvel_retention": 0.9966,
+        "raw_peakvel_retention": 0.9609,
+        "src_amp_rad": 3.121,
+        "src_peakvel_rad_s": 7.555,
+        "worst_window_amp": {
+          "amp_retention": 0.9943,
+          "t0_s": 30.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9364,
+          "t0_s": 30.0
+        }
+      },
+      {
+        "amp_retention": 1.0028,
+        "joint": 25,
+        "moving": true,
+        "peakvel_retention": 1.0,
+        "raw_peakvel_retention": 1.0,
+        "src_amp_rad": 2.0664,
+        "src_peakvel_rad_s": 7.803,
+        "worst_window_amp": {
+          "amp_retention": 0.9774,
+          "t0_s": 20.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.9371,
+          "t0_s": 20.0
+        }
+      },
+      {
+        "amp_retention": 0.9754,
+        "joint": 26,
+        "moving": true,
+        "peakvel_retention": 0.9293,
+        "raw_peakvel_retention": 0.9412,
+        "src_amp_rad": 1.2444,
+        "src_peakvel_rad_s": 4.852,
+        "worst_window_amp": {
+          "amp_retention": 0.9337,
+          "t0_s": 45.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8709,
+          "t0_s": 5.0
+        }
+      },
+      {
+        "amp_retention": 0.9573,
+        "joint": 27,
+        "moving": true,
+        "peakvel_retention": 0.9116,
+        "raw_peakvel_retention": 0.724,
+        "src_amp_rad": 0.4642,
+        "src_peakvel_rad_s": 1.886,
+        "worst_window_amp": {
+          "amp_retention": 0.9314,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.8474,
+          "t0_s": 30.0
+        }
+      },
+      {
+        "amp_retention": 0.9874,
+        "joint": 28,
+        "moving": true,
+        "peakvel_retention": 0.9515,
+        "raw_peakvel_retention": 0.7892,
+        "src_amp_rad": 1.5225,
+        "src_peakvel_rad_s": 4.768,
+        "worst_window_amp": {
+          "amp_retention": 0.9774,
+          "t0_s": 15.0
+        },
+        "worst_window_peakvel": {
+          "peakvel_retention": 0.887,
+          "t0_s": 5.0
+        }
+      }
+    ],
+    "thresholds": {
+      "fail": 0.75,
+      "warn": 0.9
+    },
+    "warnings": [
+      "joint 5: window-peak-velocity retention 0.867 < 0.9",
+      "joint 7: window-peak-velocity retention 0.862 < 0.9",
+      "joint 8: window-peak-velocity retention 0.799 < 0.9",
+      "joint 10: window-peak-velocity retention 0.890 < 0.9",
+      "joint 11: window-peak-velocity retention 0.837 < 0.9",
+      "joint 12: peak-velocity retention 0.898 < 0.9",
+      "joint 12: window-peak-velocity retention 0.898 < 0.9",
+      "joint 13: window-peak-velocity retention 0.844 < 0.9",
+      "joint 14: window-peak-velocity retention 0.886 < 0.9",
+      "joint 19: window-peak-velocity retention 0.886 < 0.9",
+      "joint 20: peak-velocity retention 0.856 < 0.9",
+      "joint 20: window-peak-velocity retention 0.810 < 0.9",
+      "joint 21: window-peak-velocity retention 0.838 < 0.9",
+      "joint 22: window-peak-velocity retention 0.898 < 0.9",
+      "joint 26: window-peak-velocity retention 0.871 < 0.9",
+      "joint 27: window-peak-velocity retention 0.847 < 0.9",
+      "joint 28: window-peak-velocity retention 0.887 < 0.9"
+    ],
+    "window_s": 5.0
+  },
+  "final": {
+    "frames": 1554,
+    "path": "final.csv",
+    "sha256": "349bb850555fb0741e0fcab47de981b0e373bc3b83042fdb936580bde3b54572"
+  },
+  "fps": 30.0,
+  "gates": {
+    "failures": [],
+    "feasibility_max_any_joint_over_pct": 3.0,
+    "retention_fail": 0.75,
+    "retention_warn": 0.9,
+    "warnings": [
+      "joint 5: window-peak-velocity retention 0.867 < 0.9",
+      "joint 7: window-peak-velocity retention 0.862 < 0.9",
+      "joint 8: window-peak-velocity retention 0.799 < 0.9",
+      "joint 10: window-peak-velocity retention 0.890 < 0.9",
+      "joint 11: window-peak-velocity retention 0.837 < 0.9",
+      "joint 12: peak-velocity retention 0.898 < 0.9",
+      "joint 12: window-peak-velocity retention 0.898 < 0.9",
+      "joint 13: window-peak-velocity retention 0.844 < 0.9",
+      "joint 14: window-peak-velocity retention 0.886 < 0.9",
+      "joint 19: window-peak-velocity retention 0.886 < 0.9",
+      "joint 20: peak-velocity retention 0.856 < 0.9",
+      "joint 20: window-peak-velocity retention 0.810 < 0.9",
+      "joint 21: window-peak-velocity retention 0.838 < 0.9",
+      "joint 22: window-peak-velocity retention 0.898 < 0.9",
+      "joint 26: window-peak-velocity retention 0.871 < 0.9",
+      "joint 27: window-peak-velocity retention 0.847 < 0.9",
+      "joint 28: window-peak-velocity retention 0.887 < 0.9"
+    ]
+  },
+  "grounding": {
+    "flight_aware": true,
+    "info": {
+      "drift_removed_mm": 161.9,
+      "flight_frames": 0,
+      "flight_windows_s": [],
+      "floor_drift_m": -0.0339,
+      "grounded_start": true,
+      "mean_shift_m": 0.0625,
+      "mode": "per_frame",
+      "resid_lift_mm": -0.0,
+      "support_pct": 99.9
+    },
+    "params": {
+      "flight_band_m": 0.08,
+      "flight_min_s": 0.12,
+      "floor_tau_s": 0.08,
+      "relock_vmax_mps": 0.35,
+      "seed_s": 0.5,
+      "support_band_m": 0.03,
+      "support_vmax_mps": 0.2
+    }
+  },
+  "schema": "g1.motion_scorecard/2",
+  "source": {
+    "frames": 1554,
+    "path": "data/motions/thriller/thriller_deploy.csv",
+    "sha256": "8ffd1a17639ee93bfa1e5cb164afd59cccc8193f7985329cf3b5cd6ae962db27"
+  }
+}
