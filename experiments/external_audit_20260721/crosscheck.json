@@ -1,0 +1,476 @@
+{
+  "audit_baseline": {
+    "git_head": "d60ac3c3609a1bd3868ff206709e0c48ddb684d5",
+    "git_head_subject": "docs: add repo-access + GPU-limitation section to the external audit prompt"
+  },
+  "effort_scope": {
+    "effect_given_pinned_effort_semantics": "all actuator groups selected",
+    "final_event_scale": [
+      0.52,
+      0.76
+    ],
+    "realized_effort_range_nm_by_nominal_class": {
+      "arms": [
+        13.0,
+        19.0
+      ],
+      "hip_pitch_yaw_and_waist_yaw": [
+        45.76,
+        66.88
+      ],
+      "knees_and_hip_roll": [
+        72.28,
+        105.64
+      ],
+      "waist_roll_pitch_and_ankles": [
+        26.0,
+        38.0
+      ],
+      "wrists_pitch_yaw": [
+        2.6,
+        3.8
+      ]
+    },
+    "repo_selector_configuration": {
+      "clamp_event_joint_names": true,
+      "composed_range": true,
+      "stock_event_joint_names": true
+    }
+  },
+  "eval_horizon": {
+    "gate_episode_length_s": 49.480000000000004,
+    "motion_duration_s": 49.28,
+    "motion_fps": 50.0,
+    "motion_frames": 2464,
+    "nominal_steps_run": 2474,
+    "reported_nominal_delay_ms": 0,
+    "reported_nominal_success_rate": 0.984375,
+    "steps_after_motion_end": 10
+  },
+  "grounding_synthetic_flight": {
+    "detected_frames": 0,
+    "flight_band_m": 0.08,
+    "ground_line_peak_m": 0.21818181818181817,
+    "input": "2.0 s plateau, +0.20 m at 30 Hz",
+    "input_peak_m": 0.2,
+    "longest_detected_run": 0,
+    "minimum_flight_frames": 4,
+    "remaining_peak_m_before_residual_lift": 0.07445887445887447,
+    "remaining_plateau_median_m": 2.7755575615628914e-17
+  },
+  "model_comparison": {
+    "claimed_faithful_preview": {
+      "body_mass_kg": {
+        "left_ankle_pitch_link": 0.074,
+        "left_ankle_roll_link": 0.608,
+        "left_elbow_link": 0.6,
+        "left_hip_pitch_link": 1.35,
+        "left_hip_roll_link": 1.52,
+        "left_hip_yaw_link": 1.702,
+        "left_knee_link": 1.932,
+        "left_shoulder_pitch_link": 0.718,
+        "left_shoulder_roll_link": 0.643,
+        "left_shoulder_yaw_link": 0.734,
+        "left_wrist_pitch_link": 0.48405,
+        "left_wrist_roll_link": 0.085445,
+        "left_wrist_yaw_link": 0.254576,
+        "pelvis": 3.813,
+        "right_ankle_pitch_link": 0.074,
+        "right_ankle_roll_link": 0.608,
+        "right_elbow_link": 0.6,
+        "right_hip_pitch_link": 1.35,
+        "right_hip_roll_link": 1.52,
+        "right_hip_yaw_link": 1.702,
+        "right_knee_link": 1.932,
+        "right_shoulder_pitch_link": 0.718,
+        "right_shoulder_roll_link": 0.643,
+        "right_shoulder_yaw_link": 0.734,
+        "right_wrist_pitch_link": 0.48405,
+        "right_wrist_roll_link": 0.085445,
+        "right_wrist_yaw_link": 0.254576,
+        "torso_link": 9.598,
+        "waist_roll_link": 0.047,
+        "waist_yaw_link": 0.244
+      },
+      "nbody": 31,
+      "ngeom": 74,
+      "njnt": 30,
+      "nu": 29,
+      "robot_geom_count": 73,
+      "sole_sphere_count": 8,
+      "sole_sphere_slide_friction": [
+        1.0
+      ],
+      "total_robot_mass_kg": 35.112142
+    },
+    "pinned_raw_training_xml": {
+      "body_mass_kg": {
+        "left_ankle_pitch_link": 0.074,
+        "left_ankle_roll_link": 0.608,
+        "left_elbow_link": 0.6,
+        "left_hip_pitch_link": 1.35,
+        "left_hip_roll_link": 1.52,
+        "left_hip_yaw_link": 1.702,
+        "left_knee_link": 1.932,
+        "left_shoulder_pitch_link": 0.718,
+        "left_shoulder_roll_link": 0.643,
+        "left_shoulder_yaw_link": 0.734,
+        "left_wrist_pitch_link": 0.48405,
+        "left_wrist_roll_link": 0.085445,
+        "left_wrist_yaw_link": 0.254576,
+        "pelvis": 3.813,
+        "right_ankle_pitch_link": 0.074,
+        "right_ankle_roll_link": 0.608,
+        "right_elbow_link": 0.6,
+        "right_hip_pitch_link": 1.35,
+        "right_hip_roll_link": 1.52,
+        "right_hip_yaw_link": 1.702,
+        "right_knee_link": 1.932,
+        "right_shoulder_pitch_link": 0.718,
+        "right_shoulder_roll_link": 0.643,
+        "right_shoulder_yaw_link": 0.734,
+        "right_wrist_pitch_link": 0.48405,
+        "right_wrist_roll_link": 0.085445,
+        "right_wrist_yaw_link": 0.254576,
+        "torso_link": 7.818,
+        "waist_roll_link": 0.086,
+        "waist_yaw_link": 0.214
+      },
+      "nbody": 31,
+      "ngeom": 68,
+      "njnt": 30,
+      "nu": 0,
+      "robot_geom_count": 68,
+      "sole_sphere_count": 0,
+      "sole_sphere_slide_friction": [],
+      "total_robot_mass_kg": 33.341142
+    },
+    "preview_minus_pinned_body_mass_kg_nonzero": {
+      "torso_link": 1.78,
+      "waist_roll_link": -0.039,
+      "waist_yaw_link": 0.03
+    },
+    "preview_minus_pinned_total_mass_kg": 1.771
+  },
+  "pinned_mjlab": {
+    "all_semantic_assertions_pass": true,
+    "raw_g1_xml": {
+      "body_mass_kg": {
+        "left_ankle_pitch_link": 0.074,
+        "left_ankle_roll_link": 0.608,
+        "left_elbow_link": 0.6,
+        "left_hip_pitch_link": 1.35,
+        "left_hip_roll_link": 1.52,
+        "left_hip_yaw_link": 1.702,
+        "left_knee_link": 1.932,
+        "left_shoulder_pitch_link": 0.718,
+        "left_shoulder_roll_link": 0.643,
+        "left_shoulder_yaw_link": 0.734,
+        "left_wrist_pitch_link": 0.48405,
+        "left_wrist_roll_link": 0.085445,
+        "left_wrist_yaw_link": 0.254576,
+        "pelvis": 3.813,
+        "right_ankle_pitch_link": 0.074,
+        "right_ankle_roll_link": 0.608,
+        "right_elbow_link": 0.6,
+        "right_hip_pitch_link": 1.35,
+        "right_hip_roll_link": 1.52,
+        "right_hip_yaw_link": 1.702,
+        "right_knee_link": 1.932,
+        "right_shoulder_pitch_link": 0.718,
+        "right_shoulder_roll_link": 0.643,
+        "right_shoulder_yaw_link": 0.734,
+        "right_wrist_pitch_link": 0.48405,
+        "right_wrist_roll_link": 0.085445,
+        "right_wrist_yaw_link": 0.254576,
+        "torso_link": 7.818,
+        "waist_roll_link": 0.086,
+        "waist_yaw_link": 0.214
+      },
+      "nbody": 31,
+      "ngeom": 68,
+      "njnt": 30,
+      "nu": 0,
+      "robot_geom_count": 68,
+      "sole_sphere_count": 0,
+      "sole_sphere_slide_friction": [],
+      "total_robot_mass_kg": 33.341142
+    },
+    "semantic_assertions": {
+      "cfg_commands_are_dict": true,
+      "effort_scales_pristine_default": true,
+      "effort_uses_actuator_ids": true,
+      "g1_full_collision_friction_06": true,
+      "history_buffer_oldest_to_newest": true,
+      "history_first_frame_backfill": true,
+      "history_flattens_each_term_before_concat": true,
+      "joint_and_actuator_selectors_are_independent": true,
+      "motion_wrap_resamples": true,
+      "push_is_mass_independent_velocity_overwrite": true,
+      "resample_writes_reference_state": true,
+      "startup_events_preserve_dict_order": true
+    },
+    "source_sha256": {
+      "mjlab/asset_zoo/robots/unitree_g1/g1_constants.py": "856492f9cd74b32e76fedafc583e284d14542eacd20261adcebe5c5c2345a258",
+      "mjlab/envs/manager_based_rl_env.py": "df814fc0ad36b9a4099884f06dea04b43187eb80f3784b6306e2884bc62bfe92",
+      "mjlab/envs/mdp/dr/actuator.py": "20ecdff1cb0d590726b1f5ed9d4e9d1de5a6380ca51ec7b05c0cf2ce34812b9f",
+      "mjlab/envs/mdp/events.py": "31051f65785d7d7818443796c5b477266fc139ad94e7d7b6df445d81ff65dd53",
+      "mjlab/managers/event_manager.py": "3c628b19f44652dc713016ea52604be1750062d8537f2cb04346eb36399c6774",
+      "mjlab/managers/observation_manager.py": "db69b3bba637b49e3cd45b093e79e13e11b6aa86cf7e4b7025ae8b6c11218619",
+      "mjlab/managers/scene_entity_config.py": "694c0ec06365e12d42f44159b53fbef7d555cf7d97c4ad58a59b3b0547c54f42",
+      "mjlab/tasks/tracking/mdp/commands.py": "d9c144e69078b6b26c42344906d97ca5d0a13b1321b71ccf5830a92d163b063a",
+      "mjlab/utils/buffers/circular_buffer.py": "da3d1fb4fd6d8e4cb980832d6cb8c344f1eea9e2a1e6b557fc3dbd99c625a488"
+    },
+    "wheel": "/tmp/g1-audit-mjlab.aLbYrz/mjlab-1.5.0-py3-none-any.whl",
+    "wheel_sha256": "93aa539d1c7d8e984a34b8855967d304dd14a01e60c95aa03d7ac71c228f070c"
+  },
+  "policy_contracts": [
+    {
+      "actor_obs_terms_meta": [
+        "command",
+        "motion_anchor_pos_b",
+        "motion_anchor_ori_b",
+        "base_lin_vel",
+        "base_ang_vel",
+        "joint_pos",
+        "joint_vel",
+        "actions"
+      ],
+      "dir": "exports/train-thriller_v8s2r-0716",
+      "onnx_inputs_actual": {
+        "obs": [
+          1,
+          770
+        ],
+        "time_step": [
+          1,
+          1
+        ]
+      },
+      "onnx_inputs_meta": {
+        "obs": [
+          1,
+          160
+        ],
+        "time_step": [
+          1,
+          1
+        ]
+      },
+      "policy_sha256": "8327cfeb7f13d6198c384823b67407c39c57bfe2b747c40ecd0edd05761ec46b",
+      "requires_ground_contact_meta": null,
+      "task_meta": "Mjlab-Tracking-Flat-Unitree-G1"
+    },
+    {
+      "actor_obs_terms_meta": [
+        "command",
+        "motion_anchor_pos_b",
+        "motion_anchor_ori_b",
+        "base_lin_vel",
+        "base_ang_vel",
+        "joint_pos",
+        "joint_vel",
+        "actions"
+      ],
+      "dir": "exports/train-thriller_v10spd-0720",
+      "onnx_inputs_actual": {
+        "obs": [
+          1,
+          770
+        ],
+        "time_step": [
+          1,
+          1
+        ]
+      },
+      "onnx_inputs_meta": {
+        "obs": [
+          1,
+          160
+        ],
+        "time_step": [
+          1,
+          1
+        ]
+      },
+      "policy_sha256": "4a73e5247dd6f0d481d74f58e2bfc215d2f6d534b7e1506ff61960460ef0cc89",
+      "requires_ground_contact_meta": null,
+      "task_meta": "Mjlab-Tracking-Flat-Unitree-G1"
+    },
+    {
+      "actor_obs_terms_meta": [
+        "command",
+        "motion_anchor_pos_b",
+        "motion_anchor_ori_b",
+        "base_lin_vel",
+        "base_ang_vel",
+        "joint_pos",
+        "joint_vel",
+        "actions"
+      ],
+      "dir": "exports/train-thriller_v11leg-0720",
+      "onnx_inputs_actual": {
+        "obs": [
+          1,
+          770
+        ],
+        "time_step": [
+          1,
+          1
+        ]
+      },
+      "onnx_inputs_meta": {
+        "obs": [
+          1,
+          160
+        ],
+        "time_step": [
+          1,
+          1
+        ]
+      },
+      "policy_sha256": "305bf1a6766c1e52826ab0d651424189ce1901898955043be8905070fa22521b",
+      "requires_ground_contact_meta": null,
+      "task_meta": "Mjlab-Tracking-Flat-Unitree-G1"
+    }
+  ],
+  "show_safety": {
+    "incomplete_bundle": {
+      "deploy_npz_exists": false,
+      "deploy_parser_has_default_bundle": true,
+      "metadata_exists": false,
+      "policy_exists": true,
+      "returned_cli_overrides": [],
+      "therefore_launch_uses_unselected_defaults": true
+    },
+    "signed_verdict_replay": {
+      "credit_after_each_identical_submission": [
+        1,
+        2,
+        3
+      ],
+      "has_unique_eval_id": false,
+      "identical_submissions_reach_target": true,
+      "promotion_streak_target": 3,
+      "signature_valid": true,
+      "stored_exam_ids_newest_first": [
+        null,
+        null,
+        null
+      ]
+    }
+  },
+  "v12_motion": {
+    "contact_height_current": {
+      "frames_gt_100mm_pct": 41.11969111969112,
+      "max_m": 0.16320740876805057,
+      "median_m": 0.08999497094235863,
+      "min_m": 4.163336342344337e-17,
+      "p95_m": 0.14612936858856562,
+      "range_mm": 163.2074087680505
+    },
+    "contact_height_known_per_frame_grounded_comparator": {
+      "file": "data/motions/thriller/thriller_g1_grounded_adaptive.csv",
+      "frames_gt_100mm_pct": 0.0,
+      "max_m": 0.02104305576437799,
+      "median_m": 0.008132324841004894,
+      "min_m": 0.002138246945495019,
+      "p95_m": 0.010807258562453972,
+      "range_mm": 18.90480881888297
+    },
+    "current_csv": {
+      "sha256": "1bf7f0945cd22ad5b3a99d61d1029e133a3c683d957c46eb5a479778e5a10bc8",
+      "shape": [
+        1554,
+        36
+      ]
+    },
+    "fix_a_commit_delta": {
+      "changed_joint_columns": 27,
+      "changed_rows": 692,
+      "joint_max_abs_delta_rad": 0.10036563447543512,
+      "joint_rms_delta_rad": 0.002863009605231628,
+      "parent_sha256": "a3afb5292d1850cb2e51e514ccb08004c7cb894e6041eadec17b29887d5df4a4",
+      "root_xyz_quat_max_abs_delta": 0.0
+    },
+    "scorecard": {
+      "hash_matches_current": false,
+      "recorded_final": {
+        "ankle_over_headroom_pct": 1.22,
+        "ankle_tau_max_nm": 47.16,
+        "ankle_tau_p95_nm": 32.91,
+        "any_joint_over_pct": 1.93,
+        "binding_ratio_max": 1.179,
+        "binding_ratio_p95": 0.849,
+        "frames": 1554,
+        "seconds": 51.8,
+        "windows": [
+          [
+            14.67,
+            14.77
+          ],
+          [
+            15.6,
+            15.63
+          ],
+          [
+            15.9,
+            15.9
+          ],
+          [
+            16.9,
+            16.97
+          ],
+          [
+            17.9,
+            18.03
+          ],
+          [
+            19.0,
+            19.0
+          ],
+          [
+            25.7,
+            25.7
+          ],
+          [
+            27.57,
+            27.6
+          ],
+          [
+            41.77,
+            41.83
+          ],
+          [
+            42.97,
+            42.97
+          ],
+          [
+            43.67,
+            43.67
+          ],
+          [
+            47.2,
+            47.23
+          ],
+          [
+            47.37,
+            47.4
+          ],
+          [
+            47.77,
+            47.77
+          ],
+          [
+            48.3,
+            48.3
+          ]
+        ]
+      },
+      "recorded_repaired_sha256": "2ee0efe05c1c622b793815bb060e2a3859845db6fead462831ad65d91f07fa4b",
+      "recorded_source": "/tmp/claude-1000/-home-alois/9447aaaf-123a-4f13-8d70-6e25dbe4e703/scratchpad/thriller_anchor_guardclean_grounded.csv",
+      "recorded_source_sha256": "151b7e218f0cf947e6b242c6a749de8a0f63bd8f00206a09d134c35455e7d4fc",
+      "recorded_style_similarity": 0.905
+    }
+  }
+}
