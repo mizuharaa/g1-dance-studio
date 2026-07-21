@@ -27,6 +27,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import numpy as np
 import torch
 import tyro
 
@@ -56,6 +57,25 @@ class Cfg:
     output_file: str = "heldout_eval.json"
 
 
+def _motion_duration_s(motion_file: str) -> float:
+    """True motion duration (s) from the npz — ported from cloud/sim_gap_check.py
+    so the held-out episode runs the FULL dance, not the train cfg's 20 s cap."""
+    data = np.load(motion_file, allow_pickle=True)
+    fps = float(np.array(data["fps"]).reshape(-1)[0]) if "fps" in data else 50.0
+    n = 0
+    for key in ("joint_pos", "joint_positions", "dof_pos", "body_pos_w"):
+        if key in data:
+            n = int(data[key].shape[0])
+            break
+    if n == 0:
+        arrs = [data[k] for k in data.files
+                if hasattr(data[k], "shape") and data[k].ndim >= 2]
+        n = int(max(a.shape[0] for a in arrs)) if arrs else 0
+    if n == 0:
+        raise ValueError(f"could not infer motion length from {motion_file}")
+    return n / fps
+
+
 def _run_condition(task_id: str, cfg: Cfg, device: str, push: bool) -> dict:
     env_cfg = load_env_cfg(task_id, play=False)
     agent_cfg = load_rl_cfg(task_id)
@@ -65,6 +85,12 @@ def _run_condition(task_id: str, cfg: Cfg, device: str, push: bool) -> dict:
         raise ValueError(f"{task_id} is not a tracking task")
     motion_cmd.motion_file = cfg.motion_file
     motion_cmd.sampling_mode = "start"  # every episode starts at motion frame 0
+
+    # Certify the FULL dance: the train cfg caps episode_length_s at 20 s, so with
+    # sampling_mode="start" an env that reaches 20 s times out and is scored a PASS
+    # while ~60% of a ~50 s motion is never seen (audit L). Mirror sim_gap_check's
+    # full-motion override; max_steps=4000 already accommodates the full length.
+    env_cfg.episode_length_s = _motion_duration_s(cfg.motion_file) + 0.2
 
     env_cfg.observations["actor"].enable_corruption = True  # held-out sensor noise
     if not push:

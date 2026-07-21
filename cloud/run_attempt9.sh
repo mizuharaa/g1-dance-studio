@@ -38,6 +38,7 @@ if [ ! -f "$NB/motions/thriller_v12_100.npz" ]; then
   [ -f "$CSV" ] || die "motion CSV missing: $CSV — push it from the laptop"
   head -1 "$CSV" | awk -F, 'NF != 36 { exit 1 }' || die "CSV not 36-column"
   say "retime tempo variants (fresh box: 0.60/0.75/0.90/1.00 from $CSV)"
+  NATIVE_FRAMES=$(wc -l < "$CSV")
   for k in 060 075 090 100; do
     OUT=$NB/motions/thriller_v12_${k}.csv
     [ -f "$OUT" ] || "$PY" "$NB/cloud/retime_motion.py" --input "$CSV" --output "$OUT" \
@@ -45,12 +46,29 @@ if [ ! -f "$NB/motions/thriller_v12_100.npz" ]; then
       || die "retime ${SPEED[$k]}x FAILED"
     NPZ=$NB/motions/thriller_v12_${k}.npz
     if [ ! -f "$NPZ" ]; then
+      # csv_to_npz hardcodes its output to /tmp/motion.npz and never clears it, and
+      # the conversion is `|| true`. Clear any stale prior-tempo npz FIRST so a flaky
+      # conversion can't leave the previous variant's file to be copied here (audit B).
+      rm -f /tmp/motion.npz
       MUJOCO_GL=egl "$PY" "$CSV2NPZ" --input-file "$OUT" \
           --output-name "thriller_v12_${k}" --input-fps 30 --output-fps 50 || true
       [ -f /tmp/motion.npz ] && cp /tmp/motion.npz "$NPZ"
     fi
     [ -f "$NPZ" ] || die "npz absent after conversion: $NPZ"
-    echo "  thriller_v12_${k}.npz ready"
+    # Tempo sanity: reject a stale/wrong-tempo npz BEFORE accepting it. Expected
+    # 50fps frames ~ native_csv_rows / speed * 50/30 (+-2%) — same formula as
+    # run_attempt7.sh. Existence alone (the old guard) can't catch a stale copy.
+    FRAMES=$("$PY" - "$NPZ" << 'EOF'
+import numpy as np, sys
+d = np.load(sys.argv[1], allow_pickle=True)
+print(int(d["joint_pos"].shape[0]))
+EOF
+)
+    EXPF=$(python3 -c "print(int($NATIVE_FRAMES / ${SPEED[$k]} * 50 / 30))")
+    LO=$((EXPF * 98 / 100)); HI=$((EXPF * 102 / 100))
+    [ "$FRAMES" -ge "$LO" ] && [ "$FRAMES" -le "$HI" ] \
+      || die "npz $k frame count $FRAMES outside expected $LO-$HI (stale/wrong-tempo conversion)"
+    echo "  thriller_v12_${k}.npz ready ($FRAMES frames, ~$((FRAMES / 50))s @50fps)"
   done
 fi
 say "preflight OK (tempo npz present)"

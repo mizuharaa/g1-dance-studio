@@ -538,7 +538,23 @@ def main() -> None:
         and nom["drift"].get("episode_max_p95_m") is not None
         and nom["drift"]["episode_max_p95_m"] <= GATE["drift_nominal_p95_max_m"],
     }
-    gate = {"checks": checks, "pass": all(checks.values()), "worst_condition": worst}
+    # Record the ACTUAL numeric bars used this run (env overrides resolved) so
+    # cross-version comparison can compare raw p95 Nm / drift m against one fixed
+    # bar instead of a per-run PASS flag whose embedded threshold moved (audit J:
+    # ankle-p95 nominal/worst went 15/20 -> 22/25 via env override in v10/v11).
+    bars = {
+      "survival_nominal_min": GATE["survival_nominal_min"],
+      "survival_worst_min": GATE["survival_worst_min"],
+      "ankle_mean_nominal_max_nm": GATE["ankle_mean_nominal_max_nm"],
+      "ankle_mean_worst_max_nm": GATE["ankle_mean_worst_max_nm"],
+      "ankle_p95_nominal_max_nm": GATE["ankle_p95_nominal_max_nm"],
+      "ankle_p95_worst_max_nm": GATE["ankle_p95_worst_max_nm"],
+      "ankle_rms_worst_max_nm": GATE["ankle_rms_worst_max_nm"],
+      "rr_mpkpe_nominal_max_m": GATE["rr_mpkpe_nominal_max_m"],
+      "drift_nominal_p95_max_m": GATE["drift_nominal_p95_max_m"],
+    }
+    gate = {"checks": checks, "pass": all(checks.values()),
+            "worst_condition": worst, "bars": bars}
     print("\n=== SIM2REAL GATE ===")
     for k, v in checks.items():
       print(f"  {'PASS' if v else 'FAIL'}  {k}")
