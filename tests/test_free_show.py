@@ -1,13 +1,9 @@
-"""Tests for the untethered ("free") one-button show config (Lane A).
+"""Tests for the gated unsigned "free" rehearsal config and signed show path.
 
-The free config is the HARDWARE-VALIDATED untethered path (2026-07-07): the standtail
-candidate policy + sagittal leg-gain boost + stand-at-end handoff. A free run must:
-  * build the runtime env with the validated free knobs (GROUND_LEG_KP_SCALE=1.5,
-    EXIT_MODE=stand, MAX_SECS=57, ARM_ACTION_CAP_SCALE=2.2, AUDIO_MODE=laptop, plus the
-    SHOW_VIDEO/SHOW_DISPLAY env contract for Lane B), and
-  * pass the standtail --policy/--meta/--motion-npz args through show_run.sh's "$@".
-A NON-free run must keep the proven default (no free knobs, no policy override). Every
-run — free or not — stays behind the full guard chain.
+The unsigned standtail configuration is forbidden in live mode. Its rehearsal-only
+escape hatch requires an explicit process opt-in and an internally hash-valid bundle.
+Normal runs always pass the exact promotion-recorded policy/meta/NPZ arguments; there
+is no default-artifact fallback.
 
 The subprocess spawn is ALWAYS monkeypatched — no test ever launches the real
 tools/show_run.sh (which would contact the robot).
@@ -15,14 +11,13 @@ tools/show_run.sh (which would contact the robot).
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from pipeline import exam_verdict as ev
+from pipeline import artifacts, exam_verdict as ev
 
 PHRASE = "I AM PRESENT WITH THE DAMPING REMOTE"
-STANDTAIL = "data/policies/thriller_standtail_candidate"
-
 # free knobs that must NEVER leak onto the proven default path; deleted from the test
 # process env so their absence is a real signal, not a fluke of the host environment.
 FREE_KEYS = ("GROUND_LEG_KP_SCALE", "EXIT_MODE", "MAX_SECS", "SHOW_VIDEO", "SHOW_DISPLAY")
@@ -56,8 +51,10 @@ def _install_spawn(show_runner, monkeypatch, lines, rc=None):
 
 
 def _show_ready_with_audio(shows_mod, name="Thriller"):
-    """A dance driven to show-ready through the real gate, with music attached."""
+    """A dance promoted with a complete, hash-pinned legacy bundle and music."""
     (shows_mod.PROJECT_ROOT / "policy.onnx").write_bytes(b"fake-policy-bytes")
+    (shows_mod.PROJECT_ROOT / "policy_meta.json").write_text("{}")
+    (shows_mod.PROJECT_ROOT / "dance_deploy.npz").write_bytes(b"fake-motion-npz")
     (shows_mod.PROJECT_ROOT / "motion.csv").write_text("0,0,0.79\n")
     d = shows_mod.new_dance(name, duration_s=30.0, policy_path="policy.onnx",
                             motion_csv="motion.csv")
@@ -66,6 +63,28 @@ def _show_ready_with_audio(shows_mod, name="Thriller"):
         shows_mod.record_sim_run(shows_mod.load_dance(d.id), True, policy_sha256=sha)
     shows_mod.promote(shows_mod.load_dance(d.id), "show-ready")
     return shows_mod.set_audio(d.id, {"track": "data/audio/song.wav"})
+
+
+def _write_free_bundle(shows_mod, show_runner):
+    """Create the explicitly opted-in trial bundle under the isolated project root."""
+    policy_dir = shows_mod.PROJECT_ROOT / show_runner.FREE_POLICY_DIR
+    policy_dir.mkdir(parents=True)
+    policy = policy_dir / "policy.onnx"
+    meta = policy_dir / "policy_meta.json"
+    npz = policy_dir / "thriller_deploy.npz"
+    policy.write_bytes(b"free-policy")
+    meta.write_text("{}")
+    npz.write_bytes(b"free-motion-npz")
+    artifacts.write_manifest(policy_dir / "bundle.json", {
+        "policy": {
+            "onnx": artifacts.file_entry(policy, policy_dir),
+            "meta": artifacts.file_entry(meta, policy_dir),
+        },
+        "motion": {
+            "tempo_npz": {"100": artifacts.file_entry(npz, policy_dir)},
+        },
+    })
+    return policy, meta, npz
 
 
 @pytest.fixture
@@ -78,6 +97,9 @@ def run_env(dances_env, client, monkeypatch):
     from pipeline import show_runner
     monkeypatch.setattr(show_runner, "_current", None)
     monkeypatch.setattr(show_runner, "robot_reachable", lambda *a, **k: True)
+    monkeypatch.setattr(server.venue, "get_active_venue",
+                        lambda: SimpleNamespace(name="Test venue"))
+    monkeypatch.delenv("G1_ALLOW_UNSIGNED_FREE", raising=False)
     for k in FREE_KEYS:
         monkeypatch.delenv(k, raising=False)
 
@@ -94,41 +116,19 @@ PILOT_LINES = [
 ]
 
 
-# ---- free run: validated env knobs + standtail policy args -----------------------
+# ---- free run: forbidden live; explicitly opted-in and hashed in rehearsal -------
 
-def test_free_run_builds_free_env_and_standtail_args(run_env, monkeypatch):
+def test_free_live_is_refused_without_spawning(run_env, monkeypatch):
     c, _, shows_mod, show_runner = run_env
     d = _show_ready_with_audio(shows_mod, "Thriller")
     calls = _install_spawn(show_runner, monkeypatch, PILOT_LINES, rc=None)
 
-    # LIVE mode on purpose: the free config must force EXIT_MODE=stand even in live,
-    # where the non-free path deliberately never stand-exits.
     r = c.post(f"/api/shows/{d.id}/run",
                json={"operator": "alois", "mode": "live", "free": True,
                      "confirmation": PHRASE})
-    assert r.status_code == 200, r.text
-    assert r.json()["started"] is True
-    assert len(calls) == 1
-    cmd, env = calls[0]
-
-    # the HARDWARE-VALIDATED free knobs
-    assert env["GROUND_LEG_KP_SCALE"] == "1.5"
-    assert env["EXIT_MODE"] == "stand"
-    assert env["MAX_SECS"] == "57"
-    assert env["ARM_ACTION_CAP_SCALE"] == "2.2"
-    assert env["AUDIO_MODE"] == "laptop"
-    # env contract for Lane B's side-by-side video launch
-    assert env["SHOW_VIDEO"] == "data/previews/thriller_side_by_side_v3e.mp4"
-    assert env["SHOW_DISPLAY"] == ""
-    # operator + dance still wired through
-    assert env["CONFIRMED_BY_HUMAN"] == "alois"
-    assert env["DANCE_ID"] == d.id
-
-    # the standtail policy is selected through show_run.sh's "$@"
-    assert cmd[0] == str(show_runner.SHOW_RUN_SH)
-    assert cmd[cmd.index("--policy") + 1] == f"{STANDTAIL}/policy.onnx"
-    assert cmd[cmd.index("--meta") + 1] == f"{STANDTAIL}/policy_meta.json"
-    assert cmd[cmd.index("--motion-npz") + 1] == f"{STANDTAIL}/thriller_deploy.npz"
+    assert r.status_code == 409
+    assert "forbidden in live mode" in r.json()["detail"]
+    assert calls == []
 
 
 def test_free_run_forces_stand_even_in_rehearsal_without_exit_stand(run_env, monkeypatch):
@@ -136,19 +136,25 @@ def test_free_run_forces_stand_even_in_rehearsal_without_exit_stand(run_env, mon
     exit_stand toggle — it comes from the config, not the checkbox."""
     c, _, shows_mod, show_runner = run_env
     d = _show_ready_with_audio(shows_mod, "FreeRehearse")
+    policy, meta, npz = _write_free_bundle(shows_mod, show_runner)
+    monkeypatch.setenv("G1_ALLOW_UNSIGNED_FREE", "1")
     calls = _install_spawn(show_runner, monkeypatch, PILOT_LINES, rc=None)
     r = c.post(f"/api/shows/{d.id}/run",
                json={"operator": "alois", "mode": "rehearsal", "free": True,
                      "confirmation": PHRASE})
     assert r.status_code == 200, r.text
-    _, env = calls[0]
+    cmd, env = calls[0]
     assert env["EXIT_MODE"] == "stand"
     assert env["GROUND_LEG_KP_SCALE"] == "1.5"
+    assert env["MAX_SECS"] == "57"
+    assert cmd[cmd.index("--policy") + 1] == str(policy.relative_to(shows_mod.PROJECT_ROOT))
+    assert cmd[cmd.index("--meta") + 1] == str(meta.relative_to(shows_mod.PROJECT_ROOT))
+    assert cmd[cmd.index("--motion-npz") + 1] == str(npz.relative_to(shows_mod.PROJECT_ROOT))
 
 
 # ---- non-free run: proven default is untouched -----------------------------------
 
-def test_non_free_run_keeps_proven_default(run_env, monkeypatch):
+def test_non_free_run_passes_exact_promoted_bundle(run_env, monkeypatch):
     c, _, shows_mod, show_runner = run_env
     d = _show_ready_with_audio(shows_mod, "ProvenDefault")
     calls = _install_spawn(show_runner, monkeypatch, PILOT_LINES, rc=None)
@@ -158,13 +164,18 @@ def test_non_free_run_keeps_proven_default(run_env, monkeypatch):
     assert r.status_code == 200, r.text
     cmd, env = calls[0]
 
-    # none of the free knobs leak onto the proven default path
-    for k in FREE_KEYS:
+    # none of the free-only control knobs leak onto the signed path
+    for k in ("GROUND_LEG_KP_SCALE", "EXIT_MODE", "MAX_SECS"):
         assert k not in env, f"free knob {k} leaked onto the proven default"
     # the arm cap is a shared default (2.2) — present on both paths
     assert env["ARM_ACTION_CAP_SCALE"] == "2.2"
-    # no standtail policy override: just show_run.sh, no extra args
-    assert cmd == [str(show_runner.SHOW_RUN_SH)]
+    # No implicit deploy defaults: the exact promoted bundle is always explicit.
+    assert cmd == [
+        str(show_runner.SHOW_RUN_SH),
+        "--policy", d.policy_path,
+        "--meta", d.meta_path,
+        "--motion-npz", d.npz_path,
+    ]
 
 
 def test_non_free_rehearsal_exit_stand_unaffected(run_env, monkeypatch):
@@ -180,7 +191,12 @@ def test_non_free_rehearsal_exit_stand_unaffected(run_env, monkeypatch):
     cmd, env = calls[0]
     assert env["EXIT_MODE"] == "stand"
     assert "GROUND_LEG_KP_SCALE" not in env  # not the free config
-    assert cmd == [str(show_runner.SHOW_RUN_SH)]  # no standtail args
+    assert cmd == [
+        str(show_runner.SHOW_RUN_SH),
+        "--policy", d.policy_path,
+        "--meta", d.meta_path,
+        "--motion-npz", d.npz_path,
+    ]
 
 
 # ---- the full guard chain still holds for a free request -------------------------
@@ -211,17 +227,20 @@ def test_free_requires_reachable_robot(run_env, monkeypatch):
     d = _show_ready_with_audio(shows_mod, "FreeUnreachable")
     monkeypatch.setattr(show_runner, "robot_reachable", lambda *a, **k: False)
     r = c.post(f"/api/shows/{d.id}/run",
-               json={"operator": "alois", "mode": "live", "free": True,
+               json={"operator": "alois", "mode": "rehearsal", "free": True,
                      "confirmation": PHRASE})
     assert r.status_code == 409
     assert "reachable" in r.json()["detail"].lower()
 
 
-def test_free_requires_confirmation_phrase(run_env):
+def test_free_requires_confirmation_phrase(run_env, monkeypatch):
     c, _, shows_mod, _ = run_env
+    from pipeline import show_runner
     d = _show_ready_with_audio(shows_mod, "FreePhrase")
+    _write_free_bundle(shows_mod, show_runner)
+    monkeypatch.setenv("G1_ALLOW_UNSIGNED_FREE", "1")
     r = c.post(f"/api/shows/{d.id}/run",
-               json={"operator": "alois", "mode": "live", "free": True,
+               json={"operator": "alois", "mode": "rehearsal", "free": True,
                      "confirmation": PHRASE.lower()})
     assert r.status_code == 403
 
@@ -229,12 +248,14 @@ def test_free_requires_confirmation_phrase(run_env):
 def test_free_run_honors_single_run_lock(run_env, monkeypatch):
     c, _, shows_mod, show_runner = run_env
     d = _show_ready_with_audio(shows_mod, "FreeBusy")
+    _write_free_bundle(shows_mod, show_runner)
+    monkeypatch.setenv("G1_ALLOW_UNSIGNED_FREE", "1")
     _install_spawn(show_runner, monkeypatch, PILOT_LINES, rc=None)  # stays running
     assert c.post(f"/api/shows/{d.id}/run",
-                  json={"operator": "alois", "mode": "live", "free": True,
+                  json={"operator": "alois", "mode": "rehearsal", "free": True,
                         "confirmation": PHRASE}).status_code == 200
     r2 = c.post(f"/api/shows/{d.id}/run",
-                json={"operator": "alois", "mode": "live", "free": True,
+                json={"operator": "alois", "mode": "rehearsal", "free": True,
                       "confirmation": PHRASE})
     assert r2.status_code == 409
     assert "already running" in r2.json()["detail"]

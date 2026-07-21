@@ -4,7 +4,8 @@ Runs locally the moment a video job is created, so obviously-unusable footage
 fails in seconds with a human-readable reason instead of after a cloud round
 trip. Limits mirror the product constraints (PROJECT_STATE.md):
 
-  hard:      readable file with a video stream; duration 15 s .. 4 min
+  hard:      readable file with a video stream; duration 15 s .. 4 min, with a
+             5 s keyframe-copy tolerance at the upper boundary
   advisory:  resolution >= 1280x720; variable frame rate (VFR) warning
 """
 from __future__ import annotations
@@ -16,6 +17,7 @@ from pathlib import Path
 
 MIN_SECONDS = 15
 MAX_SECONDS = 240
+KEYFRAME_COPY_TOLERANCE_SECONDS = 5
 ADVISORY_MIN_HEIGHT = 720
 # Sane aspect band: 9:16 portrait (0.56) to 21:9 ultrawide (2.33), with margin.
 MIN_ASPECT = 0.4
@@ -61,9 +63,9 @@ def validate(path: Path) -> dict:
         raise RuntimeError(
             f"video is {duration:.1f}s — too short, the pipeline needs at "
             f"least {MIN_SECONDS}s of continuous dance")
-    # +5 s tolerance: a keyframe-copy trim of a "4:00" segment lands ~240.2 s, which must not
-    # fail this gate (the built-in trimmer already holds the user to <=4 min).
-    if duration > MAX_SECONDS + 5:
+    # A keyframe-copy trim of a "4:00" segment can land around 240.2 s; the built-in
+    # trimmer already holds the user's selected segment to <=4 min.
+    if duration > MAX_SECONDS + KEYFRAME_COPY_TOLERANCE_SECONDS:
         raise RuntimeError(
             f"video is {duration / 60:.1f} min — longer than the current "
             f"{MAX_SECONDS // 60} min limit; trim it to the segment you want "

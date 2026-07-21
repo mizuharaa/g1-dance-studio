@@ -7,6 +7,7 @@ spawn guard that raises if a guard-rejection path ever reaches the spawn.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -25,12 +26,21 @@ class FakeProc:
         return self._rc
 
 
+class SpawnCapture(list):
+    """List-compatible env capture with the corresponding command vectors."""
+
+    def __init__(self):
+        super().__init__()
+        self.commands: list[list[str]] = []
+
+
 def _install_spawn(show_runner, monkeypatch, lines, rc=None):
     """Replace spawn_show_process with a fake that writes `lines` to the run log and
     returns a FakeProc (rc=None => still running). Returns a list capturing envs."""
-    envs: list[dict] = []
+    envs = SpawnCapture()
 
     def _spawn(cmd, env, log_path):
+        envs.commands.append(cmd)
         envs.append(env)
         p = Path(log_path)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -42,8 +52,10 @@ def _install_spawn(show_runner, monkeypatch, lines, rc=None):
 
 
 def _show_ready_with_audio(shows_mod, name="Thriller"):
-    """A dance driven to show-ready through the real gate, with music attached."""
+    """A dance promoted with a complete, hash-pinned legacy bundle and music."""
     (shows_mod.PROJECT_ROOT / "policy.onnx").write_bytes(b"fake-policy-bytes")
+    (shows_mod.PROJECT_ROOT / "policy_meta.json").write_text("{}")
+    (shows_mod.PROJECT_ROOT / "dance_deploy.npz").write_bytes(b"fake-motion-npz")
     (shows_mod.PROJECT_ROOT / "motion.csv").write_text("0,0,0.79\n")
     d = shows_mod.new_dance(name, duration_s=30.0, policy_path="policy.onnx",
                             motion_csv="motion.csv")
@@ -63,6 +75,8 @@ def run_env(dances_env, client, monkeypatch):
     from pipeline import show_runner
     monkeypatch.setattr(show_runner, "_current", None)
     monkeypatch.setattr(show_runner, "robot_reachable", lambda *a, **k: True)
+    monkeypatch.setattr(server.venue, "get_active_venue",
+                        lambda: SimpleNamespace(name="Test venue"))
 
     def _forbid(*a, **k):
         raise AssertionError("the real show_run.sh must never be spawned in tests")
@@ -176,7 +190,7 @@ def test_status_idle_when_no_run(run_env):
                   "started_at": None}
 
 
-# ---- stand-at-end is rehearsal-only + experimental ------------------------------
+# ---- stand-at-end remains explicit and bundle-pinned in either run mode ----------
 
 def test_exit_stand_sets_env_only_in_rehearsal(run_env, monkeypatch):
     c, _, shows_mod, show_runner = run_env
@@ -188,14 +202,24 @@ def test_exit_stand_sets_env_only_in_rehearsal(run_env, monkeypatch):
     assert envs[-1]["EXIT_MODE"] == "stand"
 
 
-def test_exit_stand_ignored_in_live(run_env, monkeypatch):
+def test_exit_stand_in_live_still_uses_authorized_bundle(run_env, monkeypatch):
     c, _, shows_mod, show_runner = run_env
-    d = _show_ready_with_audio(shows_mod, "LiveNoStand")
+    d = _show_ready_with_audio(shows_mod, "LiveStand")
     envs = _install_spawn(show_runner, monkeypatch, PILOT_LINES, rc=None)
-    c.post(f"/api/shows/{d.id}/run",
-           json={"operator": "alois", "mode": "live", "exit_stand": True,
-                 "confirmation": PHRASE})
-    assert "EXIT_MODE" not in envs[-1]  # never stand-exit a live show
+    response = c.post(
+        f"/api/shows/{d.id}/run",
+        json={"operator": "alois", "mode": "live", "exit_stand": True,
+              "confirmation": PHRASE},
+    )
+    assert response.status_code == 200, response.text
+    assert envs[-1]["EXIT_MODE"] == "stand"
+    launched = shows_mod.load_dance(d.id)
+    assert envs.commands[-1] == [
+        str(show_runner.SHOW_RUN_SH),
+        "--policy", launched.policy_path,
+        "--meta", launched.meta_path,
+        "--motion-npz", launched.npz_path,
+    ]
 
 
 # ---- single-run lock ------------------------------------------------------------

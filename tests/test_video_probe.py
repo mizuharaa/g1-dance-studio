@@ -55,12 +55,15 @@ def test_too_short_rejected(probed):
 
 def test_too_long_rejected(probed):
     with pytest.raises(RuntimeError, match="longer than"):
-        probed(duration=video_probe.MAX_SECONDS + 1)
+        probed(duration=(video_probe.MAX_SECONDS
+                         + video_probe.KEYFRAME_COPY_TOLERANCE_SECONDS + 1))
 
 
 def test_boundary_durations_accepted(probed):
     assert probed(duration=video_probe.MIN_SECONDS)["advisories"] == []
     assert probed(duration=video_probe.MAX_SECONDS)["advisories"] == []
+    assert probed(duration=(video_probe.MAX_SECONDS
+                            + video_probe.KEYFRAME_COPY_TOLERANCE_SECONDS))["advisories"] == []
 
 
 def test_low_resolution_advisory(probed):
