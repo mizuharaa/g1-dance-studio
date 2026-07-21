@@ -19,6 +19,25 @@ Differences vs heldout_eval.py (which this is derived from):
     sim_ankle.py used).
   * A conditions matrix with constant injected command delay.
 
+Harness v2 (2026-07-21, audit F4):
+  * Every condition is built EXPLICITLY from the task's PLAY cfg by
+    make_condition_cfg (no DR/RSI/delay inherited from the train cfg); the
+    train cfg is only a donor for the exact DR/push event definitions on rows
+    that name them. `clean` provably contains nothing injected.
+  * Rows: clean, one-factor (dr_nominal, noise, push, cmd_delay*, obs_delay*)
+    and honestly-named composites (dr_delay40ms_push, ...). v1 names remain
+    valid --only selectors (mapped, see LEGACY_ROW_MAP) but are NOT emitted:
+    v1 rows silently carried DR + RSI + obs delay, so no v1 name's semantics
+    survive. Cross-version comparison must check gap.json harness_version.
+  * Paired seeds: the SAME seed for every row (common random numbers);
+    --seeds gives a repetition list, recorded per row.
+  * Per-condition `realized` block (CONVENTIONS §3.4) written from the FINAL
+    cfg values, not intentions.
+  * EXACT horizon: episode_length_s = frames/fps (no +0.2 padding). Stepping
+    past the last frame makes pinned mjlab teleport survivors to frame zero
+    and rescore the start. Success = reached T. Entry/exit handoff is
+    explicitly OUT OF SCOPE (separate future scenario).
+
 Run on the box:
   NB=/workspace/notebook-data
   $NB/envs/mjlab/bin/python $NB/cloud/sim_gap_check.py \
@@ -39,15 +58,30 @@ from typing import cast
 
 import numpy as np
 import torch
-import tyro
 
-from mjlab.envs import ManagerBasedRlEnv
-from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
-from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
-from mjlab.tasks.tracking.mdp import MotionCommandCfg
-from mjlab.tasks.tracking.mdp.commands import MotionCommand
-from mjlab.tasks.tracking.mdp.metrics import compute_mpkpe, compute_root_relative_mpkpe
-from mjlab.utils.torch import configure_torch_backends
+# mjlab/tyro exist only in the box training env. The pure harness pieces
+# (condition table, cfg builder, realized-block extraction, horizon math) must
+# import on the laptop for tests/test_eval_harness.py, so the heavy imports are
+# guarded; main() refuses to run without them.
+try:
+  import tyro
+  from mjlab.envs import ManagerBasedRlEnv
+  from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
+  from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
+  from mjlab.tasks.tracking.mdp import MotionCommandCfg
+  from mjlab.tasks.tracking.mdp.commands import MotionCommand
+  from mjlab.tasks.tracking.mdp.metrics import compute_mpkpe, compute_root_relative_mpkpe
+  from mjlab.utils.torch import configure_torch_backends
+
+  _EVAL_IMPORT_ERROR: Exception | None = None
+except ImportError as _e:  # laptop / CI: pure functions only
+  tyro = None
+  ManagerBasedRlEnv = MjlabOnPolicyRunner = RslRlVecEnvWrapper = None
+  load_env_cfg = load_rl_cfg = load_runner_cls = None
+  MotionCommandCfg = MotionCommand = None
+  compute_mpkpe = compute_root_relative_mpkpe = None
+  configure_torch_backends = None
+  _EVAL_IMPORT_ERROR = _e
 
 LEG_JOINTS = (
   "left_ankle_pitch_joint",
@@ -61,25 +95,265 @@ LEG_JOINTS = (
 )
 ANKLE_PITCH = ("left_ankle_pitch_joint", "right_ankle_pitch_joint")
 
-# name, constant command delay in physics steps (5 ms each), push, obs noise
-# 2026-07-10: extended past 40 ms after the hardware fall. The deployed robot's measured
-# effective command->response latency was 40-80 ms (telemetry cross-correlation,
-# data/telemetry/latency_diag_20260709/); 60/80 ms conditions make that regime VISIBLE
-# and the 40 ms conditions are now GATED (see worst_names below) so a policy that would
-# fall at hardware latency can no longer pass verification.
-CONDITIONS = [
-  ("nominal", 0, False, False),
-  ("noise", 0, False, True),
-  ("delay10ms", 2, False, True),
-  ("delay20ms", 4, False, True),
-  ("delay40ms", 8, False, True),
-  ("delay60ms", 12, False, True),
-  ("delay80ms", 16, False, True),
-  ("delay20ms_push", 4, True, True),
-  ("delay40ms_push", 8, True, True),
-  ("delay60ms_push", 12, True, True),
-  ("delay80ms_push", 16, True, True),
-]
+# ---------------------------------------------------------------------------
+# Harness v2 condition table (audit F4). Delay rationale unchanged from v1:
+# the deployed robot's measured effective command->response latency was
+# 40-80 ms (telemetry cross-correlation, data/telemetry/latency_diag_20260709/);
+# 60/80 ms rows make that regime VISIBLE and 40 ms rows are GATED (worst_names
+# below) so a policy that would fall at hardware latency can't pass.
+HARNESS_VERSION = 2
+
+# Deploy-measured obs terms that get observation delay (must mirror
+# cloud/sim2real_task.py DELAYED_OBS_TERMS; duplicated so this module imports
+# without mjlab — sim2real_task pulls in mjlab at module level).
+DELAYED_OBS_TERMS = (
+  "motion_anchor_pos_b",
+  "motion_anchor_ori_b",
+  "base_lin_vel",
+  "base_ang_vel",
+  "joint_pos",
+  "joint_vel",
+)
+
+
+@dataclass(frozen=True)
+class ConditionSpec:
+  """One eval row: exactly the knobs its name declares, nothing inherited."""
+
+  name: str
+  cmd_delay_steps: tuple[int, int] = (0, 0)  # physics steps, 5 ms each
+  obs_delay_steps: tuple[int, int] = (0, 0)  # control steps, 20 ms each
+  noise: bool = False
+  push: bool = False
+  startup_dr: bool = False
+
+
+CONDITIONS_V2: tuple[ConditionSpec, ...] = (
+  # Clean deterministic baseline: NO DR, RSI, delay, noise or push. With
+  # everything zeroed all envs are identical — this row is a (near-)
+  # deterministic reference rollout, not a distribution.
+  ConditionSpec("clean"),
+  # One-factor rows: exactly one knob each (vs clean).
+  ConditionSpec("dr_nominal", startup_dr=True),
+  ConditionSpec("noise", noise=True),
+  ConditionSpec("push", push=True),
+  ConditionSpec("cmd_delay20ms", cmd_delay_steps=(4, 4)),
+  ConditionSpec("cmd_delay40ms", cmd_delay_steps=(8, 8)),
+  ConditionSpec("cmd_delay60ms", cmd_delay_steps=(12, 12)),
+  ConditionSpec("cmd_delay80ms", cmd_delay_steps=(16, 16)),
+  ConditionSpec("obs_delay20ms", obs_delay_steps=(1, 1)),
+  ConditionSpec("obs_delay80ms", obs_delay_steps=(4, 4)),
+  # Composite robustness rows (the old *_push campaign, honestly named). Each
+  # ALSO carries obs noise and the trained 0-1 control-step obs-delay band —
+  # the full deploy-realism stack; the per-row `realized` block records it.
+  ConditionSpec("dr_delay20ms_push", cmd_delay_steps=(4, 4),
+                obs_delay_steps=(0, 1), noise=True, push=True, startup_dr=True),
+  ConditionSpec("dr_delay40ms_push", cmd_delay_steps=(8, 8),
+                obs_delay_steps=(0, 1), noise=True, push=True, startup_dr=True),
+  ConditionSpec("dr_delay60ms_push", cmd_delay_steps=(12, 12),
+                obs_delay_steps=(0, 1), noise=True, push=True, startup_dr=True),
+  ConditionSpec("dr_delay80ms_push", cmd_delay_steps=(16, 16),
+                obs_delay_steps=(0, 1), noise=True, push=True, startup_dr=True),
+)
+
+CONDITION_BY_NAME = {c.name: c for c in CONDITIONS_V2}
+
+# harness-v1 name -> closest v2 row, for --only selectors in existing shell
+# pipelines ONLY. No v1 name is emitted as an output alias: v1 rows silently
+# carried startup DR, RSI and obs delay (even "nominal"), so no v1 name's
+# semantics actually match a v2 row. Cross-version comparisons must check
+# gap.json's harness_version.
+LEGACY_ROW_MAP = {
+  "nominal": "clean",
+  "delay10ms": "cmd_delay20ms",  # nearest v2 rung; v1's 10 ms line was dropped
+  "delay20ms": "cmd_delay20ms",
+  "delay40ms": "cmd_delay40ms",
+  "delay60ms": "cmd_delay60ms",
+  "delay80ms": "cmd_delay80ms",
+  "delay20ms_push": "dr_delay20ms_push",
+  "delay40ms_push": "dr_delay40ms_push",
+  "delay60ms_push": "dr_delay60ms_push",
+  "delay80ms_push": "dr_delay80ms_push",
+}
+
+
+def resolve_only(only: str) -> list[str]:
+  """--only selector -> canonical v2 row names (legacy v1 names mapped)."""
+  names: list[str] = []
+  for raw in only.split(","):
+    n = raw.strip()
+    if not n:
+      continue
+    if n in CONDITION_BY_NAME:
+      mapped = n
+    elif n in LEGACY_ROW_MAP:
+      mapped = LEGACY_ROW_MAP[n]
+      print(f"[WARN] --only '{n}' is a harness-v1 row name -> running v2 row "
+            f"'{mapped}' (semantics differ; see LEGACY_ROW_MAP)", flush=True)
+    else:
+      raise SystemExit(f"unknown condition '{n}' (valid: "
+                       f"{', '.join(CONDITION_BY_NAME)})")
+    if mapped not in names:
+      names.append(mapped)
+  if not names:
+    raise SystemExit(f"--only '{only}' selected no conditions")
+  return names
+
+
+def make_condition_cfg(
+  base_play_cfg,
+  *,
+  seed: int,
+  cmd_delay_steps: tuple[int, int] = (0, 0),
+  obs_delay_steps: tuple[int, int] = (0, 0),
+  noise: bool = False,
+  push: bool = False,
+  startup_dr: bool = False,
+  donor_train_cfg=None,
+):
+  """Build one eval env cfg from the task's PLAY cfg, adding ONLY what the row
+  names. Everything else is EXPLICITLY zeroed — never inherited: the play cfg
+  itself still carries startup DR (base_com/encoder_bias/foot_friction in the
+  stock task) and a custom play cfg could leak delays, so zeroing is done here
+  by construction, not assumed. `donor_train_cfg` (the play=False cfg) is only
+  read for the exact DR/push event definitions the policy trained under.
+  Pure config surgery — no mjlab imports; caller still sets motion_file,
+  episode_length_s and num_envs."""
+  cfg = copy.deepcopy(base_play_cfg)
+
+  # RSI off ALWAYS: fixed frame-0 start, no reset pose/velocity randomization.
+  try:
+    motion = cfg.commands["motion"]
+  except (KeyError, TypeError) as e:
+    raise ValueError(f"cfg has no 'motion' command: {e}") from e
+  motion.pose_range = {}
+  motion.velocity_range = {}
+  motion.sampling_mode = "start"
+
+  # Events: start from NOTHING (the play cfg still carries startup DR).
+  events = {}
+  if startup_dr:
+    if donor_train_cfg is None:
+      raise ValueError("startup_dr=True needs donor_train_cfg (play=False cfg)")
+    for ev_name, ev in donor_train_cfg.events.items():
+      if getattr(ev, "mode", None) == "startup":
+        events[ev_name] = copy.deepcopy(ev)
+    if not events:
+      raise ValueError("donor_train_cfg has no startup events to copy")
+  if push:
+    if donor_train_cfg is None or "push_robot" not in donor_train_cfg.events:
+      raise ValueError("push=True needs donor_train_cfg with a push_robot event")
+    events["push_robot"] = copy.deepcopy(donor_train_cfg.events["push_robot"])
+  cfg.events = events
+
+  # Command (actuator) delay: explicitly SET on every actuator — zero unless
+  # the row names it. Constant rows use lo == hi (no per-env variation).
+  lo, hi = int(cmd_delay_steps[0]), int(cmd_delay_steps[1])
+  if not (0 <= lo <= hi):
+    raise ValueError(f"bad cmd_delay_steps {cmd_delay_steps}")
+  for act in cfg.scene.entities["robot"].articulation.actuators:
+    act.delay_min_lag = lo
+    act.delay_max_lag = hi
+    act.delay_hold_prob = 0.0
+    act.delay_update_period = 0
+    if hasattr(act, "delay_per_env_phase"):
+      act.delay_per_env_phase = hi > lo
+
+  # Observation delay: explicitly zero EVERY actor term, then apply the row's
+  # band to the deploy-measured terms only (mirrors training's delayed set).
+  olo, ohi = int(obs_delay_steps[0]), int(obs_delay_steps[1])
+  if not (0 <= olo <= ohi):
+    raise ValueError(f"bad obs_delay_steps {obs_delay_steps}")
+  group = cfg.observations["actor"]
+  for term in group.terms.values():
+    term.delay_min_lag = 0
+    term.delay_max_lag = 0
+  if ohi > 0:
+    applied = 0
+    for term_name in DELAYED_OBS_TERMS:
+      term = group.terms.get(term_name)
+      if term is None:
+        continue
+      term.delay_min_lag = olo
+      term.delay_max_lag = ohi
+      if hasattr(term, "delay_per_env"):
+        term.delay_per_env = True
+      applied += 1
+    if applied == 0:
+      raise ValueError("obs delay requested but no deploy-measured obs terms "
+                       f"({DELAYED_OBS_TERMS}) exist in this task's actor group")
+
+  group.enable_corruption = bool(noise)
+  cfg.seed = int(seed)
+  return cfg
+
+
+def extract_realized(env_cfg) -> dict:
+  """CONVENTIONS §3.4 `realized` block, read back from the FINAL cfg (what will
+  actually run) — never from the row's intent."""
+  acts = list(env_cfg.scene.entities["robot"].articulation.actuators)
+  cmd_lo = min((int(a.delay_min_lag) for a in acts), default=0)
+  cmd_hi = max((int(a.delay_max_lag) for a in acts), default=0)
+  terms = env_cfg.observations["actor"].terms
+  delayed = [t for t in terms.values()
+             if int(getattr(t, "delay_max_lag", 0) or 0) > 0]
+  obs_hi = max((int(t.delay_max_lag) for t in delayed), default=0)
+  obs_lo = min((int(t.delay_min_lag) for t in delayed), default=0)
+  motion = env_cfg.commands["motion"]
+  play_mode = (getattr(motion, "sampling_mode", None) == "start"
+               and not getattr(motion, "pose_range", None)
+               and not getattr(motion, "velocity_range", None))
+  return {
+    "seed": int(env_cfg.seed),
+    "play_mode": bool(play_mode),
+    "startup_dr": any(getattr(ev, "mode", None) == "startup"
+                      for ev in env_cfg.events.values()),
+    "cmd_delay_steps": [cmd_lo, cmd_hi],
+    "obs_delay_steps": [obs_lo, obs_hi],
+    "noise": bool(env_cfg.observations["actor"].enable_corruption),
+    "push": "push_robot" in env_cfg.events,
+  }
+
+
+def exact_horizon(frames: int, fps: float, control_hz: float = 50.0) -> tuple[float, int]:
+  """EXACT eval horizon: episode_length_s = frames/fps, T = that in control
+  steps. NO padding — stepping past the last reference frame makes pinned
+  mjlab wrap survivors to frame zero (teleport) and rescore the start."""
+  if frames <= 0 or fps <= 0:
+    raise ValueError(f"bad horizon inputs frames={frames} fps={fps}")
+  episode_length_s = frames / float(fps)
+  return episode_length_s, int(round(episode_length_s * control_hz))
+
+
+def gap_payload(
+  *,
+  task: str,
+  checkpoint: str,
+  onnx: str,
+  motion_file: str,
+  episode_length_s: float,
+  horizon_steps: int,
+  seeds: list[int],
+  gate,
+  conditions: dict,
+  repeats: dict | None = None,
+) -> dict:
+  """Assemble the gap.json payload (pure; unit-tested for the v2 stamp)."""
+  payload = {
+    "harness_version": HARNESS_VERSION,
+    "task": task,
+    "checkpoint": checkpoint,
+    "onnx": onnx,
+    "motion_file": motion_file,
+    "episode_length_s": episode_length_s,
+    "horizon_steps": horizon_steps,
+    "seeds": list(seeds),
+    "gate": gate,
+    "conditions": conditions,
+  }
+  if repeats:
+    payload["repeats"] = repeats
+  return payload
 
 # Gates per the first-principles audit (docs/first_principles_audit.md §3):
 # the true ankle floor is ~5-7 Nm/ankle (pose + choreography), so <=5 worst-case is
@@ -129,12 +403,14 @@ class Cfg:
   seed: int = 91001
   device: str | None = None
   output_file: str = "sim_gap_check.json"
-  episode_length_s: float = 0.0  # 0 = derive from the motion file
-  quick: bool = False  # smoke test: 8 envs, 2 conditions, 300 steps
-  only: str = ""  # comma-separated condition names to run (e.g. "nominal")
+  episode_length_s: float = 0.0  # 0 = derive EXACT horizon from the motion file
+  quick: bool = False  # smoke test: 8 envs, 2 conditions, <=300 steps
+  only: str = ""  # comma-separated condition names to run (e.g. "clean"; v1 names mapped)
+  seeds: str = ""  # comma-separated repetition seeds; empty = [seed]. Each seed
+                   # runs the WHOLE matrix (paired rows); extras land in "repeats".
 
 
-def _motion_duration_s(motion_file: str) -> float:
+def _motion_frames_fps(motion_file: str) -> tuple[int, float]:
   data = np.load(motion_file, allow_pickle=True)
   fps = float(np.array(data["fps"]).reshape(-1)[0]) if "fps" in data else 50.0
   n = 0
@@ -149,6 +425,11 @@ def _motion_duration_s(motion_file: str) -> float:
     raise ValueError(
       f"could not infer motion length from {motion_file}; pass --episode-length-s"
     )
+  return n, fps
+
+
+def _motion_duration_s(motion_file: str) -> float:
+  n, fps = _motion_frames_fps(motion_file)
   return n / fps
 
 
@@ -216,41 +497,38 @@ class _OnnxPolicy:
 def _run_condition(
   cfg: Cfg,
   device: str,
-  name: str,
-  delay_lag: int,
-  push: bool,
-  noise: bool,
+  spec: ConditionSpec,
+  seed: int,
+  base_play_cfg,
+  donor_train_cfg,
+  agent_cfg,
   episode_length_s: float,
-  cond_index: int,
   max_steps: int,
 ) -> dict:
-  env_cfg = load_env_cfg(cfg.task, play=False)
-  agent_cfg = load_rl_cfg(cfg.task)
+  # Explicit condition construction (harness v2): start from the PLAY cfg and
+  # add ONLY what the row names; the same seed is used for every row (paired
+  # comparisons / common random numbers).
+  env_cfg = make_condition_cfg(
+    base_play_cfg,
+    seed=seed,
+    cmd_delay_steps=spec.cmd_delay_steps,
+    obs_delay_steps=spec.obs_delay_steps,
+    noise=spec.noise,
+    push=spec.push,
+    startup_dr=spec.startup_dr,
+    donor_train_cfg=donor_train_cfg,
+  )
 
   motion_cmd = env_cfg.commands.get("motion")
   if not isinstance(motion_cmd, MotionCommandCfg):
     raise ValueError(f"{cfg.task} is not a tracking task")
   motion_cmd.motion_file = cfg.motion_file
-  motion_cmd.sampling_mode = "start"
-
   env_cfg.episode_length_s = episode_length_s
-  env_cfg.observations["actor"].enable_corruption = noise
-  if not push:
-    env_cfg.events.pop("push_robot", None)
-
-  if delay_lag > 0:
-    # The robot EntityCfg shares module-level actuator cfg objects across all
-    # tasks in this process — deep-copy before mutating delay fields.
-    robot = copy.deepcopy(env_cfg.scene.entities["robot"])
-    for act in robot.articulation.actuators:
-      act.delay_min_lag = delay_lag
-      act.delay_max_lag = delay_lag
-      act.delay_hold_prob = 0.0
-      act.delay_update_period = 0
-    env_cfg.scene.entities["robot"] = robot
-
   env_cfg.scene.num_envs = cfg.num_envs
-  env_cfg.seed = cfg.seed + cond_index
+
+  # §3.4 realized block: read back from the FINAL cfg right before the env is
+  # built — records what actually runs, not what the row intended.
+  realized = extract_realized(env_cfg)
 
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
   env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
@@ -340,6 +618,14 @@ def _run_condition(
       done_envs = done_envs | newly
     step += 1
 
+  # EXACT horizon: never step past T (audit F4 — past the last reference frame
+  # pinned mjlab teleports survivors to frame zero and rescores the start).
+  assert step <= max_steps, f"steps_run {step} > T {max_steps}"
+  # success = reached T. Envs still alive when the loop hits T survived the
+  # whole motion even if their time_out flag would land on the same step as
+  # the motion wrap. Entry/exit handoff is a separate future scenario.
+  success = success | ~done_envs
+
   active_steps = torch.stack(active_acc, 0).sum(0).clamp(min=1)
   mpkpe = (torch.stack(mpkpe_acc, 0).sum(0) / active_steps).mean().item()
   rr_mpkpe = (torch.stack(rr_mpkpe_acc, 0).sum(0) / active_steps).mean().item()
@@ -407,10 +693,12 @@ def _run_condition(
   sections["worst_5s_window"] = worst5
 
   out = {
-    "condition": name,
-    "delay_ms": delay_lag * 5,
-    "push": push,
-    "obs_noise": noise,
+    "condition": spec.name,
+    "realized": realized,  # CONVENTIONS §3.4 — from the FINAL cfg
+    "cmd_delay_ms": [realized["cmd_delay_steps"][0] * 5,
+                     realized["cmd_delay_steps"][1] * 5],
+    "obs_delay_ms": [realized["obs_delay_steps"][0] * 20,
+                     realized["obs_delay_steps"][1] * 20],
     "num_episodes": n,
     "success_rate": success.float().mean().item(),
     "n_success": int(success.sum().item()),
@@ -429,6 +717,8 @@ def _run_condition(
 
 
 def main() -> None:
+  if _EVAL_IMPORT_ERROR is not None:
+    raise SystemExit(f"sim_gap_check needs the mjlab box env: {_EVAL_IMPORT_ERROR}")
   import mjlab.tasks  # noqa: F401
 
   # Tolerate a bare positional task id (legacy callers), but never strip the
@@ -450,51 +740,72 @@ def main() -> None:
   device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
   torch.manual_seed(cfg.seed)
 
-  episode_length_s = cfg.episode_length_s or (_motion_duration_s(cfg.motion_file) + 0.2)
-  max_steps = int(episode_length_s * 50) + 100
+  if cfg.episode_length_s:
+    episode_length_s = cfg.episode_length_s
+    max_steps = int(round(episode_length_s * 50))
+  else:
+    # EXACT horizon (audit F4): T = frames/fps, no +0.2 padding, no +100 slack.
+    frames, fps = _motion_frames_fps(cfg.motion_file)
+    episode_length_s, max_steps = exact_horizon(frames, fps)
 
-  conditions = CONDITIONS
+  conditions = list(CONDITIONS_V2)
   if cfg.only:
-    names = {n.strip() for n in cfg.only.split(",")}
-    conditions = [c for c in CONDITIONS if c[0] in names]
+    conditions = [CONDITION_BY_NAME[n] for n in resolve_only(cfg.only)]
   num_envs = cfg.num_envs
   if cfg.quick:
-    conditions = [CONDITIONS[0], CONDITIONS[4]]
+    conditions = [CONDITION_BY_NAME["clean"], CONDITION_BY_NAME["dr_delay40ms_push"]]
     cfg = Cfg(**{**cfg.__dict__, "num_envs": 8})
     num_envs = 8
-    max_steps = 300
+    max_steps = min(max_steps, 300)
+
+  # Paired seeds: the SAME seed for every row; --seeds adds whole-matrix
+  # repetitions (recorded; extras land under "repeats" in the json).
+  seeds = ([int(s) for s in cfg.seeds.split(",") if s.strip()]
+           if cfg.seeds else [cfg.seed])
+
+  # Load base cfgs ONCE: every row builds from the PLAY cfg; the train cfg is
+  # only the donor for DR/push event definitions (rows that name them).
+  base_play_cfg = load_env_cfg(cfg.task, play=True)
+  donor_train_cfg = load_env_cfg(cfg.task, play=False)
+  agent_cfg = load_rl_cfg(cfg.task)
 
   print(
-    f"[INFO] sim_gap_check: {len(conditions)} conditions x {num_envs} envs, "
-    f"episode {episode_length_s:.1f}s ({max_steps} max steps)",
+    f"[INFO] sim_gap_check harness v{HARNESS_VERSION}: {len(conditions)} conditions "
+    f"x {num_envs} envs, episode {episode_length_s:.2f}s (T={max_steps} steps, exact), "
+    f"seeds={seeds}",
     flush=True,
   )
 
   results = {}
-  for i, (name, delay, push, noise) in enumerate(conditions):
-    cond = _run_condition(
-      cfg, device, name, delay, push, noise, episode_length_s, i, max_steps
-    )
-    results[name] = cond
-    ap = cond["ankle_pitch"]
-    print(
-      f"[{name}] survival={cond['success_rate']:.3f} "
-      f"({cond['n_success']}/{cond['num_episodes']}) "
-      f"mpkpe={cond['mpkpe_m']:.3f}m rr={cond['mpkpe_root_rel_m']:.3f}m "
-      f"drift p95={cond['drift'].get('episode_max_p95_m') or float('nan'):.2f}m "
-      f"(max={cond['drift']['max_m']:.2f}m) "
-      f"ankle_pitch |tau| mean={ap['mean_abs']:.2f} rms={ap['rms_abs']:.2f} "
-      f"p95={ap['p95_abs']:.2f} max={ap['max_abs']:.2f} Nm",
-      flush=True,
-    )
-    for sname, s in (cond.get("sections") or {}).items():
-      if s is None:
-        continue
-      if sname == "worst_5s_window":
-        print(f"    worst-5s ankle RMS: {s['rms']:.2f} Nm @ {s['start_s']:.1f}s", flush=True)
-      else:
-        print(f"    [{sname}] mean={s['mean_abs']:.2f} rms={s['rms_abs']:.2f} "
-              f"p95={s['p95_abs']:.2f} falls={s['falls']}", flush=True)
+  repeats: dict[str, dict] = {}
+  for seed_i, seed in enumerate(seeds):
+    dest = results if seed_i == 0 else repeats.setdefault(str(seed), {})
+    for spec in conditions:
+      cond = _run_condition(
+        cfg, device, spec, seed, base_play_cfg, donor_train_cfg, agent_cfg,
+        episode_length_s, max_steps
+      )
+      dest[spec.name] = cond
+      ap = cond["ankle_pitch"]
+      tag = spec.name if len(seeds) == 1 else f"{spec.name}@seed{seed}"
+      print(
+        f"[{tag}] survival={cond['success_rate']:.3f} "
+        f"({cond['n_success']}/{cond['num_episodes']}) "
+        f"mpkpe={cond['mpkpe_m']:.3f}m rr={cond['mpkpe_root_rel_m']:.3f}m "
+        f"drift p95={cond['drift'].get('episode_max_p95_m') or float('nan'):.2f}m "
+        f"(max={cond['drift']['max_m']:.2f}m) "
+        f"ankle_pitch |tau| mean={ap['mean_abs']:.2f} rms={ap['rms_abs']:.2f} "
+        f"p95={ap['p95_abs']:.2f} max={ap['max_abs']:.2f} Nm",
+        flush=True,
+      )
+      for sname, s in (cond.get("sections") or {}).items():
+        if s is None:
+          continue
+        if sname == "worst_5s_window":
+          print(f"    worst-5s ankle RMS: {s['rms']:.2f} Nm @ {s['start_s']:.1f}s", flush=True)
+        else:
+          print(f"    [{sname}] mean={s['mean_abs']:.2f} rms={s['rms_abs']:.2f} "
+                f"p95={s['p95_abs']:.2f} falls={s['falls']}", flush=True)
 
   # Gate: nominal bars + worst-injected-condition bars (audit §3 numbers).
   gate = None
@@ -506,34 +817,38 @@ def main() -> None:
   # bound on the real added latency) makes that failure un-passable. 60/80 ms stay in the
   # matrix as informational stress lines (they also fold in mechanical PD lag, so they
   # over-state pure added latency — reported, not gated).
-  worst_names = [n for n in ("delay40ms_push", "delay40ms", "delay20ms_push", "delay20ms")
+  # Harness v2: the "nominal" bars now apply to the CLEAN row (true baseline —
+  # v1's "nominal" silently carried DR + delays); numbers re-baseline, which is
+  # the point (rerun the incumbent under v2 before comparing).
+  worst_names = [n for n in ("dr_delay40ms_push", "cmd_delay40ms",
+                             "dr_delay20ms_push", "cmd_delay20ms")
                  if n in results]
-  if worst_names and "nominal" in results:
+  if worst_names and "clean" in results:
     worst = min(worst_names, key=lambda k: results[k]["success_rate"])
-    w, nom = results[worst], results["nominal"]
+    w, nom = results[worst], results["clean"]
 
     def _le(v, bound):
       return v is not None and v <= bound
 
     checks = {
-      f"survival>={GATE['survival_nominal_min']} [nominal]":
+      f"survival>={GATE['survival_nominal_min']} [clean]":
         nom["success_rate"] >= GATE["survival_nominal_min"],
       f"survival>={GATE['survival_worst_min']} [{worst}]":
         w["success_rate"] >= GATE["survival_worst_min"],
-      f"ankle_mean<={GATE['ankle_mean_nominal_max_nm']}Nm [nominal]":
+      f"ankle_mean<={GATE['ankle_mean_nominal_max_nm']}Nm [clean]":
         _le(nom["ankle_pitch"]["mean_abs"], GATE["ankle_mean_nominal_max_nm"]),
       f"ankle_mean<={GATE['ankle_mean_worst_max_nm']}Nm [{worst}]":
         _le(w["ankle_pitch"]["mean_abs"], GATE["ankle_mean_worst_max_nm"]),
-      f"ankle_p95<={GATE['ankle_p95_nominal_max_nm']}Nm [nominal]":
+      f"ankle_p95<={GATE['ankle_p95_nominal_max_nm']}Nm [clean]":
         _le(nom["ankle_pitch"]["p95_abs"], GATE["ankle_p95_nominal_max_nm"]),
       f"ankle_p95<={GATE['ankle_p95_worst_max_nm']}Nm [{worst}]":
         _le(w["ankle_pitch"]["p95_abs"], GATE["ankle_p95_worst_max_nm"]),
       f"ankle_RMS<={GATE['ankle_rms_worst_max_nm']}Nm(thermal) [{worst}]":
         _le(w["ankle_pitch"]["rms_abs"], GATE["ankle_rms_worst_max_nm"]),
-      f"rr_mpkpe<={GATE['rr_mpkpe_nominal_max_m']}m [nominal]":
+      f"rr_mpkpe<={GATE['rr_mpkpe_nominal_max_m']}m [clean]":
         nom.get("mpkpe_root_rel_m") is not None
         and nom["mpkpe_root_rel_m"] <= GATE["rr_mpkpe_nominal_max_m"],
-      f"drift_p95<={GATE['drift_nominal_p95_max_m']}m [nominal]":
+      f"drift_p95<={GATE['drift_nominal_p95_max_m']}m [clean]":
         nom.get("drift") is not None
         and nom["drift"].get("episode_max_p95_m") is not None
         and nom["drift"]["episode_max_p95_m"] <= GATE["drift_nominal_p95_max_m"],
@@ -563,20 +878,20 @@ def main() -> None:
           "the retrained policy must PASS)")
 
   Path(cfg.output_file).parent.mkdir(parents=True, exist_ok=True)
+  payload = gap_payload(
+    task=cfg.task,
+    checkpoint=cfg.checkpoint,
+    onnx=cfg.onnx,
+    motion_file=cfg.motion_file,
+    episode_length_s=episode_length_s,
+    horizon_steps=max_steps,
+    seeds=seeds,
+    gate=gate,
+    conditions=results,
+    repeats=repeats or None,
+  )
   with open(cfg.output_file, "w") as f:
-    json.dump(
-      {
-        "task": cfg.task,
-        "checkpoint": cfg.checkpoint,
-        "onnx": cfg.onnx,
-        "motion_file": cfg.motion_file,
-        "episode_length_s": episode_length_s,
-        "gate": gate,
-        "conditions": results,
-      },
-      f,
-      indent=2,
-    )
+    json.dump(payload, f, indent=2)
   print(f"[INFO] wrote {cfg.output_file}")
 
 

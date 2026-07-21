@@ -23,11 +23,11 @@ explicit paths only.
 
 ## Status board (update the checkbox + commit sha when a task lands)
 
-- [ ] A1 effort scope (F1) — 
-- [ ] A2 grounding flight (F8) — 
-- [ ] A3 v12 rebuild + manifest (F2) — 
-- [ ] A4 eval harness (F4) — 
-- [ ] A5 cloud tests green — 
+- [x] A1 effort scope (F1) — landed (see git log [laneA] F1)
+- [x] A2 grounding flight (F8) — landed ([laneA] F8)
+- [x] A3 v12 rebuild + manifest (F2) — landed ([laneA] F2)
+- [x] A4 eval harness (F4) — landed ([laneA] F4)
+- [x] A5 cloud tests green — landed ([laneA] A5)
 - [ ] B1 policy manifest/meta v2 (F3) — 
 - [ ] B2 obs-layout verifier fix (F3) — 
 - [ ] B3 show fail-closed (F6) — 
@@ -36,6 +36,15 @@ explicit paths only.
 - [ ] B6 show tests green — 
 
 ## Coordination log (append; needed-but-unowned files, schema questions)
+
+- (laneA/A4) gap.json is now HARNESS v2: rows renamed (clean/dr_nominal/cmd_delay*/obs_delay*/
+  dr_delay*_push), per-condition `realized` block, top-level harness_version/seeds. Lane B:
+  mjlab_verify reads heldout keys `nominal`/`push` which are PRESERVED. Follow-up NEXT wave
+  (nobody's file this wave): cloud/autopilot_s2r.py reads v1 `conditions['nominal']` and will
+  fail loudly on a v2 gap.json.
+
+- (laneA note) NEW FILE `cloud/effort_scope.py` — pure per-control scope resolver for F1,
+  Lane A owned, mjlab-free so tests import it. Lane B: read-only.
 
 - (open) Lane A wires the frozen `verify_obs_layout.py` CLI (CONVENTIONS §3.5)
   into `run_attempt9.sh` as a guarded box-only step — Lane B must not change the
