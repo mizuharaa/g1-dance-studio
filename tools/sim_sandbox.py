@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-"""Policy-in-the-loop simulation sandbox — the HONEST preview (AGENT D, 2026-07-10).
+"""Policy-in-the-loop simulation sandbox (AGENT D, 2026-07-10).
 
 The 3D preview plays the REFERENCE motion (design intent). The robot runs an RL POLICY
 that only approximately tracks it, so subtle/fast moves wash out or get skipped (tester:
-~60-70% on hardware). This runs the ACTUAL policy.onnx in a dynamic MuJoCo sim using the
-EXACT deploy contract, so we see + measure what the robot really does BEFORE hardware.
+~60-70% on hardware). This runs the policy.onnx in a dynamic MuJoCo scene using the exact
+deploy software contract. It is an alternate-model stress test, not a hardware prediction
+or a replay of the pinned training physics.
 
-Faithfulness: the obs builder, inference, action->target and PD are IMPORTED from
+Software-contract parity: the obs builder, inference, action->target and PD are IMPORTED from
 pipeline/deploy_runtime.py (not re-implemented) — the sandbox and the real robot run the
 same code. Optional --latency-ms injects the measured 40-80 ms sensorimotor delay
 (data/telemetry/latency_diag_20260709/DIAGNOSIS.md) so the twin matches hardware, not
@@ -30,40 +31,61 @@ import mujoco  # noqa: E402
 import onnxruntime as ort  # noqa: E402
 
 import pipeline.deploy_runtime as D  # obs builder / inference / target / PD contract  # noqa: E402
+from pipeline import artifacts  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 # Two candidate preview models (see experiments/g1_model_reconciliation.md):
-#  * FAITHFUL — the official Unitree G1 MJCF (correct hardware inertias, same source
-#    as the mjlab training model) with per-joint ARMATURE patched to the mjlab/
-#    BeyondMimic values and XML joint damping/frictionloss zeroed (mjlab impedance-
-#    actuator convention). This MATCHES the training dynamics: the trained policy
-#    dances at ~full amplitude on it and falls at the gate's hard beats, instead of
-#    the washed-out ~7%-amplitude behaviour it shows on menagerie. Built by
-#    tools/assets/g1_faithful/build (armatures from pipeline.g1_limits.ARMATURE).
-#  * MENAGERIE — mujoco_menagerie G1. A DIFFERENT model (re-derived inertias, flat
-#    0.01 armature, friction 0.6): it does NOT match training and under-represents
-#    the dance (policy freezes). Kept only as a fallback / comparison.
-FAITHFUL = ROOT / "tools/assets/g1_faithful/g1_mjlab_faithful.xml"
+#  * HARDWARE_UNCERTAINTY — official Unitree G1 MJCF with per-joint armature
+#    patched to the BeyondMimic values and XML damping/frictionloss zeroed. It has
+#    useful hardware-oriented parameters, but differs from pinned mjlab in mass
+#    distribution, collision geometry, and friction. Treat it as independent stress
+#    evidence, not corroboration of the training scene.
+#  * MENAGERIE — a second alternate G1 model with re-derived inertias, flat 0.01
+#    armature, and friction 0.6. Kept only as a fallback / comparison.
+HARDWARE_UNCERTAINTY = ROOT / "tools/assets/g1_faithful/g1_mjlab_faithful.xml"
+# Compatibility for callers that imported the old misleading constant name.
+FAITHFUL = HARDWARE_UNCERTAINTY
 MENAGERIE = ROOT / "third_party/mujoco_menagerie/unitree_g1/scene.xml"
-SCENE = FAITHFUL if FAITHFUL.exists() else MENAGERIE      # default = faithful preview
+SCENE = HARDWARE_UNCERTAINTY if HARDWARE_UNCERTAINTY.exists() else MENAGERIE
+HARDWARE_UNCERTAINTY_SCENE_NAME = "hardware-uncertainty-v1"
+HARDWARE_UNCERTAINTY_BANNER = (
+    "PREVIEW on the hardware-uncertainty scene (official Unitree XML; NOT the "
+    "pinned mjlab training model — treat disagreement as signal, not error)"
+)
 CONTROL_HZ = 50.0
 
 
-def is_faithful(model_path) -> bool:
-    """True if model_path is the faithful mjlab-aligned training model (not menagerie)."""
+def is_hardware_uncertainty_scene(model_path) -> bool:
+    """True when ``model_path`` is the official-Unitree uncertainty scene."""
     try:
-        return Path(model_path).resolve() == FAITHFUL.resolve()
+        return Path(model_path).resolve() == HARDWARE_UNCERTAINTY.resolve()
     except Exception:
         return False
 
 
+def is_faithful(model_path) -> bool:
+    """Compatibility alias for the former public helper name."""
+    return is_hardware_uncertainty_scene(model_path)
+
+
+def scene_identity(model_path) -> dict[str, str]:
+    """Stable provenance stored beside every report produced from a scene."""
+    path = Path(model_path)
+    if is_hardware_uncertainty_scene(path):
+        name = HARDWARE_UNCERTAINTY_SCENE_NAME
+    elif path.resolve() == MENAGERIE.resolve():
+        name = "menagerie-comparison-v1"
+    else:
+        name = "custom-scene"
+    return {"name": name, "xml_sha256": artifacts.sha256_file(path)}
+
+
 def model_caveat(model_path) -> str:
-    """Honest one-line fidelity caveat for the model actually in use."""
-    if is_faithful(model_path):
-        return ("PREVIEW on the mjlab TRAINING model (per-joint armatures + gains "
-                "matched to training). Faithful to what was trained; still NOT the real robot.")
-    return ("menagerie model != mjlab training model -> sim UNDER-represents the trained "
-            "policy (it looks washed-out / frozen). NOT the training model.")
+    """One-line provenance caveat for the model actually in use."""
+    if is_hardware_uncertainty_scene(model_path):
+        return HARDWARE_UNCERTAINTY_BANNER
+    return ("PREVIEW on the menagerie comparison scene (alternate XML; uncalibrated — "
+            "treat disagreement as signal, not error)")
 SIM_DT = 0.005
 DECIM = 4                       # 50 Hz control over 200 Hz sim
 
@@ -203,6 +225,7 @@ def run_sandbox(dance: Path, steps: int, latency_ms: float, xml: Path = SCENE,
     out["fell_at_tick"] = fell_at
     out["meta"] = meta
     out["qadr"] = qadr
+    out["scene"] = scene_identity(xml)
     return out, model, meta
 
 
@@ -227,6 +250,7 @@ def tracking_report(out) -> dict:
         "per_dof_amplitude": np.clip(amp, 0, 3).round(3).tolist(),
         "fell_at_tick": out["fell_at_tick"],
         "scored_ticks": int(n),
+        "scene": dict(out["scene"]),
     }
 
 
@@ -241,9 +265,9 @@ def main():
     ap.add_argument("--out", type=Path, default=None, help="render mp4 (optional)")
     ap.add_argument("--report", type=Path, default=None, help="write tracking report json")
     ap.add_argument("--model", type=Path, default=SCENE,
-                    help="MuJoCo scene xml (default = faithful mjlab-aligned training model)")
+                    help="MuJoCo scene XML (default = official-Unitree hardware-uncertainty scene)")
     ap.add_argument("--menagerie", action="store_true",
-                    help="use the (non-faithful) menagerie model instead of the faithful one")
+                    help="use the menagerie comparison scene instead of the default")
     args = ap.parse_args()
     model_path = MENAGERIE if args.menagerie else args.model
 

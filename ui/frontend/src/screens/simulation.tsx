@@ -19,6 +19,7 @@ interface SimVersion {
   achieved?: number | null
   created_at?: number | null
   policy_sha256?: string | null
+  scene?: { name: string; xml_sha256: string } | null
   status: string
 }
 
@@ -153,7 +154,7 @@ export function SimulationScreen({ data }: { data: ConsoleData }) {
   if (!dances.length) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Simulation" description="Preview what the robot actually does vs the reference." />
+        <PageHeader title="Simulation" description="Compare the reference with a policy rollout in the hardware-uncertainty scene." />
         <EmptyState title="No trained dances yet"
           body="Train a dance in the Pipeline, then simulate it here to see what the robot will really do." />
       </div>
@@ -163,13 +164,12 @@ export function SimulationScreen({ data }: { data: ConsoleData }) {
   return (
     <div className="space-y-6">
       <PageHeader title="Simulation"
-        description="See what the robot actually does vs the dance you intended — side by side, overlaid in one scene, or against the pose-estimation landmarks." />
+        description="Compare the dance you intended with a simulated policy rollout — side by side, overlaid in one scene, or against the pose-estimation landmarks." />
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        <b>⚠️ Uncalibrated preview.</b> This sim uses a sandbox model that <b>under-represents hardware</b> —
-        it currently shows less motion than the real robot. Use it to compare policies (before/after) and to
-        spot which joints move or where the policy falls, not as an exact preview of the real robot.
-        (A faithful mjlab model will be swapped in later.)
+        <b>⚠️ Hardware-uncertainty scene.</b> This preview uses the official Unitree XML, not the pinned
+        mjlab scene. Use it to compare policies and expose model sensitivity; treat disagreement as useful
+        evidence, not a rendering error or an exact prediction of the real robot.
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -241,7 +241,7 @@ export function SimulationScreen({ data }: { data: ConsoleData }) {
               <VideoFrame url={cur.url!} autoPlay={false}
                 label={<><span className="text-slate-500">Reference</span> <span className="text-slate-300">|</span> <span className="text-blue-700">Policy</span></>}
                 caption={<>
-                  <b>Left = the intended (reference) dance. Right = what the policy actually does.</b>{" "}
+                  <b>Left = the intended dance. Right = the policy rollout in this named scene.</b>{" "}
                   dances {pct(cur.achieved)} of the motion.{cur.created_at ? ` · rendered ${fmtDate(cur.created_at)}` : ""}
                 </>} />
             ) : null

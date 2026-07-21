@@ -105,3 +105,28 @@ Values sampled at representative joints; "real G1" is the documented target, not
 - Wired into: `tools/sim_sandbox.py` (`SCENE`/`FAITHFUL`/`MENAGERIE`, `is_faithful`, `model_caveat`),
   `tools/sim_studio.py` (`_banner`, model-aware labels)
 - Smoke-test previews: `data/previews/v7ank_faithful_studio.mp4`, `..._overlay.mp4`, `..._report.json`
+
+## 2026-07-21 correction — this is a hardware-uncertainty scene
+
+The document above predates the external audit and overstates the generated scene as
+"faithful (= mjlab-aligned)." The pinned mjlab wheel's raw G1 model is **33.341 kg**
+with a **7.818 kg torso**. The generated preview is based on the official Unitree XML
+and is **35.112 kg** with a **9.598 kg torso**. It also retains materially different
+collision and friction choices. Matching selected armatures and the deploy software
+contract does not make those floating-base contact systems the same.
+
+The existing XML is therefore named the **hardware-uncertainty scene (official
+Unitree model)**. Its rollouts remain useful alternate-model stress evidence, and
+disagreement with mjlab is signal rather than a rendering error. Every new sandbox
+and studio report records the scene name and full XML SHA-256.
+
+The two-scene plan is:
+
+1. Export an exact-training scene from the pinned live mjlab environment, including
+   expanded actuators, collision filters, friction, and realized runtime parameters.
+   That is a future GPU/box task and is not fabricated in this CPU-only wave.
+2. Keep this official-Unitree-derived hardware-uncertainty scene explicitly named
+   and compare both scenes against anchor telemetry and future robot trials.
+
+This correction changes provenance and interpretation only; it does not change the
+scene physics or rewrite the historical measurements above.

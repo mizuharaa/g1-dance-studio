@@ -7,10 +7,12 @@ what you designed and what the robot does — and, once a retrain lands, before 
 Panel sources:
   * REFERENCE (kinematic): the INTENDED motion — reference joint angles played straight
     (a perfect tracker). This is the "design intent" the 3D preview shows.
-  * POLICY (dynamic sandbox): what the robot ACTUALLY does — the real policy.onnx run in
-    MuJoCo via the exact deploy contract (tools/sim_sandbox), optional latency/tether.
+  * POLICY (dynamic sandbox): a simulated rollout of the real policy.onnx in
+    MuJoCo via the exact deploy software contract (tools/sim_sandbox), optional
+    latency/tether. The default hardware-uncertainty scene is not the pinned mjlab
+    training scene.
 
-Default:  REFERENCE | POLICY            — the honest fidelity preview (intent vs reality).
+Default:  REFERENCE | POLICY            — intent vs alternate-model rollout.
 --dance-b: POLICY(A) | POLICY(B)         — before vs after a retrain (A=before, B=after).
 
 Overlay per panel: label + the achieved-fraction / tracking state.
@@ -33,7 +35,14 @@ import mujoco  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 
 import pipeline.deploy_runtime as D  # noqa: E402
-from tools.sim_sandbox import run_sandbox, tracking_report, SCENE, is_faithful  # noqa: E402
+from tools.sim_sandbox import (  # noqa: E402
+    HARDWARE_UNCERTAINTY_BANNER,
+    SCENE,
+    is_hardware_uncertainty_scene,
+    run_sandbox,
+    scene_identity,
+    tracking_report,
+)
 
 # FRONT view (user 2026-07-17: previews read "from the back"): the retargets face
 # yaw ~90 deg; azimuth -45 shows the front-quarter like the original deploy previews.
@@ -41,13 +50,11 @@ CAM_AZIMUTH = -45
 
 
 def _banner(model_path):
-    """Model-aware honest caveat for the preview footer. Softer (blue-grey) on the
-    faithful training model; loud amber on the non-faithful menagerie model."""
-    if is_faithful(model_path):
-        return ("PREVIEW on the mjlab TRAINING model — armatures + gains matched to training. "
-                "Faithful to what was trained; still not the real robot.", (150, 190, 235))
-    return ("SIM NOT ON THE TRAINING MODEL (menagerie) — under-represents the trained policy "
-            "(washed-out / frozen).", (230, 170, 90))
+    """Model-aware provenance caveat for the preview footer."""
+    if is_hardware_uncertainty_scene(model_path):
+        return HARDWARE_UNCERTAINTY_BANNER, (150, 190, 235)
+    return ("PREVIEW on the menagerie comparison scene (alternate XML; uncalibrated — "
+            "treat disagreement as signal, not error)", (230, 170, 90))
 
 H, W = 480, 380
 
@@ -137,6 +144,18 @@ def _policy_rollout(dance: Path, steps: int, latency: float, tether: float, labe
     return out
 
 
+def _report_payload(left: dict, right: dict, model_path: Path) -> dict:
+    """Serializable studio result with immutable scene provenance."""
+    return {
+        "left_kind": left["kind"],
+        "left_achieved": float(left["achieved"]),
+        "right_kind": right["kind"],
+        "right_achieved": float(right["achieved"]),
+        "right_fell_at": right.get("fell_at"),
+        "scene": scene_identity(model_path),
+    }
+
+
 def _qadr(model, meta) -> np.ndarray:
     a = np.zeros(meta.n, int)
     for i, name in enumerate(meta.joint_order):
@@ -203,9 +222,10 @@ def _tint_dynamic(scene, rgba) -> None:
 def render_overlay(left: dict, right: dict, out_path: Path, meta, model_path: Path = SCENE):
     """Render BOTH skeletons in the SAME mujoco scene, color-coded, into one mp4.
 
-    Reference (intended) = translucent green ghost; policy (actual robot) = solid blue.
+    Reference (intended) = translucent green ghost; simulated policy rollout = solid blue.
     Divergence between intent and reality is directly visible in a single view.
-    model_path is a parameter so a faithful mjlab model can be swapped in later.
+    ``model_path`` is explicit so a future exact-training export can become a
+    separately named scene without relabeling this hardware-uncertainty result.
     """
     model = mujoco.MjModel.from_xml_path(str(model_path))
     model.vis.global_.offwidth = max(model.vis.global_.offwidth, OW)
@@ -244,7 +264,7 @@ def render_overlay(left: dict, right: dict, out_path: Path, meta, model_path: Pa
         d.rectangle([8, 10, 26, 28], fill=(72, 217, 107))
         d.text((32, 14), "REFERENCE (intended dance)", fill=(210, 245, 215))
         d.rectangle([OW - 250, 10, OW - 232, 28], fill=(61, 122, 250))
-        d.text((OW - 226, 14), "POLICY (actual robot)", fill=(200, 220, 255))
+        d.text((OW - 226, 14), "POLICY (simulated rollout)", fill=(200, 220, 255))
         fell = right.get("fell_at")
         if fell and k >= fell:
             d.text((OW // 2 - 60, 14), f"POLICY FELL @ {fell}", fill=(250, 130, 90))
@@ -268,9 +288,9 @@ def main() -> int:
     ap.add_argument("--overlay-out", type=Path, default=None,
                     help="also render the SAME-SCENE color-coded overlay to this mp4")
     ap.add_argument("--model", type=Path, default=SCENE,
-                    help="MuJoCo scene xml (default = faithful mjlab-aligned training model)")
+                    help="MuJoCo scene XML (default = official-Unitree hardware-uncertainty scene)")
     ap.add_argument("--menagerie", action="store_true",
-                    help="use the (non-faithful) menagerie model instead of the faithful one")
+                    help="use the menagerie comparison scene instead of the default")
     ap.add_argument("--report", type=Path, default=None, help="write a small json summary")
     args = ap.parse_args()
     from tools.sim_sandbox import MENAGERIE
@@ -284,7 +304,9 @@ def main() -> int:
                                 model_path=args.model)
     else:                                         # REFERENCE(intended) | POLICY(actual)
         left = _kinematic_reference(args.dance, args.steps)
-        _plabel = "POLICY (mjlab training model)" if is_faithful(args.model) else "POLICY (menagerie — uncalibrated)"
+        _plabel = ("POLICY (hardware-uncertainty scene)"
+                   if is_hardware_uncertainty_scene(args.model)
+                   else "POLICY (menagerie comparison scene)")
         right = _policy_rollout(args.dance, args.steps, args.latency_ms, args.tether_kp,
                                 _plabel, model_path=args.model)
     print(f"left  {left['kind']}: achieved {left['achieved']*100:.0f}%")
@@ -298,11 +320,7 @@ def main() -> int:
     if args.report:
         import json
         args.report.parent.mkdir(parents=True, exist_ok=True)
-        args.report.write_text(json.dumps({
-            "left_kind": left["kind"], "left_achieved": float(left["achieved"]),
-            "right_kind": right["kind"], "right_achieved": float(right["achieved"]),
-            "right_fell_at": right.get("fell_at"),
-        }))
+        args.report.write_text(json.dumps(_report_payload(left, right, args.model)))
     return 0
 
 

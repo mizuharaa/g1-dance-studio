@@ -9,14 +9,14 @@ why v6 and v7 had no sim preview.
 
 publish() makes a completed+pulled run ALWAYS appear on the frontend:
 
-  1. ensure_preview_assets() — the honest sim (tools/sim_studio via pipeline.sim_preview)
+  1. ensure_preview_assets() — the hardware-uncertainty scene
      needs, alongside policy.onnx, that policy's OWN policy_meta.json and a *_deploy.npz
      motion. Metadata is never borrowed. Motion prefers this policy's own lineage and uses
      the shared thriller_deploy.npz only as a last-resort visual reference.
   2. register_or_update() — find the Dance by name (create it if new) and attach_policy()
      so policy_path points at this run's policy.onnx. Uses the real store code
      (pipeline.shows) — no hand-written dance.json.
-  3. sim_preview.render_sync() — render the honest preview (faithful mjlab model) so the
+  3. sim_preview.render_sync() — render the hardware-uncertainty preview so the
      video is on the frontend the instant the pull finishes.
 
 ROBUSTNESS CONTRACT: publish() must never crash the pull. Asset/render failures are
@@ -251,7 +251,7 @@ def publish(policy_dir, name: str, *, notes: str | None = None,
             render: bool = True, wait: bool = True, log=print) -> shows.Dance | None:
     """Full publish: ensure assets -> register/update dance -> render preview.
 
-    render=True triggers the honest sim (faithful model). wait=True renders in the
+    render=True triggers the hardware-uncertainty scene. wait=True renders in the
     FOREGROUND (render_sync) — required in a short-lived CLI/pull process where a daemon
     thread would be killed on exit; wait=False (render_async) suits the long-lived server.
     Returns the Dance, or None only if there is no policy.onnx to publish. A render error
@@ -268,8 +268,8 @@ def publish(policy_dir, name: str, *, notes: str | None = None,
     if render and contract_ok:
         try:
             if wait:
-                log(f"publish_policy: rendering honest sim preview for {dance.id} "
-                    "(foreground, faithful model — a few minutes)…")
+                log(f"publish_policy: rendering hardware-uncertainty preview for {dance.id} "
+                    "(foreground, hardware-uncertainty scene — a few minutes)…")
                 res = sim_preview.render_sync(dance)
             else:
                 res = sim_preview.render_async(dance)

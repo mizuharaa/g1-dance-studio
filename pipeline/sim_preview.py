@@ -1,8 +1,9 @@
 """On-demand policy-in-the-loop sim previews for the Simulation tab.
 
-Renders the honest sim (tools/sim_studio: REFERENCE vs POLICY) for a dance's current policy
-and stores it VERSIONED by policy sha, so a retrain produces a NEW version while the OLD one
-is kept — that is what lets the UI show before-vs-after side by side.
+Renders the hardware-uncertainty scene (tools/sim_studio: REFERENCE vs POLICY) for a
+dance's current policy and stores it VERSIONED by policy sha, so a retrain produces a
+NEW version while the OLD one is kept. This is alternate-model stress evidence, not a
+replay of the pinned training scene or a calibrated hardware prediction.
 
 Layout:  data/previews/sim/<dance_id>/<sha8>.mp4  (+ <sha8>.json meta)
 Served by the existing /previews static mount -> /previews/sim/<dance_id>/<sha8>.mp4
@@ -92,6 +93,7 @@ def list_sims(dance_id: str) -> list[dict]:
                 "achieved": meta.get("right_achieved"),
                 "created_at": meta.get("created_at"),
                 "policy_sha256": meta.get("policy_sha256"),
+                "scene": meta.get("scene"),
                 "status": _status.get((dance_id, sha), "ready"),
             })
     seen = {o["sha"] for o in out}
