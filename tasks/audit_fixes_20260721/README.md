@@ -28,12 +28,12 @@ explicit paths only.
 - [x] A3 v12 rebuild + manifest (F2) — landed ([laneA] F2)
 - [x] A4 eval harness (F4) — landed ([laneA] F4)
 - [x] A5 cloud tests green — landed ([laneA] A5)
-- [ ] B1 policy manifest/meta v2 (F3) — 
-- [ ] B2 obs-layout verifier fix (F3) — 
-- [ ] B3 show fail-closed (F6) — 
-- [ ] B4 verdict v2 + dedupe (F7) — 
-- [ ] B5 scene labels (F5) — 
-- [ ] B6 show tests green — 
+- [x] B1 policy manifest/meta v2 (F3) — `3e4f124`
+- [x] B2 obs-layout verifier fix (F3) — `42b1b1a`
+- [x] B3 show fail-closed (F6) — `7459f72`
+- [x] B4 verdict v2 + dedupe (F7) — `30cab84`
+- [x] B5 scene labels (F5) — `2a7f06d`
+- [x] B6 show tests green — `d643ee0`
 
 ## Coordination log (append; needed-but-unowned files, schema questions)
 
@@ -45,6 +45,15 @@ explicit paths only.
 
 - (laneA note) NEW FILE `cloud/effort_scope.py` — pure per-control scope resolver for F1,
   Lane A owned, mjlab-free so tests import it. Lane B: read-only.
+
+- (laneB/B4 follow-up) `pipeline/sim_exam.py` and `docs/mjlab_verify.md` remain
+  legacy `sim_exam/v1` producers/documentation outside B4's owned files. V1 stays
+  readable for legacy consumers, but show repeatability now correctly refuses it;
+  migrate that producer and update the stale 875 N documentation before using it
+  for new show-promotion evidence.
+
+- (wave exit gate) Combined Lane A + Lane B CPU suite: **694 collected, 688 passed,
+  6 skipped, 0 failed** in the `g1dance` environment on 2026-07-21.
 
 - (open) Lane A wires the frozen `verify_obs_layout.py` CLI (CONVENTIONS §3.5)
   into `run_attempt9.sh` as a guarded box-only step — Lane B must not change the
