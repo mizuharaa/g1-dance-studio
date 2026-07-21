@@ -36,13 +36,19 @@ class FakeBox:
         self.jobs: dict[str, dict] = {}
         self.pushed: dict[str, bytes] = {}
         self.files: dict[str, bytes] = {}
+        self.runs: list[str] = []            # raw _box_run commands (e.g. mkdir -p)
         monkeypatch.setattr(cm, "_require_cloud", lambda: None)
+        monkeypatch.setattr(cm, "_box_run", self.run)
         monkeypatch.setattr(cm, "_start_script_job", self.start)
         monkeypatch.setattr(cm, "_job_status", self.status)
         monkeypatch.setattr(cm, "_log_tail", lambda name, n=80: "")
         monkeypatch.setattr(cm, "_push", self.push)
         monkeypatch.setattr(cm, "_pull", self.pull)
         monkeypatch.setattr(cm, "_remote_first", lambda expr: None)
+
+    def run(self, cmd, timeout=0):
+        self.runs.append(cmd)
+        return 0, "", ""
 
     def start(self, name, script):
         self.jobs[name] = {"state": "running", "script": script}
@@ -130,6 +136,7 @@ def test_extract_captures_source_audio_when_present(jobs_env, tmp_path, box,
     assert (job.dir / "source_audio.wav").read_bytes() == b"RIFFsourceaudio"
     # the 30 fps GVHMR clip is still the silent re-encode (audio kept separate)
     stem = f"groove_{cm._suffix(job)}"
+    assert f"mkdir -p {cm.NB}/videos_in" in box.runs   # drop dir made before push
     assert box.pushed[f"{cm.NB}/videos_in/{stem}.mp4"] == b"CFR30"
 
 
@@ -162,6 +169,7 @@ def test_extract_audio_failure_is_non_fatal(jobs_env, tmp_path, box, audio_env,
 
     assert job.stages["extract"].meta["source_audio"] is None
     stem = f"noffmpeg_{cm._suffix(job)}"
+    assert f"mkdir -p {cm.NB}/videos_in" in box.runs   # drop dir made before push
     assert box.pushed[f"{cm.NB}/videos_in/{stem}.mp4"] == b"CFR30"   # GVHMR clip pushed
 
 

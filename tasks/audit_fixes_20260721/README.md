@@ -27,7 +27,7 @@ explicit paths only.
 - [ ] A2 grounding flight (F8) — 
 - [ ] A3 v12 rebuild + manifest (F2) — 
 - [ ] A4 eval harness (F4) — 
-- [ ] A5 cloud tests green — 
+- [x] A5 cloud tests green — landed ([laneA] A5)
 - [ ] B1 policy manifest/meta v2 (F3) — 
 - [ ] B2 obs-layout verifier fix (F3) — 
 - [ ] B3 show fail-closed (F6) — 

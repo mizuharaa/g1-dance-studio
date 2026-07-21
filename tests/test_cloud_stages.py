@@ -30,13 +30,19 @@ class FakeBox:
         self.pushed: dict[str, bytes] = {}   # remote path -> bytes
         self.files: dict[str, bytes] = {}    # remote path -> bytes served on pull
         self.globs: list[tuple[str, str]] = []  # (substring, result) for ls -dt
+        self.runs: list[str] = []            # raw _box_run commands (e.g. mkdir -p)
         monkeypatch.setattr(cm, "_require_cloud", lambda: None)
+        monkeypatch.setattr(cm, "_box_run", self.run)
         monkeypatch.setattr(cm, "_start_script_job", self.start)
         monkeypatch.setattr(cm, "_job_status", self.status)
         monkeypatch.setattr(cm, "_log_tail", lambda name, n=80: self.logs.get(name, ""))
         monkeypatch.setattr(cm, "_push", self.push)
         monkeypatch.setattr(cm, "_pull", self.pull)
         monkeypatch.setattr(cm, "_remote_first", self.remote_first)
+
+    def run(self, cmd, timeout=0):
+        self.runs.append(cmd)
+        return 0, "", ""
 
     def start(self, name, script):
         self.jobs[name] = {"state": "running", "script": script}
@@ -471,6 +477,8 @@ def test_extract_video_walkthrough(jobs_env, tmp_path, box, policies_env,
 
     _drive(stage, job)                       # validated, re-encoded, pushed, launched
     stem = f"groove_{cm._suffix(job)}"
+    # a fresh box may lack the drop dir: the stage must mkdir it before the push
+    assert f"mkdir -p {cm.NB}/videos_in" in box.runs
     assert box.pushed[f"{cm.NB}/videos_in/{stem}.mp4"] == b"CFR30"
     gvhmr = f"gvhmr-{stem}"
     assert "tools/demo/demo.py" in box.jobs[gvhmr]["script"]
