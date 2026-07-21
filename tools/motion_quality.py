@@ -249,8 +249,9 @@ def _fidelity_retention(raw: np.ndarray, cleaned: np.ndarray,
             r = float(np.mean(np.ptp(cleaned[s:e, jj], axis=0)[k] / a_r[k]))
             if r < worst_tile:
                 worst_tile, worst_t0 = r, s / fps
+        pv_ret = float(v_c / max(v_r, 1e-9))
         res[g] = {"amp_retention": round(amp, 3),
-                  "peakvel_retention": round(float(v_c / max(v_r, 1e-9)), 3),
+                  "peakvel_retention": round(pv_ret, 3),
                   "worst_5s_tile": {"t0_s": round(worst_t0, 1),
                                     "amp_retention": round(worst_tile, 3)}}
         if worst_tile < RETENTION_WARN:
@@ -258,7 +259,56 @@ def _fidelity_retention(raw: np.ndarray, cleaned: np.ndarray,
                 f"{g}: amplitude retention {worst_tile:.2f} in the 5s tile at "
                 f"{worst_t0:.1f}s (< {RETENTION_WARN}) — cleaning may be "
                 f"eating choreography there; inspect before training")
+        # peak-velocity retention catches SG-blunted snaps that amplitude misses
+        # (audit finding A): a sharp hit keeps its range but loses its speed.
+        if pv_ret < RETENTION_WARN:
+            res["warnings"].append(
+                f"{g}: peak-velocity retention {pv_ret:.2f} (< {RETENTION_WARN}) "
+                f"— smoothing is blunting sharp hits; check the SG/protected-run "
+                f"blend before training")
     return res
+
+
+# Velocity-aware SG exemption band (rad/s). Below VEL_LO the signal is jitter →
+# full SG; above VEL_HI it is genuine choreography (a hit/snap; the deploy limit
+# is 9.4 rad/s) → keep the un-smoothed value; smoothstep between. Jitter on the
+# repo dances sits well under 2 rad/s; real Thriller snaps reach 7-9 rad/s.
+VEL_LO, VEL_HI = 2.5, 4.5
+N_ROOT = 3    # cols 0:3 are root xyz (metres, different scale) — flag-only protect
+
+
+def _reblend_protected(raw: np.ndarray, sg: np.ndarray, protected_runs,
+                       fps: float, ramp: int = 2) -> np.ndarray:
+    """Keep genuine sharp motion out of the SG low-pass (audit finding A,
+    2026-07-21): SG(window 7) blunts fast hits ~29% even when they are NOT
+    flagged as glitches, because a fast joint's own MAD hides the snap from the
+    spike detector. Weight W (1=raw, 0=SG) per column is the max of:
+      * flagged protected runs (cosine-tapered ±ramp frames), and
+      * a velocity gate on the JOINT columns — smoothstep of the raw per-frame
+        speed across [VEL_LO, VEL_HI] rad/s, so choreographic speed is preserved
+        and low-speed jitter is still smoothed. Root xyz uses flag-only protect.
+    Glitches are already removed by reject_outliers before SG, and the downstream
+    velocity clamp still bounds anything over the actuator limit."""
+    N = len(sg)
+    W = np.zeros(sg.shape)
+    # velocity gate (joints only)
+    if N >= 2:
+        v = np.zeros_like(raw)
+        v[1:] = np.abs(raw[1:] - raw[:-1]) * fps
+        v[0] = v[1]
+        t = np.clip((v[:, N_ROOT:] - VEL_LO) / (VEL_HI - VEL_LO), 0.0, 1.0)
+        W[:, N_ROOT:] = t * t * (3 - 2 * t)          # smoothstep
+    # flagged protected runs (all columns, tapered)
+    for (s, e, d) in protected_runs:
+        s, e, d = int(s), int(e), int(d)
+        W[s:e + 1, d] = 1.0
+        for k in range(1, ramp + 1):
+            w = 0.5 * (1 + np.cos(np.pi * k / (ramp + 1)))   # 1->0 cosine
+            if s - k >= 0:
+                W[s - k, d] = max(W[s - k, d], w)
+            if e + k < N:
+                W[e + k, d] = max(W[e + k, d], w)
+    return W * raw + (1.0 - W) * sg
 
 
 def clean_motion(motion: np.ndarray, fps: float = FPS) -> tuple[np.ndarray, dict]:
@@ -271,7 +321,10 @@ def clean_motion(motion: np.ndarray, fps: float = FPS) -> tuple[np.ndarray, dict
     runs: dict = {}
     cols, n_outliers = reject_outliers(cols, fps, info=runs)
     if len(out) >= SG_WINDOW:
+        cols_raw = cols.copy()
         cols = savgol_filter(cols, SG_WINDOW, SG_POLY, axis=0, mode="interp")
+        # keep genuine sharp choreography (flagged OR just fast) out of the SG blur
+        cols = _reblend_protected(cols_raw, cols, runs.get("protected_runs", []), fps)
     out[:, 0:3], out[:, 7:] = cols[:, :3], cols[:, 3:]
     out[:, 3:7] = smooth_quat(out[:, 3:7])
     after = analyze(out, fps)
