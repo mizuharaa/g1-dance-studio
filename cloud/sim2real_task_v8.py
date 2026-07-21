@@ -193,9 +193,27 @@ ANKLE_EFFORT_DR = (
   float(os.environ.get("G1_ANKLE_EFFORT_DR_LO", "0.65")),
   float(os.environ.get("G1_ANKLE_EFFORT_DR_HI", "0.95")),
 )
+# AUDIT FIX F (2026-07-21): mjlab dr.effort_limits with operation="scale" reads the
+# PRISTINE default forcerange (50 Nm) every time — scales do NOT compose. With two
+# startup events on the ankles (clamp 0.80 then DR 0.65-0.95), the LAST-inserted wins,
+# so the trained envelope was 50*U(0.65,0.95)=32.5-47.5 Nm, NOT the intended
+# clamp-then-DR 26-38 Nm (and the 40 Nm cap was silently exceeded up to 47.5).
+# Fix: the clamp event becomes a no-op (kept only so the presence selfcheck passes),
+# and the single effective DR event carries the FULL composed range off the 50 Nm
+# default = clamp * DR.
+ANKLE_EFFORT_DR_COMPOSED = (ANKLE_CLAMP_SCALE * ANKLE_EFFORT_DR[0],
+                            ANKLE_CLAMP_SCALE * ANKLE_EFFORT_DR[1])   # 0.52-0.76 -> 26-38 Nm
 
-# Ankle soft-barrier (Agent D §2, delta 3): relu(|tau| - TAU_SOFT)^2, weight BARRIER_W.
-ANKLE_BARRIER_TAU_SOFT = float(os.environ.get("G1_ANKLE_BARRIER_TAU", "35.0"))
+# Ankle soft-barrier: relu(|tau| - TAU_SOFT)^2, weight BARRIER_W.
+# AUDIT FIX G (2026-07-21): tau_soft=35 was tuned for the FALSIFIED 1.8x/114 Nm regime
+# and produces ZERO gradient across the entire real operating band (ankle-pitch p95
+# 15-19 Nm), so v8/v10/v11 carried NO effective in-band ankle-unloading pressure — LESS
+# than v6/v7 (whose ankle_torque_l2 drove p95 to 10.7 Nm and was popped here). Lower
+# tau_soft into the operating band so the barrier actually shapes torque at native tempo.
+# Default 16 = just above the p95 median; weight kept at -5e-3 (conservative — the square
+# now bites in-band: ~0.32/step at 19 Nm). Both env-overridable; the next box run should
+# sweep tau_soft in 12-18 and re-tune the weight if it destabilises (audit: needs GPU).
+ANKLE_BARRIER_TAU_SOFT = float(os.environ.get("G1_ANKLE_BARRIER_TAU", "16.0"))
 ANKLE_BARRIER_W = float(os.environ.get("G1_ANKLE_BARRIER_W", "-5e-3"))
 
 # Per-channel ankle action-rate (Agent D §2, delta 4).
@@ -434,22 +452,26 @@ def _apply_v8(cfg, train: bool):
     cfg.events["dr_effort_limits"].params["asset_cfg"] = SceneEntityCfg(
       "robot", joint_names=NON_ANKLE_JOINT_PATTERNS
     )
-    # deterministic clamp 50 -> 40 Nm on the 4 ankle channels
+    # AUDIT FIX F: scales read the PRISTINE 50 Nm default (they don't compose) and the
+    # LAST-inserted startup event wins, so this first event is now a documented NO-OP
+    # (scale 1.0) kept only so the presence selfcheck at v8:603 passes; the real
+    # clamp+DR lives entirely in the composed range on dr_effort_limits_ankle below.
     cfg.events["dr_ankle_effort_clamp"] = EventTermCfg(
       mode="startup",
       func=dr.effort_limits,
       params={
-        "effort_limit_range": (ANKLE_CLAMP_SCALE, ANKLE_CLAMP_SCALE),
+        "effort_limit_range": (1.0, 1.0),   # no-op (see ANKLE_EFFORT_DR_COMPOSED note)
         "operation": "scale",
         "asset_cfg": SceneEntityCfg("robot", joint_names=base.ANKLE_JOINT_NAMES),
       },
     )
-    # widened downward effort DR (0.65-0.95) on ankles only -> trained envelope 26-38 Nm
+    # single effective ankle effort event: composed clamp*DR off the 50 Nm default
+    # (0.52-0.76) -> trained envelope 26-38 Nm, as originally intended.
     cfg.events["dr_effort_limits_ankle"] = EventTermCfg(
       mode="startup",
       func=dr.effort_limits,
       params={
-        "effort_limit_range": ANKLE_EFFORT_DR,
+        "effort_limit_range": ANKLE_EFFORT_DR_COMPOSED,
         "operation": "scale",
         "asset_cfg": SceneEntityCfg("robot", joint_names=base.ANKLE_JOINT_NAMES),
       },
@@ -599,17 +621,19 @@ def _selfcheck() -> int:
   print(f"  per-frame chk: {'OK (154, NOT 160)' if pf_ok else f'!! got {per_frame}, expected 154'}")
   print(f"  flat chk     : {'OK (' + str(154*G1_OBS_HISTORY) + ')' if flat_ok else f'!! got {flat}, expected {154*G1_OBS_HISTORY}'}")
 
-  print("== velocity-honest ankle effort clamp (Agent D) ==")
+  print("== velocity-honest ankle effort clamp (Agent D + AUDIT FIX F) ==")
   clamp_ok = ("dr_ankle_effort_clamp" in cfg.events
               and "dr_effort_limits_ankle" in cfg.events)
   ok &= clamp_ok
-  lo, hi = ANKLE_EFFORT_DR
-  print(f"  ankle effort clamp       : {ANKLE_EFFORT_LIMIT_NM} Nm "
-        f"(scale {ANKLE_CLAMP_SCALE:.3f} off {STOCK_ANKLE_EFFORT_NM} Nm)  "
-        f"{'OK' if 'dr_ankle_effort_clamp' in cfg.events else '!! clamp event MISSING'}")
-  print(f"  ankle effort DR          : {lo}-{hi}  -> trained envelope "
-        f"~{ANKLE_EFFORT_LIMIT_NM*lo:.0f}-{ANKLE_EFFORT_LIMIT_NM*hi:.0f} Nm  "
-        f"{'OK' if 'dr_effort_limits_ankle' in cfg.events else '!! ankle DR event MISSING'}")
+  clo, chi = ANKLE_EFFORT_DR_COMPOSED
+  print(f"  dr_ankle_effort_clamp    : NO-OP scale (1.0) "
+        f"{'present OK' if 'dr_ankle_effort_clamp' in cfg.events else '!! MISSING'}")
+  print(f"  dr_effort_limits_ankle   : composed scale {clo:.3f}-{chi:.3f} off "
+        f"{STOCK_ANKLE_EFFORT_NM} Nm -> trained envelope "
+        f"~{STOCK_ANKLE_EFFORT_NM*clo:.0f}-{STOCK_ANKLE_EFFORT_NM*chi:.0f} Nm  "
+        f"{'OK' if 'dr_effort_limits_ankle' in cfg.events else '!! MISSING'}")
+  print(f"  NOTE: mjlab scale reads the 50 Nm DEFAULT (no compose); the box run should "
+        f"dump realized actuator_forcerange for the ankle ctrl_ids to confirm 26-38 Nm.")
 
   print("== slowdown + waist slack ==")
   print(f"  G1_SLOWDOWN              : {G1_SLOWDOWN}x")
