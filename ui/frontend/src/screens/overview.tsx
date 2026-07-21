@@ -147,7 +147,7 @@ export function OverviewScreen({ data, onPerform }: { data: ConsoleData; onPerfo
         <LiveRunCard data={data} onPerform={onPerform} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
           <Card>
-            <CardHeader className="flex-row items-end justify-between space-y-0 pb-4"><div><div className="panel-kicker"><Cpu /> System</div><CardTitle className="mt-2">Compute & training</CardTitle></div><RefreshSystemButton /></CardHeader>
+            <CardHeader className="flex-row items-end justify-between space-y-0 pb-4"><div><div className="panel-kicker"><Cpu /> System</div><CardTitle className="mt-2">Compute & training</CardTitle></div><RefreshSystemButton showTimestamp={false} /></CardHeader>
             <CardContent className="space-y-5">
               <div className="grid grid-cols-2 gap-5"><Metric label="GPU utilization" value={gpu?.utilization_pct != null ? `${Math.round(gpu.utilization_pct)}%` : "Offline"} accent={gpu ? "blue" : undefined} detail={gpu?.name ?? data.system?.detail} /><Metric label="Cloud spend" value={fmtMoney(cost?.accrued_vnd)} accent={cost?.over_cap ? "red" : undefined} detail={`${cost?.hours?.toFixed(1) ?? "—"} box hours`} /></div>
               <div className="rounded-lg border border-border bg-background/35 p-3">
