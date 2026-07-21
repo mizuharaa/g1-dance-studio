@@ -458,3 +458,11 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - Gate FAIL but closest yet: survival 0.6pt short of 99, drift p95 tail, ankle mean/RMS floor.
 - Published dance 20260721-36bb7844 (full 49s preview, 109% amplitude). Artifacts in exports/.
 - BOX 53665 STILL BILLING since 09:10 -> DELETE (console-only, user).
+
+## 2026-07-21 — Attempt 9 (v12 fidelity motion) LAUNCHED — box 53665 (reused)
+- v12 = v11 recipe UNCHANGED on the FIDELITY motion (thriller_v12_full.csv):
+  anchor/deploy lineage, ratio-guard clean (0 rejections — all 32 events choreography),
+  per-frame ground, UNWARPED, full 51.8s incl. the 2.5s intro v10/v11 lacked.
+- Sharpness vs source: elbows 94-97%, shoulders 87-102%, intro knees restored.
+- G1_WAIST_SRC_WINDOWS=15.5-20.5,27.5-38.5 (+2.5s shift). Gate bars 22/25 ankle, drift p95 1.5.
+- NOTE: pgrep self-match killed the first launch attempt (3rd occurrence — always use [b]racket patterns).
