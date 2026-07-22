@@ -55,7 +55,7 @@ explicit paths only.
 - (wave exit gate) Combined Lane A + Lane B CPU suite: **694 collected, 688 passed,
   6 skipped, 0 failed** in the `g1dance` environment on 2026-07-21.
 
-- (open) Lane A wires the frozen `verify_obs_layout.py` CLI (CONVENTIONS §3.5)
+- (CLOSED, run_attempt9.sh) Lane A wired the frozen `verify_obs_layout.py` CLI (CONVENTIONS §3.5)
   into `run_attempt9.sh` as a guarded box-only step — Lane B must not change the
   CLI shape without logging here first.
 

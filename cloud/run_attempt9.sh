@@ -211,6 +211,21 @@ G1_CMD_DELAY_MAX_LAG=4 G1_OBS_DELAY_MAX_LAG=1 G1_DRIFT_TERM_M=0.8 \
   "$PY" "$NB/cloud/sim2real_task_v11.py" Mjlab-Tracking-Flat-Unitree-G1-S2R-V11 \
     --env.scene.num-envs 64 --env.commands.motion.motion-file "$NB/motions/thriller_v12_060.npz" \
     --agent.max-iterations 3 --agent.run-name smoketest-v12 || die "smoke test FAIL"
+# NOTE: the smoke also exercises AUDIT F1's scoped_effort_limits startup readback —
+# a wrong realized forcerange on ANY control kills the smoke here, before real spend.
+
+say "obs-layout gate (audit F3/E: deploy HistoryStacker vs live actor obs, byte-compare)"
+# Frozen CLI per tasks/audit_fixes_20260721/CONVENTIONS.md §3.5. Exit 0 PASS /
+# 1 FAIL / 3 API-unavailable. A transposed flatten is SILENT (no crash) and
+# would drive a fall on the robot — hard-fail on 1; treat 3 as a loud warning
+# (the layout is separately pinned CPU-side to HistoryStacker by unit test).
+G1_SLOWDOWN=1.6667 G1_OBS_HISTORY=5 G1_PHASE_OBS=${G1_PHASE_OBS:-0} \
+  "$PY" "$NB/cloud/verify_obs_layout.py" --task Mjlab-Tracking-Flat-Unitree-G1-S2R-V11 \
+    --task-module sim2real_task_v11 --motion-file "$NB/motions/thriller_v12_100.npz" \
+    --num-envs 2
+_OBS_RC=$?
+if [ "$_OBS_RC" -eq 1 ]; then die "obs-layout gate FAILED — deploy contract mismatch"; fi
+[ "$_OBS_RC" -eq 3 ] && echo "  (obs-layout gate: mjlab API unavailable — layout remains CPU-pinned only)"
 
 say "LAUNCH v12 = v11 recipe on the FIDELITY motion (full intro, unwarped, guard-cleaned)"
 export G1_WAIST_SRC_WINDOWS="15.5-20.5,27.5-38.5"   # +2.5s: v12 restores the intro
