@@ -197,7 +197,21 @@ def build_policy_meta(
         f"live {field} has {len(values)} entries for {len(joint_names)} joints"
       )
 
-  sim_dt = float(getattr(env_cfg.sim, "dt"))
+  # pinned mjlab 1.5.0 nests the timestep at sim.mujoco.timestep (verified on
+  # the box: SimulationCfg has no 'dt'); keep fallbacks for other layouts.
+  sim = env_cfg.sim
+  sim_dt = None
+  for getter in (lambda: sim.mujoco.timestep, lambda: sim.dt,
+                 lambda: sim.timestep):
+    try:
+      sim_dt = float(getter())
+      break
+    except AttributeError:
+      continue
+  if sim_dt is None:
+    raise ValueError(
+      "cannot resolve physics timestep from SimulationCfg "
+      f"(fields: {[getattr(f, 'name', f) for f in getattr(sim, '__dataclass_fields__', {}).values()] or dir(sim)})")
   decimation = int(getattr(env_cfg, "decimation"))
   obs_terms = [[name, width, history_length] for name, width in zip(names, widths, strict=True)]
   return {
