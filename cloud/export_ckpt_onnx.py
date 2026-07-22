@@ -163,7 +163,26 @@ def build_policy_meta(
   kd = _plain_list(-model.actuator_biasprm[ctrl_ids, 2])
   force_ranges = model.actuator_forcerange[ctrl_ids]
   effort = [max(abs(float(lo)), abs(float(hi))) for lo, hi in force_ranges]
-  scale = _plain_list(getattr(action, "_scale", getattr(action, "scale", None)))
+  raw_scale = getattr(action, "_scale", getattr(action, "scale", None))
+  if isinstance(raw_scale, dict):
+    # cfg-style pattern dict ({regex: value}) — resolve per joint, later keys win
+    import re as _re
+    resolved = [None] * len(joint_names)
+    for pat, val in raw_scale.items():
+      for j, jn in enumerate(joint_names):
+        if pat == jn or _re.fullmatch(pat, jn):
+          resolved[j] = float(val)
+    missing = [jn for jn, v in zip(joint_names, resolved) if v is None]
+    if missing:
+      raise ValueError(f"action scale dict does not cover joints: {missing}")
+    scale = resolved
+  else:
+    scale = _plain_list(raw_scale)
+    # live term scale is [num_envs, n_actions]; _plain_list unwraps a single
+    # nesting only, so a multi-env export yields one ROW per env — the scale is
+    # env-invariant, take row 0 (verified identical shape to the joint count).
+    if scale and isinstance(scale[0], (list, tuple)):
+      scale = list(scale[0])
   if len(scale) == 1:
     scale *= len(joint_names)
   for field, values in {
