@@ -62,3 +62,8 @@ explicit paths only.
 ## Out of scope this wave
 GPU training/box changes, robot anything, `~/robot/`, `.secrets/`,
 `experiments/external_audit_20260721/**` (read-only evidence).
+
+- (laneA post-wave) BOX BREAK found in first real run: cloud/export_ckpt_onnx.py (B1)
+  hard-imports pipeline.artifacts, which is not on boxes -> verify tail crashed after
+  the picker. Worked around by pushing pipeline/{__init__,artifacts}.py to $NB;
+  follow-up: exporter should degrade gracefully or the push list must include it.
