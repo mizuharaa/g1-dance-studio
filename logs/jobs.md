@@ -484,3 +484,10 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   data/motions/thriller/v12_bundle/ (bundle_id 2595068f9243..., built by
   tools/build_motion_bundle.py from the immutable thriller_deploy.csv through the
   flight-aware grounding; feasibility 2.96% over, floaty 0.0%, byte-reproducible).
+
+## 2026-07-22 — Attempt 9 FINAL (v12 fidelity bundle, ALL audit fixes) — box 40711 (nb-45ef0f52)
+- First fully-verified run: F1 scoped effort (startup readback gate), hash-verified
+  v12_bundle (bundle_id 2595068f9243...), harness v2 gate, obs-layout gate wired.
+- v11 recipe (leg fidelity) on v12_bundle/final.csv, native tempo, bars 22/25 + drift p95 1.5.
+- Provisioning started 04:07 UTC; auto-launch on mjlab_ready. BILLING -> DELETE after pull+sign.
+- NOTE: gap.json is harness v2 — numbers are a NEW baseline, not comparable to v5-v11 PASS flags.
