@@ -505,3 +505,10 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   hotfixes (action-scale shape, sim.mujoco.timestep). Published dance 20260722-a8908992.
 - Artifacts pulled to exports/train-thriller_v12fid-0722/. BOX 40711 IDLE-BILLING -> DELETE
   (plus old 53665/54751 if still alive).
+
+## 2026-07-22 — ATTEMPT 10 (v13 style revamp) — box 40711 reused
+- User review of v12-final preview: twitching + short legs + visible drift. Diagnosed
+  (experiments/style_gap_20260722): leg cmd HF 3.97% vs 1.2-2.3% real baseline; reach 60-79%;
+  sway 3x stiff; drift 0.53m (passes bar, visible). Gate never measured style — now recorded.
+- v13 = v11 + hip/knee per-channel action-rate (-0.03) + leg stds 0.26/0.34. Same certified
+  v12 bundle, same gates. RUN_NAME=train-thriller_v13style-0722. DELETE box after pull.
