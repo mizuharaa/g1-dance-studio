@@ -491,3 +491,17 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - v11 recipe (leg fidelity) on v12_bundle/final.csv, native tempo, bars 22/25 + drift p95 1.5.
 - Provisioning started 04:07 UTC; auto-launch on mjlab_ready. BILLING -> DELETE after pull+sign.
 - NOTE: gap.json is harness v2 — numbers are a NEW baseline, not comparable to v5-v11 PASS flags.
+
+## 2026-07-22 — ATTEMPT 9 RESULT (v12 FINAL): 8/9 honest-gate PASS — best result of the project
+- Winner iter 8000 (native stage). Harness v2 (first trustworthy numbers — NOT comparable to v5-v11):
+  clean surv 100% (bar 99 PASS), drift ep-p95 0.91m (bar 1.5 PASS — drift SOLVED on honest metric),
+  ankle p95 14.3 (bar 22, inside real 15-19 band), ankle mean PASS (first ever), thermal PASS,
+  rr_mpkpe 0.057 (best). Heldout nominal 100/100/100, push 89-92. One-factor rows all strong:
+  noise 100%, cmd_delay40 100%, push-only 89.8%, DR-only 93.8%.
+- SOLE FAIL: dr_delay40ms_push (full composite: DR+40ms+push+noise) 57% vs bar 95. Per-factor
+  robustness good; the full stack is the remaining gap. (Old anchor scored 34.4% on the
+  CONTAMINATED version of this row and worked at 70-80% IRL — not directly comparable.)
+- Exporter produced meta v2 + policy bundle (self-consistent 770 contract) after two live-cfg
+  hotfixes (action-scale shape, sim.mujoco.timestep). Published dance 20260722-a8908992.
+- Artifacts pulled to exports/train-thriller_v12fid-0722/. BOX 40711 IDLE-BILLING -> DELETE
+  (plus old 53665/54751 if still alive).

@@ -1,0 +1,24 @@
+{
+  "bundle_id": "92d5a63b8911b7f694c20ee932c5e28c21b30c84ff2d01328eb2c5b454cd2397",
+  "created_at": "2026-07-22T08:32:00+0000",
+  "model": {
+    "task_id": "Mjlab-Tracking-Flat-Unitree-G1-S2R-V11",
+    "task_module": "sim2real_task_v11"
+  },
+  "policy": {
+    "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-22_06-58-20_train-thriller_v12fid-0722-s4/model_8000.pt",
+    "flatten_layout": "term-major-oldest-first",
+    "history_length": 5,
+    "meta": {
+      "path": "policy_meta.json",
+      "sha256": "91c02a2614a6120a7af64665003c24540d3b5bcc992f20c5dca067507f748fa4"
+    },
+    "obs_per_frame": 154,
+    "onnx": {
+      "path": "policy.onnx",
+      "sha256": "3518f77ffdfc27f94cd33a3c7859d7281e0bc184243b9814ae121ff3e32075e7"
+    },
+    "requires_ground_contact": true
+  },
+  "schema": "g1.bundle/1"
+}

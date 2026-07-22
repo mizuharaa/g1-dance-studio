@@ -1,0 +1,64 @@
+{
+  "harness_version": 2,
+  "task": "Mjlab-Tracking-Flat-Unitree-G1-S2R-V11",
+  "checkpoint": "/workspace/notebook-data/logs/rsl_rl/g1_tracking/2026-07-22_06-58-20_train-thriller_v12fid-0722-s4/model_8000.pt",
+  "motion_file": "/workspace/notebook-data/motions/thriller_v12_100.npz",
+  "episode_length_s": 51.78,
+  "horizon_steps": 2589,
+  "conditions": {
+    "nominal": {
+      "condition": "nominal",
+      "honest_name": "noise",
+      "realized": {
+        "seed": 90001,
+        "play_mode": true,
+        "startup_dr": false,
+        "cmd_delay_steps": [
+          0,
+          0
+        ],
+        "obs_delay_steps": [
+          0,
+          0
+        ],
+        "noise": true,
+        "push": false
+      },
+      "num_episodes": 256,
+      "success_rate": 1.0,
+      "n_success": 256,
+      "mpkpe_m": 0.4822143018245697,
+      "ee_pos_error_m": 0.10051889717578888,
+      "steps_run": 2589,
+      "seed": 90001,
+      "push_enabled": false
+    },
+    "push": {
+      "condition": "push",
+      "honest_name": "noise_push",
+      "realized": {
+        "seed": 90001,
+        "play_mode": true,
+        "startup_dr": false,
+        "cmd_delay_steps": [
+          0,
+          0
+        ],
+        "obs_delay_steps": [
+          0,
+          0
+        ],
+        "noise": true,
+        "push": true
+      },
+      "num_episodes": 256,
+      "success_rate": 0.921875,
+      "n_success": 236,
+      "mpkpe_m": 0.8123873472213745,
+      "ee_pos_error_m": 0.10112562775611877,
+      "steps_run": 2589,
+      "seed": 90001,
+      "push_enabled": true
+    }
+  }
+}
