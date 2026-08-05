@@ -1,0 +1,17 @@
+{
+  "id": "20260805-173300-6dfc67",
+  "dance_id": "20260805-20dd32fb",
+  "dance_name": "Thriller \u2014 csv_ankle_penalty ANCHOR (hardware-proven 70-80%)",
+  "operator": "alois",
+  "created_at": 1785925980.6574268,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "aborted",
+    "notes": "",
+    "at": 1785926015.8588586
+  },
+  "closed": true,
+  "mode": "rehearsal",
+  "setlist_id": null
+}

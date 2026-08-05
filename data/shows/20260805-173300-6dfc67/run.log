@@ -1,0 +1,2 @@
+SHOW RUN: dance=20260805-20dd32fb audio=banner latency_comp=0.0s
+REFUSED: invalid policy bundle — policy_meta v2 missing field(s): obs_per_frame, history_length, flatten_layout, actor_obs_term_widths

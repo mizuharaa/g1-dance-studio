@@ -415,6 +415,11 @@ def begin_run(dance: "shows.Dance", *, operator: str, mode: str,
                 hist = None
             if isinstance(hist, int) and hist > 1:
                 env["RUNTIME_MODE"] = "ground-run"
+        # Cap the run to THIS dance's length (+3 s entry slack) instead of the
+        # historical 52 s default — a 55.8 s motion was silently truncated
+        # (2026-08-05, anchor re-promotion). Explicit MAX_SECS env still wins.
+        if "MAX_SECS" not in env and dance.duration_s:
+            env["MAX_SECS"] = str(int(dance.duration_s) + 3)
         log_path = show.dir / "run.log"
         cmd = [str(SHOW_RUN_SH)] + _bundle_args(bundle)
         proc = spawn_show_process(cmd, env, log_path)
