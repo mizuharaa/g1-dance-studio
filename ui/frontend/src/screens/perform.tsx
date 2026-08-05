@@ -42,6 +42,19 @@ function ChecklistPanel({ dance }: { dance: Dance }) {
   </div>
 }
 
+function LastRunReason() {
+  // Poll the run status; when the last run died with a recorded reason, SAY IT
+  // (2026-08-05: a whole day of runs failed with the reason visible only in run.log).
+  const status = useQuery({
+    queryKey: ["run-status"],
+    queryFn: () => api.get<{ running: boolean; phase?: string; death_reason?: string | null }>("/api/shows/runs/current"),
+    refetchInterval: 3000,
+  })
+  const s = status.data
+  if (!s || s.running || !s.death_reason) return null
+  return <InlineAlert tone="danger" title={`Last run ${s.phase === "refused" ? "REFUSED" : "ended abnormally"}`} body={s.death_reason} />
+}
+
 function InlineRunGate({ dance, blocked }: { dance: Dance; blocked: boolean }) {
   const queryClient = useQueryClient()
   const [operator, setOperator] = useState("")
@@ -80,7 +93,7 @@ function PerformTab({ data }: { data: ConsoleData }) {
           {!ready.length && <div className="sm:col-span-2"><EmptyState icon={ShieldCheck} title="No show-ready dances" body="A dance needs three clean signed exams, a pinned policy, and an explicit promotion." /></div>}
         </CardContent>
       </Card>
-      <Card className="relative overflow-hidden"><CardHeader><div className="panel-kicker"><ShieldCheck /> Show controls</div><CardTitle className="mt-2">{selected?.name ?? "Select a dance"}</CardTitle></CardHeader><CardContent>{selected ? <div className="space-y-4"><RobotPreview url={dancePreviewUrl(selected)} title={`${selected.name} performance preview`} duration={selected.duration_s} /><div className="grid grid-cols-2 gap-3"><div className="hover-lift rounded-lg border border-slate-200 bg-white p-3"><div className="metric-label">Duration</div><div className="mt-2 text-lg font-bold">{fmtDuration(selected.duration_s)}</div></div><div className="hover-lift rounded-lg border border-slate-200 bg-white p-3"><div className="metric-label">Clean exams</div><div className="mt-2 text-lg font-bold">{selected.repeatability?.consecutive_clean ?? 0}/{selected.repeatability_target ?? 3}</div></div></div>{!selected.audio && <InlineAlert tone="info" title="Silent dance" body="No music attached — the show runs without audio (banner cue only). Attach a track on the dance screen if you want sound." />}{openShow && <InlineAlert title="Resolve the open show first" body="Record Clean, Aborted, or Incident above." />}<InlineRunGate dance={selected} blocked={!!openShow || data.run.running} /><ChecklistPanel dance={selected} /></div> : <EmptyState title="Select an act" body="Choose a show-ready dance to evaluate its preflight." />}</CardContent></Card>
+      <Card className="relative overflow-hidden"><CardHeader><div className="panel-kicker"><ShieldCheck /> Show controls</div><CardTitle className="mt-2">{selected?.name ?? "Select a dance"}</CardTitle></CardHeader><CardContent>{selected ? <div className="space-y-4"><RobotPreview url={dancePreviewUrl(selected)} title={`${selected.name} performance preview`} duration={selected.duration_s} /><div className="grid grid-cols-2 gap-3"><div className="hover-lift rounded-lg border border-slate-200 bg-white p-3"><div className="metric-label">Duration</div><div className="mt-2 text-lg font-bold">{fmtDuration(selected.duration_s)}</div></div><div className="hover-lift rounded-lg border border-slate-200 bg-white p-3"><div className="metric-label">Clean exams</div><div className="mt-2 text-lg font-bold">{selected.repeatability?.consecutive_clean ?? 0}/{selected.repeatability_target ?? 3}</div></div></div>{!selected.audio && <InlineAlert tone="info" title="Silent dance" body="No music attached — the show runs without audio (banner cue only). Attach a track on the dance screen if you want sound." />}{openShow && <InlineAlert title="Resolve the open show first" body="Record Clean, Aborted, or Incident above." />}<LastRunReason /><InlineRunGate dance={selected} blocked={!!openShow || data.run.running} /><ChecklistPanel dance={selected} /></div> : <EmptyState title="Select an act" body="Choose a show-ready dance to evaluate its preflight." />}</CardContent></Card>
     </div>
     <Card><CardHeader><div className="panel-kicker"><Users /> Control ownership</div><CardTitle className="mt-2">Walk-on → policy → walk-off</CardTitle></CardHeader><CardContent><div className="grid gap-2 md:grid-cols-5">{data.phases.map((phase, index) => <div key={phase.phase} className="rounded-lg border border-border bg-background/25 p-3"><div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/10 font-mono text-[10px] text-blue-300">{index + 1}</span><span className="text-[10px] font-bold uppercase tracking-wide">{phase.phase.replaceAll("_", " ")}</span></div><div className="mt-2 text-[10px] font-semibold text-blue-300">{phase.owner}</div><p className="mt-1 line-clamp-3 text-[9px] leading-4 text-muted-foreground">{phase.note}</p></div>)}</div></CardContent></Card>
   </div>

@@ -1,0 +1,28 @@
+SHOW RUN: dance=20260805-20dd32fb audio=banner latency_comp=0.0s
+--exit stand: motion ends within 0.15 rad of the default standing pose on all joints -> on a CLEAN finish the robot will HOLD that standing pose 3.0s, then hand back to onboard balance (no end-of-run damping). ABORTS still damp.
+[ground-run-legodom] human-confirmed. Damping is your remote's job if anything looks wrong.
+!! RELEASING onboard motion/balance service — the robot will NOT self-balance.
+   Feet OFF ground, remote in hand, ready to damp.
+   motion service released — rt/lowcmd accepted for full-body.
+   entry catch: holding current pose 0.5s so the robot is never unheld at the onboard->policy handoff, then easing to the ready pose.
+GROUND-RUN-LEGODOM: stage-1 firm move-to-default (4s)+hold, then PROVEN gantry policy (160-dim obs, base_lin_vel+height from LEG kinematics — service-independent) 2789/2789 ticks @ 50Hz [--max-secs 58.0], action cap 10.0. Tethered. Ctrl-C / remote-damp to stop.
+reference yaw-aligned to robot heading (offset -181.2 deg).
+at default — starting leg-odometry policy. Keep tension on the tether; damp at the first sign of a fault, lurch, or lean.
+[show_audio] dance 20260805-20dd32fb has no track — silent show, banner cue only
+[show_audio] armed: mode=banner offset=4.00s latency_comp=0.000s track=None
+[show_display] player=ffplay output=(primary/default) argv=ffplay -fs -autoexit -loglevel error data/previews/thriller_side_by_side_csv.mp4
+[show_display] launching video (+0.057s vs tick0 target)
+[2K
+██████████████████████████████████████
+██  ▶▶▶  PLAY MUSIC NOW  ◀◀◀        ██
+██████████████████████████████████████
+[show_audio] done: {"mode": "banner", "t0_epoch": 1785926512.5968935, "offset_s": 4.0, "late_s": 0.0002593994140625}
+
+STOP: remote L2+B held 3 consecutive samples — damping now -> damping
+
+[show_display] signal 15 -> stopping video
+tick timing: 2593 ticks, work p50 3.0 / p95 3.5 / p99 4.1 / max 5.8 ms (budget 20 ms), soft overruns 0
+
+[signal 15] -> emergency damping, then exit
+   restored onboard motion service ('ai') — remote/app can pair.
+telemetry saved: /home/alois/g1-dance/data/telemetry/20260805-174147_ground-run-legodom.npz (2593 ticks)

@@ -427,6 +427,9 @@ def begin_run(dance: "shows.Dance", *, operator: str, mode: str,
         _current = {"show_id": show.id, "dance_id": dance.id, "mode": mode,
                     "proc": proc, "log_path": str(log_path),
                     "started_at": time.time()}
+        threading.Thread(target=_watch_run_death, args=(proc, log_path, show.id),
+                         daemon=True).start()
+        _start_show_camera(show.dir, proc)
         show.log(f"RUN SHOW spawned (mode={mode}, audio={env['AUDIO_MODE']}, "
                  f"exit_mode={env.get('EXIT_MODE', 'ramp-to-damping')}, "
                  f"config={'FREE/untethered (standtail)' if free else 'proven default'}) — "
@@ -452,6 +455,97 @@ def _log_shows_fall(text: str) -> bool:
     return "FALL DETECTED" in text or ("STOP:" in text and "FALL" in text)
 
 
+def _start_show_camera(show_dir: Path, run_proc) -> None:
+    """Record the run on the external camera (RealSense RGB, /dev/video8) into the
+    show dir: camera.mp4 (full run) + cam_NNN.jpg every 2 s (reviewable stills —
+    added 2026-08-05 so the agent can SEE runs, not just read telemetry).
+    Best-effort: no camera or no ffmpeg must never affect the run. SHOW_CAMERA=0
+    disables; SHOW_CAMERA_DEV overrides the device."""
+    if os.environ.get("SHOW_CAMERA", "1") != "1":
+        return
+    dev = os.environ.get("SHOW_CAMERA_DEV", "/dev/video8")
+    if not Path(dev).exists():
+        return
+    import shutil
+    ff = (shutil.which("ffmpeg")
+          or str(Path.home() / "miniconda3/envs/g1dance/bin/ffmpeg"))
+    if not Path(ff).exists():
+        return
+    show_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [ff, "-hide_banner", "-loglevel", "error", "-f", "v4l2", "-i", dev,
+           "-t", "180",
+           "-map", "0", "-c:v", "libx264", "-preset", "veryfast",
+           "-pix_fmt", "yuv420p", "-y", str(show_dir / "camera.mp4"),
+           "-map", "0", "-vf", "fps=1/2,scale=640:-2", "-q:v", "4",
+           "-y", str(show_dir / "cam_%03d.jpg")]
+    try:
+        cam = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, start_new_session=True)
+    except Exception:
+        return
+
+    def _stop_after_run():
+        run_proc.wait()
+        time.sleep(2)   # catch the damp/settle on camera
+        try:
+            cam.terminate()
+        except Exception:
+            pass
+
+    threading.Thread(target=_stop_after_run, daemon=True).start()
+
+
+def _extract_death_reason(text: str) -> str | None:
+    """The exact line that explains why a run refused/aborted/crashed, for the UI
+    and the desktop notification (2026-08-05: a day of runs died silently with the
+    reason only in run.log — REFUSED lines, guard STOPs, a dead-SDK traceback)."""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    for l in reversed(lines):
+        if l.startswith("REFUSED") or "STOP:" in l:
+            return l
+    # tracebacks: the last exception line is the reason
+    for l in reversed(lines):
+        if ("Error:" in l or l.startswith("ModuleNotFoundError")
+                or l.startswith("SystemExit")) and "File \"" not in l:
+            return l
+    return None
+
+
+def _notify_desktop(title: str, body: str) -> None:
+    """Best-effort OS pop-up (notify-send). Never raises — a missing notifier
+    must not affect a run."""
+    try:
+        subprocess.run(["notify-send", "-u", "critical", "-a", "G1 Dance Studio",
+                        title, body[:400]], timeout=5,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+
+def _watch_run_death(proc, log_path: Path, show_id: str) -> None:
+    """Daemon thread: wait for the spawned show to exit; if it did not end
+    cleanly, pop a desktop notification with the EXACT reason and append it to
+    the show log. The operator must never again watch a robot stand still with
+    the explanation hidden in a file."""
+    rc = proc.wait()
+    try:
+        text = log_path.read_text(errors="replace")
+    except OSError:
+        text = ""
+    reason = _extract_death_reason(text)
+    clean = ("segment done" in text or "ramp to damping" in text
+             or "telemetry saved" in text) and not reason
+    if clean:
+        return
+    msg = reason or f"show process exited rc={rc} with no clean-end marker"
+    _notify_desktop("Show run ended abnormally", msg)
+    try:
+        from . import shows
+        shows.load_show(show_id).log(f"RUN DIED: {msg}")
+    except Exception:
+        pass
+
+
 def _derive_phase(text: str, running: bool) -> str:
     """Map the run.log markers (from deploy_runtime / show_run.sh) to a coarse phase.
 
@@ -468,6 +562,8 @@ def _derive_phase(text: str, running: bool) -> str:
         return "fall"
     if "STOP:" in text:
         phase = "stopped"
+    elif "REFUSED" in text:
+        phase = "refused"
     elif "ramp to damping" in text or "segment done" in text:
         phase = "ramp-to-damping"
     elif ("starting leg-odometry policy" in text
@@ -597,6 +693,9 @@ def current_status() -> dict:
         # Surface a tripped fall detector so the app can flag it + steer the operator
         # to record an Incident (which demotes the dance via record_outcome).
         "fall_detected": _log_shows_fall(full_text),
+        # The exact refusal/abort line, so the UI can SAY why instead of the
+        # operator digging through run.log (None while running / clean).
+        "death_reason": None if running else _extract_death_reason(full_text),
         "last_lines": full_text.splitlines()[-TAIL_LINES:],
         "started_at": run.get("started_at"),
     }
