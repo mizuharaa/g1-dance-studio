@@ -12,7 +12,11 @@ ON L2+B (debounced):
   1. SIGTERM every local pipeline/deploy_runtime process (its handler damps).
   2. Fire deploy/kill_now.sh (docker stop -> the PC2 controller's own
      SIGTERM-damp window, then SIGKILL).
-Both actions are idempotent and safe when their target isn't running.
+  3. Send LocoClient.Damp() via the SDK RPC — this is what stops the robot
+     when the FACTORY controller is in charge (normal running mode), where
+     steps 1-2 have nothing to kill (observed 2026-08-05: "kill issued" but
+     the factory controller kept obeying the sticks).
+All actions are idempotent and safe when their target isn't running/active.
 
 HONEST LIMITS: needs the wired LAN + DDS alive and the MCU still forwarding
 remote state into LowState. The POWER SWITCH remains the only
@@ -50,8 +54,32 @@ def _local_runtime_pids() -> list[int]:
     return [int(p) for p in out.stdout.split()] if out.returncode == 0 else []
 
 
+_LOCO = None
+
+
+def _damp_via_sdk() -> None:
+    """Damp the FACTORY controller (normal running mode) via the loco RPC.
+    Best-effort: when OUR controller holds low-level control the loco service
+    is released and this may time out — steps 1-2 own that case."""
+    global _LOCO
+    try:
+        if _LOCO is None:
+            from unitree_sdk2py.g1.loco.g1_loco_client import LocoClient
+            _LOCO = LocoClient()
+            _LOCO.SetTimeout(1.0)
+            _LOCO.Init()
+        _LOCO.Damp()
+        _LOCO.Damp()   # fire twice — an e-stop RPC deserves redundancy
+        print("  LocoClient.Damp() sent (factory-controller stop)", flush=True)
+    except Exception as exc:  # noqa: BLE001 — never let one layer block the others
+        print(f"  LocoClient.Damp() unavailable ({exc}) — expected when OUR "
+              "controller holds low-level control.", flush=True)
+
+
 def fire(reason: str) -> None:
     print(f"\n{'!' * 60}\nKILL: {reason}\n{'!' * 60}", flush=True)
+    # factory-mode damp FIRST — it acts in milliseconds; the docker stop takes seconds
+    _damp_via_sdk()
     for pid in _local_runtime_pids():
         try:
             os.kill(pid, signal.SIGTERM)   # runtime's handler -> damp + os._exit
