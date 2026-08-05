@@ -1,8 +1,13 @@
 # ROBOT DAY — one-page card (print me)
 
-**Golden rule:** this G1 has **NO torque-cutting e-stop**. The remote's **L2+B (damping chord)**
-and the **power switch** are the only real stops. Keep the remote in your hand whenever motors
-are powered. If unsure — hit **L2+B**, then power.
+**Golden rule:** this G1 has **NO torque-cutting e-stop**, and — hardware finding 2026-08-05 —
+**the factory L2+B damping chord is INERT while our controller holds low-level control**
+(the handler is suspended; only the raw button state still flows). In dev mode your stops are:
+1) **L2+B via OUR software layer** — the runtime's in-loop check + the armed
+   `deploy/20_remote_killswitch.sh` watchdog terminal (validate it in §3a EVERY day);
+2) `deploy/kill_now.sh` from any laptop shell; 3) the **power switch** (the only
+hardware-guaranteed stop). Keep the remote in hand anyway — L2+B still works
+through our layer, and it IS the factory stop the instant control is handed back.
 
 ## Before you touch the robot
 - [ ] `export CONFIRMED_BY_HUMAN=alois`; `./scripts/preflight_robot_day --stage gantry` → **GO** (or GO-with-caution you understand).
@@ -19,7 +24,14 @@ are powered. If unsure — hit **L2+B**, then power.
 4. **Joint-calibration check (DO NOT SKIP — fall risk):** standby, feet off ground, SDK env: `python deploy/check_joint_calibration.py --meta data/policies/thriller/policy_meta.json` → must be **GO** (standby pose matches sim). NO-GO = do not run the policy.
 5. **Push the bundle.** `./deploy/02_push_bundle.sh --dance thriller --yes-push`. Verify launch line & that the controller loads the **bundle's SIM gains (policy_meta.json)**, then `touch SIM_GAINS_LOADED LAUNCH_LINE_VERIFIED` on PC2.
 6. **Gantry, feet OFF ground:** `./deploy/10_gantry_test.sh --dance thriller --stage gantry --gantry-confirmed --estop-confirmed --arm` → controller starts in **DAMPING HOLD** (no motion yet).
-7. **§3a KILL TEST (before ANY motion):** feet off ground, run `deploy/kill_now.sh` and **watch** — limp (damp) or hold/lurch? Record it. The single most important measurement of the day.
+6b. **ARM THE REMOTE KILLSWITCH:** open a dedicated terminal, run
+   `deploy/20_remote_killswitch.sh` — it must print "ARMED" and heartbeat. Keep it visible
+   all session. (The factory L2+B is inert in dev mode; this watchdog IS your remote stop.)
+7. **§3a KILL TEST (before ANY motion):** feet off ground — THREE parts, record each:
+   (a) run `deploy/kill_now.sh` and **watch** — limp (damp) or hold/lurch?
+   (b) press **L2+B** on the remote — the killswitch terminal must print KILL and the robot damp;
+   (c) if using the laptop runtime: L2+B again mid-stand-hold — the runtime itself must damp+exit.
+   The single most important measurements of the day. Any part fails → day over until understood.
 8. **Arm playback from the remote** — watch joints track the dance in the air. Check the estimator reads sane (~0 velocity) on the gantry.
 9. **Ground stages (gantry lowered to taut line → slack line):** `--stage ground-tethered` then `--stage ground-free` — each with its typed phrase + prior-stage gate. Ground-free needs the kill→damping + estimator confirmations (and ≥99% or `--informed-override`).
 10. **Push test** only after a clean, repeated ground-free run.

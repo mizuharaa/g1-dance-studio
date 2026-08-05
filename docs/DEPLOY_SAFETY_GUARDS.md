@@ -139,3 +139,28 @@ Follow measurement discipline: commit the script AND its raw output.
 - **GIL-bound stall** is not covered by the thread watchdog (see caveat); the firmware
   remote L2+B damp is the backstop. A SIGALRM/`setitimer` watchdog (fires between Python
   bytecodes even under a pure-Python loop) is a complementary future addition.
+
+---
+
+## Guard 6 (2026-08-05): software remote e-stop — the factory L2+B is INERT in dev mode
+
+Hardware finding: while our controller (laptop runtime OR the PC2 docker
+controller) holds low-level control, the factory handler for the remote's L2+B
+damping chord does NOT act — the remote cannot stop the robot. The raw button
+state DOES still arrive in `LowState.wireless_remote` (bytes[2]/[3], layout per
+the SDK's wireless_controller example). Two independent layers now watch it:
+
+1. **In-loop** (`pipeline/remote_estop.py` + `deploy_runtime.read_state`):
+   every LowState is fed through a debounced L2+B detector (3 ticks ≈ 60 ms);
+   detection raises `RemoteKillRequested` → the modes' existing fault path →
+   `_finalize_and_exit` → damp FIRST. `REMOTE_ESTOP=0` disables (bench only).
+2. **Independent process** (`deploy/remote_killswitch.py`, armed via
+   `deploy/20_remote_killswitch.sh`): own DDS subscription on the laptop; on
+   the chord it SIGTERMs any local runtime AND fires `deploy/kill_now.sh`
+   (PC2 docker stop). Covers the docker-controller path and a hung/GIL-stuck
+   runtime — the case the in-loop check cannot.
+
+HONEST LIMITS: both need the wired LAN + DDS alive and the MCU still
+forwarding remote state. The POWER SWITCH remains the only hardware-guaranteed
+stop in dev mode. §3a on the checklist now validates the chord end-to-end
+(watchdog fire + in-loop damp) before any motion, every robot day.

@@ -684,12 +684,33 @@ def lowstate_subscriber():
     return sub
 
 
+_REMOTE_KILL = None
+
+
+def _remote_kill_check(msg):
+    """Software L2+B e-stop (2026-08-05 hardware finding: the FACTORY chord
+    handler is INERT while we hold low-level control, but the remote's raw
+    state still arrives in LowState.wireless_remote). Debounced; raises
+    RemoteKillRequested, which every motion mode's except/finally turns into
+    _finalize_and_exit -> damp FIRST. REMOTE_ESTOP=0 disables (bench only)."""
+    global _REMOTE_KILL
+    from . import remote_estop
+    if not remote_estop.ENABLED:
+        return
+    if _REMOTE_KILL is None:
+        _REMOTE_KILL = remote_estop.RemoteKill()
+    wr = getattr(msg, "wireless_remote", None)
+    if wr is not None:
+        _REMOTE_KILL.check(wr)
+
+
 def read_state(sub, timeout_s=2.0):
     # ChannelSubscriber.Read takes SECONDS (cyclonedds duration) — the old code passed
     # int(timeout_s*1000), so failure paths waited ~1000x too long before the NO-GO.
     msg = sub.Read(timeout_s)
     if msg is None:
         raise SystemExit(f"no LowState within {timeout_s}s — robot off / wrong iface / LAN down. NO-GO.")
+    _remote_kill_check(msg)
     # Optional drain to the LATEST queued sample. With default DDS QoS (KEEP_LAST depth 1
     # — verified on hardware: staleness p95 1.75-1.78 ms across two sessions) the reader
     # already returns the newest sample, so draining is a no-op; worse, the sub-ms timeout
