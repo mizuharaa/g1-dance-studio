@@ -2,8 +2,8 @@
   "id": "20260722-a8908992",
   "name": "Thriller \u2014 v12 FINAL (audit-verified, native)",
   "created_at": 1784710179.1365564,
-  "updated_at": 1784710179.1419668,
-  "status": "draft",
+  "updated_at": 1785921403.7483492,
+  "status": "show-ready",
   "duration_s": null,
   "motion_csv": null,
   "policy_path": "exports/train-thriller_v12fid-0722/policy.onnx",
@@ -12,7 +12,7 @@
   "sim_exam": null,
   "source_job": null,
   "notes": "Attempt 9 on the certified v12 bundle with all 20 audit fixes. Harness-v2 gate 8/9 PASS: clean surv 100%, drift p95 0.91m (PASS), ankle p95 14.3 (hardware band), rr_mpkpe 0.057. Heldout 100/100/100 nominal. Sole fail: full DR+40ms+push composite 57%.",
-  "policy_sha256": null,
+  "policy_sha256": "3518f77ffdfc27f94cd33a3c7859d7281e0bc184243b9814ae121ff3e32075e7",
   "meta_path": null,
   "npz_path": null,
   "meta_sha256": null,
@@ -29,5 +29,14 @@
     "total_runs": 0,
     "last_run_at": null,
     "history": []
+  },
+  "promote_override": {
+    "at": 1785921403.7483375,
+    "by": "alois",
+    "reason": "operator gantry test session 2026-08-05 \u2014 v12-final pre-v14 style baseline; robot repaired",
+    "policy_sha256": "3518f77ffdfc27f94cd33a3c7859d7281e0bc184243b9814ae121ff3e32075e7",
+    "sim_exam_verdict": null,
+    "consecutive_clean": 0,
+    "bundle_note": "bundle capture failed: cannot promote: motion CSV member is missing"
   }
 }

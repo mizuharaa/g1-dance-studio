@@ -1,0 +1,46 @@
+{
+  "schema": "sim_exam/v2",
+  "method": "mjlab_heldout_v2",
+  "eval_id": "8296ce3d-9f23-4795-9066-f6d1237a4bb7",
+  "created_at": "2026-08-05T09:17:17+00:00",
+  "dance": "final",
+  "policy": "exports/train-thriller_v12fid-0722/policy.onnx",
+  "policy_sha256": "3518f77ffdfc27f94cd33a3c7859d7281e0bc184243b9814ae121ff3e32075e7",
+  "motion_sha256": "349bb850555fb0741e0fcab47de981b0e373bc3b83042fdb936580bde3b54572",
+  "motion_npz_sha256": "bb8466f2589b390e24ca68036f3223214ad32a5bb14196b0fd0eed591dcea9f1",
+  "venue_max_excursion_m": 1.5,
+  "disturbance": {
+    "kind": "delta_velocity",
+    "delta_v_mps": 0.5,
+    "axes": [
+      "x",
+      "y",
+      "z"
+    ],
+    "seed": 90001
+  },
+  "nominal": {
+    "pass": true,
+    "success_rate": 1.0,
+    "n_success": 256,
+    "num_episodes": 256,
+    "mpkpe_m": 0.4822143018245697,
+    "ee_pos_error_m": 0.10051889717578888,
+    "held_out_seed": 90001
+  },
+  "push": {
+    "pass": false,
+    "success_rate": 0.921875,
+    "n_success": 236,
+    "num_episodes": 256,
+    "mpkpe_m": 0.8123873472213745,
+    "held_out_seed": 90001
+  },
+  "repeatability": {
+    "pass": true,
+    "runs": 256,
+    "clean": 256
+  },
+  "verdict": "fail",
+  "signature": "f38f76ff8ff11c77a304a420cd04cf717910d379df2750f86dcabab9b783942c"
+}

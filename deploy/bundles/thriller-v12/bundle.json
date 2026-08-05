@@ -1,0 +1,37 @@
+{
+ "schema": "deploy_bundle/v1",
+ "dance": "thriller-v12",
+ "created_at": "2026-08-05T09:17:17+00:00",
+ "scope": "gantry-only",
+ "policy": {
+  "file": "policy.onnx",
+  "sha256": "3518f77ffdfc27f94cd33a3c7859d7281e0bc184243b9814ae121ff3e32075e7"
+ },
+ "motion": {
+  "file": "motion.csv",
+  "sha256": "349bb850555fb0741e0fcab47de981b0e373bc3b83042fdb936580bde3b54572",
+  "duration_s": 51.77
+ },
+ "exam": {
+  "file": "exam_verdict.json",
+  "authorized": false,
+  "gantry_authorized": true
+ },
+ "rehearsal": false,
+ "files_sha256": {
+  "policy.onnx": "3518f77ffdfc27f94cd33a3c7859d7281e0bc184243b9814ae121ff3e32075e7",
+  "motion.csv": "349bb850555fb0741e0fcab47de981b0e373bc3b83042fdb936580bde3b54572",
+  "policy_meta.json": "91c02a2614a6120a7af64665003c24540d3b5bcc992f20c5dca067507f748fa4",
+  "exam_verdict.json": "25f0f642918730a36f60a1fe71cf3b938dc8eca554b4e8021f4734c07e706226",
+  "controller.env": "babd82c5b64b863d81b15c9b2f8e4c9040e3b788134dd3fa80414063ca8a336a",
+  "start_controller_damping_hold.sh": "4871e284434e308e6c1103403e78a600ad97c2b5a0befae8a4c4f33ad57c6a85"
+ },
+ "controller": {
+  "image": "qiayuanl/unitree:jazzy",
+  "notes": "see deploy/README.md"
+ },
+ "target": {
+  "pc2": "192.168.123.164",
+  "user": "unitree"
+ }
+}

@@ -1,0 +1,1 @@
+scope=gantry-only. Built with --gantry from a signed but NOT-show-ready verdict (verdict='fail', 256/256 held-out). Valid ONLY for feet-off-ground gantry testing (10_gantry_test.sh --stage gantry). GROUND/show use is refused until a >=99% show-ready verdict exists and a full bundle is rebuilt.
