@@ -992,6 +992,14 @@ def run_show(dance_id: str, payload: dict = Body(...)) -> dict:
     operator = (payload.get("operator") or "").strip()
     if not operator:
         raise HTTPException(400, "operator name is required")
+    # The runtime's deepest human gate requires the literal confirmed operator
+    # (CONFIRMED_BY_HUMAN, deploy_runtime._require_human). Catch a mismatch HERE
+    # with a clear message instead of a silent late refusal in run.log
+    # (2026-08-05: operator 'a' sailed through every gate then died at the last).
+    if operator != "alois":
+        raise HTTPException(400, f"operator must be the confirmed human 'alois' "
+                                 f"(got {operator!r}) — the runtime's "
+                                 f"CONFIRMED_BY_HUMAN gate refuses anything else")
     mode = payload.get("mode", "rehearsal")
     if mode not in ("rehearsal", "live"):
         raise HTTPException(400, "mode must be 'rehearsal' or 'live'")

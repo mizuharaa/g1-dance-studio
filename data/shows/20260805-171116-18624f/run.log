@@ -1,0 +1,4 @@
+SHOW RUN: dance=20260722-a8908992 audio=banner latency_comp=0.0s
+[ground-run] dedicated ground dir absent — using the passed bundle (policy.onnx); estimator-free gate still applies
+REFUSED --exit stand: motion final frame is NOT a standing pose — joint 'left_elbow_joint' sits 39.0 deg (0.680 rad > 0.15 rad) from default. Handing off from a non-standing pose could topple the robot -> FALLING BACK to --exit damp (proven ramp-to-damping).
+REFUSED: --mode ground-run needs env CONFIRMED_BY_HUMAN=alois
