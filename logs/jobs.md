@@ -513,6 +513,7 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - v13 = v11 + hip/knee per-channel action-rate (-0.03) + leg stds 0.26/0.34. Same certified
   v12 bundle, same gates. RUN_NAME=train-thriller_v13style-0722. DELETE box after pull.
 
-## 2026-08-05 — box state UNKNOWN since the 07-22 v13 launch (boxes 40711/53665/54751)
-- USER: audit the GreenNode console — pull any v13 artifacts, DELETE every surviving box.
-- Full context + recovery recipe: docs/HANDOFF_20260805.md (canonical, not repeated here).
+## 2026-08-05 — CLOSED: user confirms all notebook instances deleted long ago
+- No runaway billing. v13 (attempt 10) artifacts LOST with box 40711 — re-run via
+  recipe ffcf6d2 when wanted. Remaining check: g1dance-data Network Volume (bills
+  separately while it exists). Details: docs/HANDOFF_20260805.md (canonical).
