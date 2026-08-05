@@ -46,6 +46,28 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-08-05 (V12 FIRST HARDWARE RUN — 25.3 s of dance, then a FALSE guard trip; latency + style
+  gap now MEASURED on hardware; anchor re-promoted as smoke-test baseline): after fixing the dead
+  SDK install (editable pointed at removed ~/robot/ since the teleop move — EVERY robot run since
+  had crashed at make_dds) + NIC autodetect (cable in USB adapter, default bound dead enp0s31f6),
+  v12 ran on the ground (show flow, ground-run + HistoryStacker). Telemetry
+  data/telemetry/20260805-172326_ground-run.npz: **(a) the damp at t=25.3 s was a FALSE contact
+  trip** — robot upright (R22 0.999), support-torque proxy dipped 5-10 Nm for 140 ms in a
+  light-footed weight shift vs the UNVALIDATED 12 Nm bar; guard 1 is now upright-gated (tilt →
+  damp instantly; upright loss must persist CONTACT_LOST_HARD_S=1.5 s; CONTACT_TRIP_UPRIGHT_MIN=0.85).
+  **(b) real cmd→response latency 40-60 ms** — v12 sits AT its measured cliff (100%@40 → 73%@60 →
+  0%@80, docs/V12_ASSESSMENT.md) → the constant small catch-steps the user saw. **(c) style gap
+  reproduced on hardware: legs achieve 58% of commanded amplitude vs arms 93%** (sim said 60-79%
+  reach) — "only non-subtle actions mimic" is real and leg-specific. VERDICT: v12 = best sim
+  policy, NOT show-ready on hardware; v14 (lean shaping + keypoint termination, cloud/
+  sim2real_task_v14.py) targets exactly (c); (b) needs either latency compensation or a wider
+  latency-DR emphasis in v14's run. **USER ORDER: thriller_csv_ankle_penalty (sha 444864f9,
+  hardware-proven 70-80%) published + force-promoted INDEFINITELY as the smoke-test baseline**
+  (dance 20260805-20dd32fb, legodom mode, own deploy motion lineage). Also same-day: software
+  remote e-stop layer (factory L2+B inert in dev mode — see guard 6), audio made optional,
+  show-flow mode selection from policy meta, operator gate surfaced up front.
+
+
 - 2026-08-05 (HoloSoma evaluated — recipe-level adoption, not migration): user flagged v12's
   perpetual near-tipping + limited leg/horizontal motion; evaluated github.com/amazon-far/holosoma
   (Apache-2.0, G1 29-DoF WBT, BeyondMimic-derived like ours — full findings

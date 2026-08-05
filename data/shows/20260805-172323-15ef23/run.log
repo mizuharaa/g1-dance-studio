@@ -1,0 +1,17 @@
+SHOW RUN: dance=20260722-a8908992 audio=banner latency_comp=0.0s
+[ground-run] dedicated ground dir absent — using the passed bundle (policy.onnx); estimator-free gate still applies
+REFUSED --exit stand: motion final frame is NOT a standing pose — joint 'left_elbow_joint' sits 39.0 deg (0.680 rad > 0.15 rad) from default. Handing off from a non-standing pose could topple the robot -> FALLING BACK to --exit damp (proven ramp-to-damping).
+[ground-run] human-confirmed. Damping is your remote's job if anything looks wrong.
+   entry contact gate PASS: support torque 26.0 Nm >= 12.0 Nm, stable 10 ticks.
+!! RELEASING onboard motion/balance service — the robot will NOT self-balance.
+   Feet OFF ground, remote in hand, ready to damp.
+   motion service released — rt/lowcmd accepted for full-body.
+   entry catch: holding current pose 0.5s so the robot is never unheld at the onboard->policy handoff, then easing to the ready pose.
+GROUND-RUN: stage-1 firm move-to-default (4s)+hold, then estimator-free policy (154-dim/frame x 5 history = 770-dim obs) 2589/2589 ticks @ 50Hz [--max-secs 52.0], action cap 10.0. Tethered. Ctrl-C / remote-damp to stop.
+reference yaw-aligned to robot heading (offset -172.3 deg).
+at default — starting ground policy. Keep tension on the tether; damp at the first sign of a fault, lurch, or lean.
+
+STOP: foot contact lost at tick 1266 -> damp -> damping
+tick timing: 1266 ticks, work p50 2.8 / p95 3.4 / p99 4.0 / max 5.0 ms (budget 20 ms), soft overruns 0
+   restored onboard motion service ('ai') — remote/app can pair.
+telemetry saved: /home/alois/g1-dance/data/telemetry/20260805-172326_ground-run.npz (1266 ticks)

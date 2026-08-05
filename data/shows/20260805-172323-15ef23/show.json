@@ -1,0 +1,17 @@
+{
+  "id": "20260805-172323-15ef23",
+  "dance_id": "20260722-a8908992",
+  "dance_name": "Thriller \u2014 v12 FINAL (audit-verified, native)",
+  "operator": "alois",
+  "created_at": 1785925403.3640218,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "incident",
+    "notes": "v12 FIRST HARDWARE RUN: danced 25.3s then FALSE contact-loss trip (upright R22 0.999, weight-shift dip below unvalidated 12Nm bar). Measured: latency 40-60ms (at v12 cliff), leg amplitude 58% vs arms 93% (style gap confirmed). Guard now upright-gated; anchor promoted for smoke tests.",
+    "at": 1785925798.2323344
+  },
+  "closed": true,
+  "mode": "rehearsal",
+  "setlist_id": null
+}

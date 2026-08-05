@@ -1,0 +1,3 @@
+[2026-08-05 17:23:23] rehearsal show created for dance 'Thriller — v12 FINAL (audit-verified, native)' by operator 'alois'
+[2026-08-05 17:23:23] RUN SHOW spawned (mode=rehearsal, audio=banner, exit_mode=stand, config=proven default) — operator holds the damping remote
+[2026-08-05 17:29:58] outcome recorded: incident (rehearsal) — show closed

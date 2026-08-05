@@ -251,6 +251,10 @@ GROUND_MOTION = ROOT / "data/policies/thriller_ground/thriller_deploy.npz"
 # the old default 6.0 false-tripped ~4% of ticks (runbook Stage B-ODOM); 10.0 is the
 # measured-need default (audit item 7c). Re-measure for any retrained policy. Env-overridable.
 GROUND_MAX_ACTION = float(os.environ.get("GROUND_MAX_ACTION", "10.0"))
+# Mid-run contact-loss trip tuning (guard 1, upright-gated since 2026-08-05 —
+# hardware false trip during a weight shift; see mode_ground_run comment).
+CONTACT_TRIP_UPRIGHT_MIN = float(os.environ.get("CONTACT_TRIP_UPRIGHT_MIN", "0.85"))
+CONTACT_LOST_HARD_S = float(os.environ.get("CONTACT_LOST_HARD_S", "1.5"))
 # The action cap is a RUNAWAY tripwire, but action units are per-joint (action_scale
 # 0.074 wrists vs 0.35 knees): Thriller's claw choreography legitimately rides the
 # wrist at 10-12 units (= ~0.9 rad on a 5 Nm motor) while the legs never exceeded
@@ -1638,6 +1642,7 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
     _cest = guards.ContactEstimator(meta.joint_order)
     _need_contact = (guards.policy_requires_ground_contact(meta)
                      and not guards.allow_suspended())
+    _lost_run = 0
     last_action = np.zeros(meta.n)
     last_target = meta.default.copy()
     try:
@@ -1651,12 +1656,34 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
         for tick in range(n_ticks):
             t0 = time.perf_counter()
             q, dq, imu_quat, gyro, msg = read_state(sub, timeout_s=0.5)
-            # GUARD 1: ground-contact-required policy -> damp on debounced mid-run contact loss
-            # (support-torque proxy; no foot-force sensor on the G1).
+            # GUARD 1: ground-contact-required policy -> damp on mid-run contact loss.
+            # 2026-08-05 HARDWARE FALSE TRIP (telemetry 20260805-172326): the un-
+            # validated 12 Nm bar fired during a light-footed weight shift at t=25.3s
+            # while the robot was PERFECTLY UPRIGHT (R22=0.999) — dancing legitimately
+            # unloads the support proxy. A real fall TILTS within a few hundred ms, so
+            # the trip is now upright-gated: contact loss + tilt -> damp immediately;
+            # contact loss alone must persist CONTACT_LOST_HARD_S (default 1.5 s)
+            # before damping (a robot can't genuinely hang unloaded that long).
             _cest.sample(tau_est=guards.tau_est_from_msg(msg, meta.n))
             if _need_contact and _cest.lost_contact():
-                watchdog.raise_fault("foot contact lost mid-run")
-                raise RuntimeError(f"foot contact lost at tick {tick} -> damp")
+                _lost_run += 1
+                _r22 = 1.0 - 2.0 * (imu_quat[1] ** 2 + imu_quat[2] ** 2)
+                if _r22 < CONTACT_TRIP_UPRIGHT_MIN:
+                    watchdog.raise_fault("contact lost while tilting")
+                    raise RuntimeError(
+                        f"contact lost + tilt (R22 {_r22:.2f} < "
+                        f"{CONTACT_TRIP_UPRIGHT_MIN}) at tick {tick} -> damp")
+                if _lost_run * dt > CONTACT_LOST_HARD_S:
+                    watchdog.raise_fault("foot contact lost (sustained)")
+                    raise RuntimeError(
+                        f"contact lost {_lost_run * dt:.2f}s (> {CONTACT_LOST_HARD_S}s) "
+                        f"at tick {tick} -> damp")
+                if _lost_run == 1:
+                    print(f"   WARN tick {tick}: support torque below bar while upright "
+                          f"(weight shift?) — damping only on tilt or "
+                          f"{CONTACT_LOST_HARD_S:.1f}s sustained loss.")
+            else:
+                _lost_run = 0
             _single, _terms = build_obs_ground(meta, ref, q, dq, imu_quat, gyro,
                                                last_action, tick, obs_order)
             obs = _stacker.push(_terms)   # history-stack to the ONNX width (fix E)

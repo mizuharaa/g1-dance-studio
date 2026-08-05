@@ -1,0 +1,42 @@
+{
+  "id": "20260805-20dd32fb",
+  "name": "Thriller \u2014 csv_ankle_penalty ANCHOR (hardware-proven 70-80%)",
+  "created_at": 1785925770.4851005,
+  "updated_at": 1785925782.2100537,
+  "status": "show-ready",
+  "duration_s": null,
+  "motion_csv": "data/policies/thriller_csv_ankle_penalty/thriller_csv_ankle_penalty_deploy.csv",
+  "policy_path": "data/policies/thriller_csv_ankle_penalty/policy.onnx",
+  "preview": null,
+  "vet": null,
+  "sim_exam": null,
+  "source_job": null,
+  "notes": "",
+  "policy_sha256": "444864f9220836dc7e6cc9b11746e8ff02d009719dc453bef47e1ed5653c3abb",
+  "meta_path": "data/policies/thriller_csv_ankle_penalty/policy_meta.json",
+  "npz_path": "data/policies/thriller_csv_ankle_penalty/thriller_csv_ankle_penalty_deploy.npz",
+  "meta_sha256": "2be6f8b104651b0221caec530621c1534a6da7b465443f51c3c65fbd03267f5e",
+  "npz_sha256": "14f8e03aebf21fca2dc003dd1630e7a50e83d52b74b2a100c20b99216a02159b",
+  "motion_sha256": "2f289a3d0eefc3bc38899c24fa27e89718301784788d63759a28f631f6d9e4a4",
+  "bundle_id": null,
+  "legacy_bundle": true,
+  "exam_ids": [],
+  "repeat_evidence": null,
+  "incident": null,
+  "audio": null,
+  "repeatability": {
+    "consecutive_clean": 0,
+    "total_runs": 0,
+    "last_run_at": null,
+    "history": []
+  },
+  "promote_override": {
+    "at": 1785925782.2100475,
+    "by": "alois",
+    "reason": "INDEFINITE smoke-test baseline (user order 2026-08-05): the hardware-proven ~70-80% IRL anchor, after v12 hardware run showed latency-cliff stepping + 58% leg amplitude",
+    "policy_sha256": "444864f9220836dc7e6cc9b11746e8ff02d009719dc453bef47e1ed5653c3abb",
+    "sim_exam_verdict": null,
+    "consecutive_clean": 0,
+    "bundle_note": null
+  }
+}
