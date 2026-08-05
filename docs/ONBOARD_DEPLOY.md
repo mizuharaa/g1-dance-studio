@@ -90,7 +90,7 @@ Unitree's onboard policy demos do NOT stand up a competing participant. Options,
   wlan0, or map a remote button). The trigger is not real-time; only the local eth1 control loop is.
 
 ## Safety notes
-- This G1 has no torque-cut e-stop; the remote's B-damp + power switch are the only hard stops.
+- This G1 has no torque-cut e-stop; the remote's L2+B damp + power switch are the only hard stops.
 - Onboard motion is a first-of-its-kind run for this project — tether-first, operator-present, and
   the comms path in the loop is now LOCAL (eth1), which is the whole point (no wifi jitter in control).
 - Do the SDK/DDS debugging near the live control service ONLY with the operator aware.

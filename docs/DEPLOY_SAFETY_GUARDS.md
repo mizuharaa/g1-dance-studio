@@ -80,7 +80,7 @@ still damps. Wired into all four policy modes (`run`, `ground-run`, `ground-run-
 in a BLOCKING call that releases the GIL (DDS `Read`, `time.sleep`, onnxruntime
 inference — every realistic stall mode of this loop) the watchdog WAKES and fires. A
 pure-Python CPU-bound infinite loop would hold the GIL and starve it. **The firmware
-remote B-damp remains the ultimate hard stop** (there is no hardware e-stop).
+remote L2+B damp remains the ultimate hard stop** (there is no hardware e-stop).
 
 ---
 
@@ -137,5 +137,5 @@ Follow measurement discipline: commit the script AND its raw output.
 - **All thresholds are unvalidated.** They encode the right SIGN of each effect but not a
   calibrated magnitude — the robot is down.
 - **GIL-bound stall** is not covered by the thread watchdog (see caveat); the firmware
-  remote B-damp is the backstop. A SIGALRM/`setitimer` watchdog (fires between Python
+  remote L2+B damp is the backstop. A SIGALRM/`setitimer` watchdog (fires between Python
   bytecodes even under a pure-Python loop) is a complementary future addition.

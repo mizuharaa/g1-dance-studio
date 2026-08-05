@@ -1,15 +1,15 @@
 # ROBOT DAY — one-page card (print me)
 
-**Golden rule:** this G1 has **NO torque-cutting e-stop**. The remote's **B (damping)** button
+**Golden rule:** this G1 has **NO torque-cutting e-stop**. The remote's **L2+B (damping chord)**
 and the **power switch** are the only real stops. Keep the remote in your hand whenever motors
-are powered. If unsure — hit **B**, then power.
+are powered. If unsure — hit **L2+B**, then power.
 
 ## Before you touch the robot
 - [ ] `export CONFIRMED_BY_HUMAN=alois`; `./scripts/preflight_robot_day --stage gantry` → **GO** (or GO-with-caution you understand).
 - [ ] Gantry rigged, straps rated & locked. Robot hangs with **feet ~5 cm off ground**. (Gantry can lower to a taut line for the ground stages.)
 - [ ] Policy bar: **gantry accepts the current policy (98.4%)**. **Ground-free needs ≥99%** OR a conscious `--informed-override` — decide in the moment.
 - [ ] 2 m clear radius, hard flat floor. Nobody within arm's reach once powered.
-- [ ] Remote e-stop tested **today** (press B, confirm damping) and in your hand.
+- [ ] Remote e-stop tested **today** (press L2+B (hold L2, press B), confirm damping) and in your hand.
 - [ ] Cut-power plan known. Battery ≥ 50%.
 
 ## Order of operations (never skip ahead)
@@ -24,12 +24,12 @@ are powered. If unsure — hit **B**, then power.
 9. **Ground stages (gantry lowered to taut line → slack line):** `--stage ground-tethered` then `--stage ground-free` — each with its typed phrase + prior-stage gate. Ground-free needs the kill→damping + estimator confirmations (and ≥99% or `--informed-override`).
 10. **Push test** only after a clean, repeated ground-free run.
 
-## STOP IMMEDIATELY (hit B, then power) if:
+## STOP IMMEDIATELY (hit L2+B, then power) if:
 - Any joint jerks, buzzes, oscillates, or moves to a limit.
 - Robot leans/sags past the reference, or tracking visibly diverges.
 - Any smoke, burning smell, unusual heat, or motor fault light.
 - Controller log shows NaN / "limit" / missed control ticks.
 - Battery sag, comms drop, or **anything** you didn't expect.
 
-**Abort ladder:** 1) remote **B** (in hand, beats everything) → 2) `deploy/kill_now.sh` → 3) **power switch**.
+**Abort ladder:** 1) remote **L2+B** (in hand, beats everything) → 2) `deploy/kill_now.sh` → 3) **power switch**.
 Never approach the robot until you've **visually** confirmed it's still.

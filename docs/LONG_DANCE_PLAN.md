@@ -143,7 +143,7 @@ it is two cross-checked sim results (`docs/DYNAMIC_SKILLS.md §6`):
   phase, and in flight every one of our proven safety assumptions breaks:
   - The proven state estimator is **leg odometry — stance-only.** In flight `base_lin_vel`
     (a live policy input) is garbage. Our whole grounded pipeline assumes stance contact.
-  - **No torque-cut hardware e-stop** on this G1 — the remote's B-damping is the only stop,
+  - **No torque-cut hardware e-stop** on this G1 — the remote's L2+B damping is the only stop,
     and it is useless mid-air (damping a flying robot guarantees a crumple landing). This is
     an established robot-day fact.
   - **Landing loads** compress through ankle/knee at full effort at touchdown; the acro

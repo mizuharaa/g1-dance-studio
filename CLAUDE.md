@@ -13,7 +13,7 @@ Rules:
 - Robot safety: never send low-level commands unless the motion passed sim
   verification AND the user confirmed the robot is secured (gantry/clear space,
   damping remote in hand). Deploy always requires explicit human confirmation.
-  This robot has NO hardware e-stop — only the remote's B-damp and the power switch.
+  This robot has NO hardware e-stop — only the remote's L2+B damp and the power switch.
 - Measurement discipline: never label a finding decisive without an independent
   cross-check; commit every measurement script AND its raw output (`experiments/`
   or `data/telemetry/`) so load-bearing numbers have durable provenance.

@@ -182,7 +182,7 @@ starts and the runtime prints an explicit `DANCE FRAME 0 NOW` cue line.
    cap with `ARM_FULL_RUN=1` required for a full-length run.
 
 Residual risk (be honest): fast arm swings move the CoM and the onboard balancer must
-absorb that; the remote's B-damping remains the only true stop (no torque-cut e-stop on
+absorb that; the remote's L2+B damping remains the only true stop (no torque-cut e-stop on
 this G1). Hence: capped first runs, human watching, clear space.
 
 ---

@@ -190,7 +190,7 @@ The first two boxes exist today; everything from **assess** onward is new.
 ## 4. Safety non-negotiables
 
 - **No hardware e-stop.** This tether-free G1 has **no torque-cutting hardware e-stop.** The
-  only hard stops are the **remote's B-damp** (in the operator's hand every stage) and the
+  only hard stops are the **remote's L2+B damp** (in the operator's hand every stage) and the
   **power switch**. Software damping (`_damp` / `_damp_burst`) is a soft landing, not a hard
   stop, and depends on the loop still running and DDS still delivering.
 - **Get-up is never a substitute for the operator.** Detection + damp is a best-effort

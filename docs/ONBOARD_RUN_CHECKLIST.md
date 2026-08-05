@@ -14,7 +14,7 @@ present, remote in hand. Do not skip a phase.
 ## 0. SAFETY GATE — do not proceed until ALL true
 - [ ] Robot on the **gantry** (or firmly hung), **feet OFF the ground** for the first launch.
 - [ ] **Remote in hand**, thumb near **B (damp)**; you know the **power switch** location.
-      (This G1 has **no torque-cut hardware e-stop** — B-damp + power switch are the only hard stops.)
+      (This G1 has **no torque-cut hardware e-stop** — L2+B damp + power switch are the only hard stops.)
 - [ ] Clear space, nobody within the robot's arm/leg sweep.
 - [ ] You (operator) are physically present and running these steps — Claude does NOT send
       motor commands; every activation below is a human keypress.
@@ -77,7 +77,7 @@ straight onto raw frame 0 lurches. Mitigation (either):
 Never activate at full pose delta cold.
 
 ## 5. Tethered staircase (SAME as the laptop path we already validated)
-Bring up in increasing exposure; abort (B-damp) at any wrongness:
+Bring up in increasing exposure; abort (L2+B damp) at any wrongness:
 - [ ] **Feet off, gantry** — activate, watch the arms/legs track the ramp then early motion. Damp.
 - [ ] **Feet on ground, gantry still bearing weight** — activate, watch balance response. Damp.
 - [ ] **Gantry slack (robot bearing own weight, tether present)** — short activation, first

@@ -1,7 +1,7 @@
 # Ground tethered runbook — first steps off the gantry
 
 **Status: procedure only. Do NOT run any step here without a human physically present,
-the robot on a tether/gantry set to catch a fall, and the remote in hand for B-damping.**
+the robot on a tether/gantry set to catch a fall, and the remote in hand for L2+B damping.**
 
 This is the staged, human-supervised path from "dances on the gantry" to "stands and
 dances on the ground." It exists because the gantry policy is **not ground-safe**: its
@@ -11,7 +11,7 @@ harmless; standing, those wrong numbers drive a fall. The ground path uses a sep
 trained **estimator-free (154-dim) policy** in `data/policies/thriller_ground/`.
 
 There is **no torque-cut e-stop** on this robot. The only fast stop is the remote's
-B-damping (and the runtime's own always-soft-on-exit). Every command below ends the
+L2+B damping (and the runtime's own always-soft-on-exit). Every command below ends the
 robot soft on any exit — normal end, Ctrl-C, external kill, crash. That is the floor,
 not the plan. The plan is: a human catches it.
 
@@ -47,7 +47,7 @@ EXPECT at each stage.
 ## Preconditions (all must hold before ANY motion)
 
 - [ ] A second person is on the tether/gantry, taking the robot's weight, ready to lift.
-- [ ] Remote is on and in hand; you have B-damped this robot at least once today.
+- [ ] Remote is on and in hand; you have L2+B damped this robot at least once today.
 - [ ] Wired LAN up: `cat /sys/class/net/enp0s31f6/carrier` → `1`; `ping -c2 192.168.123.164`.
 - [ ] Env for the laptop deploy shell:
       `conda activate tv` (has `unitree_sdk2py` + `onnxruntime`), then
@@ -61,7 +61,7 @@ EXPECT at each stage.
 - [ ] The ground policy exists: `data/policies/thriller_ground/{policy.onnx,policy_meta.json}`.
       If it is absent, `ground-run` **refuses** — stop at Stage A; the retrain has not landed.
 
-Abort at ANY point by B-damping on the remote and/or Ctrl-C the process. The robot goes
+Abort at ANY point by L2+B damping on the remote and/or Ctrl-C the process. The robot goes
 soft either way; the tether holds it.
 
 ---
@@ -79,7 +79,7 @@ Expect: OBS SANITY block, `non-finite: 0`. If not → STOP.
 ## Stage A — standing hold, pure PD, NO policy (tethered)
 
 Proves the robot can hold the ready stance standing before any learned control runs.
-Firm PD only; holds indefinitely until you Ctrl-C or B-damp.
+Firm PD only; holds indefinitely until you Ctrl-C or L2+B damp.
 
 ```
 python -m pipeline.deploy_runtime --mode stand-hold \
@@ -96,7 +96,7 @@ python -m pipeline.deploy_runtime --mode stand-hold \
   the commanded pose. (A quick read-only `check_joint_calibration.py` in another shell
   should show the SAME pose twice a few seconds apart — settled, not still sinking.)
 - **Abort criteria:** a progressive/worsening sink (still sinking on the second read), a
-  one-sided lean, oscillation, fault, or unexpected sound → B-damp immediately. Ctrl-C
+  one-sided lean, oscillation, fault, or unexpected sound → L2+B damp immediately. Ctrl-C
   ends the hold soft.
 
 If Stage A is unstable (sinking, leaning, or oscillating), do NOT proceed. Re-check
@@ -219,7 +219,7 @@ Path-specific notes (all verified OFFLINE 2026-07-04, `tools/sim_ground_odom.py`
 
 ## If it falls
 
-B-damp, let the tether take it, power stance down calmly. The process is already
+L2+B damp, let the tether take it, power stance down calmly. The process is already
 damping on its way out. Note what you saw (which joint/side led, at what second),
 re-check calibration, and drop back a stage. Do not raise `GROUND_MAX_ACTION` or skip
 the tether to "get past" a fall.

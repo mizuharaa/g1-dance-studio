@@ -101,7 +101,7 @@ is down** (burnt DC-DC converter), so everything recent is sim-only.
 - The anchor policy performed the native-speed dance **live at 70–80% quality** with
   no catastrophic drift — the one real datapoint that the sim gate should be
   calibrated against.
-- Robot: G1 EDU, 29 DoF, no hardware e-stop (only the remote's B-damp + power
+- Robot: G1 EDU, 29 DoF, no hardware e-stop (only the remote's L2+B damp + power
   switch). Onboard compute is a Jetson (PC2). Actuators are per-motor-class (NOT one
   torque limit for all joints — see `pipeline/g1_limits.py`).
 - The dev laptop has **no GPU**; all training is on a cloud 4090 (GreenNode notebooks).

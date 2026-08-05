@@ -2,7 +2,7 @@
 
 **Read `docs/ROBOT_DAY_PLAN.md` first.** Its safety truths are absolute here: this
 tether-free G1 has **NO torque-cutting hardware e-stop** — your only stops are the
-remote's B-damping (in your hand) and the power switch. Going wireless removes the one
+remote's L2+B damping (in your hand) and the power switch. Going wireless removes the one
 thing that has always been reliable — the wired link — so it earns its own gate.
 
 This doc covers taking the laptop→robot control link **off the ethernet cable and onto
@@ -177,7 +177,7 @@ preflight can't clear that bar, the WiFi is not show-ready — full stop.
    the preflight *and* a tethered wireless run. If anything looks marginal, plug back in.
 3. **Never run wireless untethered until the preflight passes over a sustained window**
    (`--dds --dds-secs 60`, GO). A single clean second is not a pass.
-4. **Remote (B-damping) in hand, abort at the first twitch/sag/buzz** — the one safety truth
+4. **Remote (L2+B damping) in hand, abort at the first twitch/sag/buzz** — the one safety truth
    from `docs/ROBOT_DAY_PLAN.md` does not relax on WiFi; it matters more.
 
 A passing preflight is **necessary, not sufficient**. It says the link *was* good over the

@@ -55,7 +55,7 @@ breaks all of those assumptions at once:
    moment mid-rotation converts a maybe-landing into a certain crash and loads
    the anchor dynamically (snatch load ≫ static weight). Gantry-catch
    procedures from robot day DO NOT TRANSFER.
-3. **The remote's B-damping is the only stop, and it is useless in flight**
+3. **The remote's L2+B damping is the only stop, and it is useless in flight**
    (no torque-cut e-stop on this G1 — established robot-day fact). The
    operator has no meaningful abort between launch and touchdown (~0.5 s).
 4. **Deploy-stack assumptions break.** The proven estimator (leg odometry)

@@ -90,7 +90,7 @@ Every retargeted motion passes an automated check before training (laptop, step 
 ## 6. Risks (top items; full list in research-findings.md §5)
 
 1. Factory motion service vs `rt/lowcmd` conflict → violent jitter. Protocol: hoist → zero torque (L2+Y) → debug mode (L2+R2) / `MotionSwitcherClient.ReleaseMode()` before any custom controller.
-2. Debug mode has **no factory e-stop** — only the controller's B-damping. Gantry is the real e-stop for every first run; never run factory recovery modes with Inspire hands installed.
+2. Debug mode has **no factory e-stop** — only the controller's L2+B damping. Gantry is the real e-stop for every first run; never run factory recovery modes with Inspire hands installed.
 3. Inspire FTP hand mass (~0.5 kg/wrist) unmodeled → degraded tracking / shoulder overheat (unitree_sdk2_python #129). Add hand mass or payload DR to the training asset; sim2sim ablation before hardware.
 4. GVHMR dance failure modes: foot-skate, L/R flips on back-facing spins, prior collapse under blur. Mitigate via §5 gate + static-camera flag + single-shot clips.
 5. Silent format corruption (quat order, fps, 23-vs-29 DoF configs). Use GMR's official exporter only; never mix PBHC/ASAP 23-DoF motion files.
