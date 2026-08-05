@@ -2,10 +2,10 @@
   "id": "20260722-a8908992",
   "name": "Thriller \u2014 v12 FINAL (audit-verified, native)",
   "created_at": 1784710179.1365564,
-  "updated_at": 1785921403.7483492,
+  "updated_at": 1785923315.0061288,
   "status": "show-ready",
   "duration_s": null,
-  "motion_csv": null,
+  "motion_csv": "data/motions/thriller/v12_bundle/final.csv",
   "policy_path": "exports/train-thriller_v12fid-0722/policy.onnx",
   "preview": null,
   "vet": null,
@@ -13,15 +13,15 @@
   "source_job": null,
   "notes": "Attempt 9 on the certified v12 bundle with all 20 audit fixes. Harness-v2 gate 8/9 PASS: clean surv 100%, drift p95 0.91m (PASS), ankle p95 14.3 (hardware band), rr_mpkpe 0.057. Heldout 100/100/100 nominal. Sole fail: full DR+40ms+push composite 57%.",
   "policy_sha256": "3518f77ffdfc27f94cd33a3c7859d7281e0bc184243b9814ae121ff3e32075e7",
-  "meta_path": null,
-  "npz_path": null,
-  "meta_sha256": null,
-  "npz_sha256": null,
-  "motion_sha256": null,
-  "bundle_id": null,
+  "meta_path": "exports/train-thriller_v12fid-0722/policy_meta.json",
+  "npz_path": "exports/train-thriller_v12fid-0722/thriller_v12fid_deploy.npz",
+  "meta_sha256": "91c02a2614a6120a7af64665003c24540d3b5bcc992f20c5dca067507f748fa4",
+  "npz_sha256": "bb8466f2589b390e24ca68036f3223214ad32a5bb14196b0fd0eed591dcea9f1",
+  "motion_sha256": "349bb850555fb0741e0fcab47de981b0e373bc3b83042fdb936580bde3b54572",
+  "bundle_id": "92d5a63b8911b7f694c20ee932c5e28c21b30c84ff2d01328eb2c5b454cd2397",
   "legacy_bundle": false,
   "exam_ids": [],
-  "repeat_evidence": null,
+  "repeat_evidence": "legacy-unverified",
   "incident": null,
   "audio": null,
   "repeatability": {
@@ -31,12 +31,12 @@
     "history": []
   },
   "promote_override": {
-    "at": 1785921403.7483375,
+    "at": 1785923315.0061214,
     "by": "alois",
-    "reason": "operator gantry test session 2026-08-05 \u2014 v12-final pre-v14 style baseline; robot repaired",
+    "reason": "re-capture bundle after attaching v12_bundle motion CSV",
     "policy_sha256": "3518f77ffdfc27f94cd33a3c7859d7281e0bc184243b9814ae121ff3e32075e7",
     "sim_exam_verdict": null,
     "consecutive_clean": 0,
-    "bundle_note": "bundle capture failed: cannot promote: motion CSV member is missing"
+    "bundle_note": null
   }
 }
