@@ -984,9 +984,11 @@ def run_show(dance_id: str, payload: dict = Body(...)) -> dict:
     if dance.status != "show-ready":
         raise HTTPException(409, f"dance '{dance.name}' is not show-ready "
                                  f"(status: {dance.status}) — it cannot be run")
-    # 2) audio attached — a show plays music; refuse a silent dance.
-    if not (dance.audio and dance.audio.get("track")):
-        raise HTTPException(409, "dance has no music attached — attach a track first")
+    # 2) audio is OPTIONAL (a silent dance is valid — same policy as the pre-show
+    #    checklist, where a missing track WARNS but never blocks). When no track is
+    #    attached, force the cue into banner mode (needs no music) so the
+    #    track-requiring modes can't crash the cue process mid-show.
+    silent = not (dance.audio and dance.audio.get("track"))
     operator = (payload.get("operator") or "").strip()
     if not operator:
         raise HTTPException(400, "operator name is required")
@@ -1020,7 +1022,7 @@ def run_show(dance_id: str, payload: dict = Body(...)) -> dict:
     try:
         show = show_runner.begin_run(
             dance, operator=operator, mode=mode, exit_stand=exit_stand,
-            audio_mode=payload.get("audio_mode") or "laptop",
+            audio_mode="banner" if silent else (payload.get("audio_mode") or "laptop"),
             body=payload.get("body"), free=free,
             confirmation=payload.get("confirmation") or "",
             robot_ping=lambda: show_runner.robot_reachable(),

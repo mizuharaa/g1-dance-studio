@@ -111,14 +111,27 @@ def test_run_missing_dance_404(run_env):
 
 # ---- guard: audio must be attached ----------------------------------------------
 
-def test_run_rejects_without_audio(run_env):
-    c, _, shows_mod, _ = run_env
+def test_run_allows_silent_dance_with_banner_cue(run_env, monkeypatch):
+    """2026-08-05: audio is OPTIONAL (matches the pre-show checklist's 'a silent
+    dance is valid'). A missing track no longer 409s; the cue is forced into
+    banner mode so track-requiring modes can't crash mid-show."""
+    c, _, shows_mod, show_runner = run_env
     d = _show_ready_with_audio(shows_mod, "Silent")
     shows_mod.set_audio(d.id, None)  # strip the music
+    seen = {}
+
+    def _spy_begin_run(dance, **kw):
+        seen.update(kw)
+        raise show_runner.RunBusy("spy stop — guards already passed")
+
+    monkeypatch.setattr(show_runner, "begin_run", _spy_begin_run)
     r = c.post(f"/api/shows/{d.id}/run",
-               json={"operator": "alois", "mode": "rehearsal", "confirmation": PHRASE})
-    assert r.status_code == 409
-    assert "music" in r.json()["detail"]
+               json={"operator": "alois", "mode": "rehearsal", "confirmation": PHRASE,
+                     "audio_mode": "robot"})
+    # the silent dance sailed past the audio guard and reached begin_run…
+    assert seen, f"begin_run never reached — {r.status_code}: {r.text}"
+    # …with the track-requiring mode downgraded to the trackless banner cue.
+    assert seen["audio_mode"] == "banner"
 
 
 # ---- guard: robot must be reachable ---------------------------------------------

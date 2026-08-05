@@ -211,7 +211,9 @@ def test_free_does_not_bypass_show_ready_guard(run_env):
     assert "show-ready" in r.json()["detail"]
 
 
-def test_free_requires_audio(run_env):
+def test_free_silent_dance_not_blocked_on_audio(run_env):
+    """2026-08-05: audio is optional for free shows too — a silent free run must
+    fail on the FREE-mode guards (live forbidden), never on missing music."""
     c, _, shows_mod, _ = run_env
     d = _show_ready_with_audio(shows_mod, "FreeSilent")
     shows_mod.set_audio(d.id, None)  # strip the music
@@ -219,7 +221,8 @@ def test_free_requires_audio(run_env):
                json={"operator": "alois", "mode": "live", "free": True,
                      "confirmation": PHRASE})
     assert r.status_code == 409
-    assert "music" in r.json()["detail"]
+    assert "music" not in r.json()["detail"]        # audio never the blocker
+    assert "free" in r.json()["detail"].lower()     # the real guard: free+live forbidden
 
 
 def test_free_requires_reachable_robot(run_env, monkeypatch):

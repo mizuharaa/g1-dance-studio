@@ -483,7 +483,15 @@ def main(argv=None) -> int:
     if args.track:
         track = args.track
     elif args.dance_id:
-        track, align = load_dance_audio(args.dance_id)
+        try:
+            track, align = load_dance_audio(args.dance_id)
+        except SystemExit:
+            # silent dance: banner/led need no track — cue on time markers only.
+            # robot/laptop DO need one, so the missing track stays fatal for them.
+            if args.mode in ("robot", "laptop"):
+                raise
+            print(f"[show_audio] dance {args.dance_id} has no track — "
+                  f"silent show, {args.mode} cue only")
     offset = args.offset if args.offset is not None else cue_offset_for_align(align)
     signal.signal(signal.SIGTERM, _abort_handler)
     signal.signal(signal.SIGINT, _abort_handler)
