@@ -6,8 +6,12 @@
   "created_at": 1785923290.8436272,
   "steps": {},
   "deploy": null,
-  "outcome": null,
-  "closed": false,
+  "outcome": {
+    "result": "aborted",
+    "notes": "API probe record created by agent while debugging bundle resolution \u2014 no robot run occurred; closed to clear the run gate",
+    "at": 1785923833.7701104
+  },
+  "closed": true,
   "mode": "rehearsal",
   "setlist_id": null
 }
