@@ -172,11 +172,13 @@ CHECKLIST_ITEMS: list[ChecklistItem] = [
     # but never blocks the deploy gate.
     ChecklistItem("audio_attached", "Music attached", "auto", "warn",
                   _eval_audio_attached),
-    ChecklistItem("damping_remote", "Damping remote in hand", "confirm", "blocker",
+    ChecklistItem("damping_remote", "Damping remote + killswitch armed", "confirm", "blocker",
                   _confirm("damping_remote",
-                           "Hold the damping remote and test it responds; keep it in "
-                           "hand for the whole performance (it is the ONLY stop — this "
-                           "G1 has no torque-cutting hardware e-stop).")),
+                           "Hold the remote AND have deploy/20_remote_killswitch.sh armed "
+                           "in a visible terminal, L2+B tested TODAY (the factory chord is "
+                           "INERT while our controller runs — the killswitch layer is your "
+                           "remote stop; the power switch is the only hardware-guaranteed "
+                           "stop, this G1 has no torque-cutting e-stop).")),
     ChecklistItem("tether_area", "Tether / area set per venue", "confirm", "blocker",
                   _confirm("tether_area",
                            "Set the tether and clear the performance area to match the "
