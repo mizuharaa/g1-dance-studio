@@ -1,0 +1,24 @@
+{
+  "id": "20260720-dc95883b",
+  "name": "Thriller \u2014 v10 (native tempo)",
+  "created_at": 1784534464.5675735,
+  "updated_at": 1784534464.5704858,
+  "status": "draft",
+  "duration_s": null,
+  "motion_csv": null,
+  "policy_path": "exports/train-thriller_v10spd-0720/policy.onnx",
+  "preview": null,
+  "vet": null,
+  "sim_exam": null,
+  "source_job": null,
+  "notes": "Attempt 7: full-speed 49.5s. Gate FAIL (survival 85%, drift 3.5m); best tracking yet, ankle at hardware reality. Preview: reference=native-tempo motion, policy=v10 rollout.",
+  "policy_sha256": null,
+  "incident": null,
+  "audio": null,
+  "repeatability": {
+    "consecutive_clean": 0,
+    "total_runs": 0,
+    "last_run_at": null,
+    "history": []
+  }
+}

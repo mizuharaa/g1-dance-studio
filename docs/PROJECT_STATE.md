@@ -46,6 +46,23 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-08-05 (HANDOFF after a 2-week gap — see docs/HANDOFF_20260805.md): repo had been idle
+  since the 2026-07-22 v13 launch commit with ~50 uncommitted files (dance registrations,
+  previews, export metadata) — all committed now. Reconciled this log with events that were
+  only in logs/jobs.md: **(a) ATTEMPT 9 FINAL (v12 fidelity bundle) = BEST RESULT OF THE
+  PROJECT — 8/9 honest-gate PASS on harness v2** (clean survival 100%, drift ep-p95 0.91 m
+  PASS, ankle p95 14.3 inside the real 15–19 band, rr_mpkpe 0.057; sole FAIL = the full
+  dr_delay40ms_push composite 57% vs 95; artifacts exports/train-thriller_v12fid-0722/,
+  dance 20260722-a8908992; v2 numbers NOT comparable to v5–v11). (b) User rejected the
+  v12-final preview on style (twitching + short legs + visible drift); diagnosed in
+  experiments/style_gap_20260722 (leg cmd HF 3.97% vs 1.2–2.3% real, reach 60–79%, sway 3×
+  stiff). (c) **ATTEMPT 10 (v13 = v11 + hip/knee action-rate −0.03 + leg stds 0.26/0.34, on
+  the certified v12_bundle) launched 2026-07-22 on box 40711 — FATE UNKNOWN, nothing pulled
+  or recorded since.** ⭐ IMMEDIATE ACTIONS: (1) user opens the GreenNode console — boxes
+  40711 / 53665 / 54751 may have been billing for ~2 weeks; pull v13 artifacts if present,
+  then DELETE all boxes; (2) recover-or-rerun v13 (recipe committed, ffcf6d2); (3) robot
+  DC-DC repair still blocks all deploy.
+
 - 2026-07-21 (ML PIPELINE AUDIT — 12 confirmed defects FIXED, no train yet): user (10+ sessions on
   one dance) asked for a codebase rescan for faulty/over-engineered code distorting ML weights +
   preview↔reference mismatch. Ran an 84-agent Opus adversarial workflow (5 auditors → dedupe → 3

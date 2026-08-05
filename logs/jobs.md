@@ -512,3 +512,11 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
   sway 3x stiff; drift 0.53m (passes bar, visible). Gate never measured style — now recorded.
 - v13 = v11 + hip/knee per-channel action-rate (-0.03) + leg stds 0.26/0.34. Same certified
   v12 bundle, same gates. RUN_NAME=train-thriller_v13style-0722. DELETE box after pull.
+
+## 2026-08-05 — STATE UNKNOWN after 2-week gap (handoff)
+- No entries since the 2026-07-22 v13 launch on box 40711 (nb-45ef0f52). Run outcome,
+  artifact pull, and box deletion were NEVER recorded. Boxes 53665 / 54751 deletion
+  also unconfirmed. USER MUST audit the GreenNode console: pull any v13 artifacts,
+  then DELETE every surviving box (billing runs creation->deletion).
+- If artifacts are lost: v13 recipe is committed (ffcf6d2) and reproducible on the
+  certified v12_bundle. See docs/HANDOFF_20260805.md.

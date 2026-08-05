@@ -1,0 +1,1 @@
+{"label": "Thriller \u2014 v11 (leg-fidelity, native tempo)", "policy_sha256": null, "created_at": 1784569775.4303632, "kind": "reference_vs_policy", "left_kind": "REFERENCE (intended)", "left_achieved": 1.0, "right_kind": "POLICY (mjlab training model)", "right_achieved": 1.0929209714742092, "right_fell_at": null}
