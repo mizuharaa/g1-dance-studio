@@ -31,7 +31,11 @@ echo "=== Robot-day pre-flight: dance=${DANCE} stage=${STAGE} ==="
 POL="data/policies/${DANCE}/policy.onnx"
 META="data/policies/${DANCE}/policy_meta.json"
 VER="data/policies/${DANCE}/heldout_verdict.json"
-DEP=$(ls "data/motions/${DANCE}/"*deploy*.csv 2>/dev/null | head -1)
+# Prefer the PROMOTED policy dir's deploy motion — that is the copy the signed
+# verdict + hardware runs bind to (data/motions/ keeps the immutable pre-promote
+# lineage, which can legitimately differ in sha; see RESULT.txt 2026-07-07).
+DEP=$(ls "data/policies/${DANCE}/"*deploy*.csv 2>/dev/null | head -1)
+[ -n "$DEP" ] || DEP=$(ls "data/motions/${DANCE}/"*deploy*.csv 2>/dev/null | head -1)
 
 # 1. policy + gains spec
 [ -f "$POL" ] && ok "policy present" || no "policy missing ($POL) — train + export first"
