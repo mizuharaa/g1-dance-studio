@@ -1,0 +1,17 @@
+{
+  "id": "20260805-170118-fb62b1",
+  "dance_id": "20260722-a8908992",
+  "dance_name": "Thriller \u2014 v12 FINAL (audit-verified, native)",
+  "operator": "alois",
+  "created_at": 1785924078.5041313,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "aborted",
+    "notes": "runtime refused: legodom mode has no history stacker for the v12 770-dim contract \u2014 fixed by meta-driven mode selection (ground-run), rerun",
+    "at": 1785924264.088452
+  },
+  "closed": true,
+  "mode": "rehearsal",
+  "setlist_id": null
+}

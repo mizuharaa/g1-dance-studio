@@ -1,0 +1,2 @@
+SHOW RUN: dance=20260722-a8908992 audio=banner latency_comp=0.0s
+REFUSED: invalid policy bundle — mode 'ground-run-legodom' has no history stacker for history_length 5; use ground-run for this estimator-free policy

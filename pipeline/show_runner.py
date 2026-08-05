@@ -402,6 +402,19 @@ def begin_run(dance: "shows.Dance", *, operator: str, mode: str,
 
         show = shows.new_show(dance, operator, mode=mode)
         env = _build_env(operator, mode, exit_stand, audio_mode, dance.id, body, free)
+        # Pick the runtime mode from the POLICY's own contract (2026-08-05: v12's
+        # history-stacked estimator-free contract refused under the legacy default —
+        # deploy_runtime: "mode 'ground-run-legodom' has no history stacker for
+        # history_length 5; use ground-run"). history_length > 1 ⇒ the estimator-free
+        # stacked family ⇒ ground-run; otherwise keep the proven legodom default.
+        # RUNTIME_MODE in the environment still wins (operator override).
+        if "RUNTIME_MODE" not in env:
+            try:
+                hist = json.loads(bundle.meta.read_text()).get("history_length")
+            except Exception:  # unreadable meta: keep the proven default, runtime re-gates
+                hist = None
+            if isinstance(hist, int) and hist > 1:
+                env["RUNTIME_MODE"] = "ground-run"
         log_path = show.dir / "run.log"
         cmd = [str(SHOW_RUN_SH)] + _bundle_args(bundle)
         proc = spawn_show_process(cmd, env, log_path)
