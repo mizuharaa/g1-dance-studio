@@ -1,0 +1,2 @@
+[2026-08-05 17:56:09] rehearsal show created for dance 'Thriller — csv_ankle_penalty ANCHOR (hardware-proven 70-80%)' by operator 'alois'
+[2026-08-05 17:56:09] RUN SHOW spawned (mode=rehearsal, audio=banner, exit_mode=stand, config=proven default) — operator holds the damping remote

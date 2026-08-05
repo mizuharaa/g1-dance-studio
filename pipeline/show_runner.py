@@ -463,6 +463,9 @@ def _start_show_camera(show_dir: Path, run_proc) -> None:
     disables; SHOW_CAMERA_DEV overrides the device."""
     if os.environ.get("SHOW_CAMERA", "1") != "1":
         return
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return  # tests must NEVER grab the real camera (a leftover test ffmpeg
+                # held /dev/video8 through two real runs, 2026-08-05)
     dev = os.environ.get("SHOW_CAMERA_DEV", "/dev/video8")
     if not Path(dev).exists():
         return
@@ -472,8 +475,9 @@ def _start_show_camera(show_dir: Path, run_proc) -> None:
     if not Path(ff).exists():
         return
     show_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [ff, "-hide_banner", "-loglevel", "error", "-f", "v4l2", "-i", dev,
-           "-t", "180",
+    cmd = [ff, "-hide_banner", "-loglevel", "error", "-f", "v4l2",
+           "-video_size", os.environ.get("SHOW_CAMERA_SIZE", "1280x720"),
+           "-i", dev, "-t", "180",
            "-map", "0", "-c:v", "libx264", "-preset", "veryfast",
            "-pix_fmt", "yuv420p", "-y", str(show_dir / "camera.mp4"),
            "-map", "0", "-vf", "fps=1/2,scale=640:-2", "-q:v", "4",
