@@ -50,7 +50,8 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   canonical statement of current state, open problems, and immediate actions — read it
   first; details are NOT repeated here.** Summary only: attempt 9 (v12-final) = best
   result of the project (8/9 harness-v2 gate PASS; v2 numbers not comparable to v5–v11);
-  attempt 10 (v13 style, box 40711) fate unknown — box audit is the #1 action; robot
+  attempt 10 (v13 style) artifacts LOST — boxes were deleted long ago (user, 2026-08-05);
+  re-run via ffcf6d2; check the g1dance-data Network Volume still bills; robot
   DC-DC repair still blocks deploy (Unitree RMA email drafted in the user's Gmail
   2026-08-05, awaiting serial no. + send). Uncommitted 07-20..07-22 dance/preview/export
   files committed; v12-final policy.onnx + deploy npz force-added to the repo (c51f968)
