@@ -384,7 +384,27 @@ GATE = {
   # Env-overridable. Rationale: experiments/drift_rootcause_20260720 (clean drift
   # 0.87 m, friction-independent; the 3.5 m max was an unlucky-init tail outlier).
   "drift_nominal_p95_max_m": float(os.environ.get("G1_GATE_DRIFT_P95_M", "1.5")),
+  # 2026-08-05 hardware audit bars. The real robot measured 40-60 ms latency and
+  # v12 collapsed past 60 (trained DR topped at 60 ms) — gate survival AT the top
+  # of the real band. Leg amplitude: hardware achieved 58% (v12) / 64% (anchor)
+  # of commanded — the show-quality gap no other bar saw. Default 0 = report-only
+  # (old runs stay comparable); run_attempt11 sets real bars.
+  "delay60_survival_min": float(os.environ.get("G1_GATE_DELAY60_SURVIVAL_MIN", "0.95")),
+  "leg_amp_ratio_min": float(os.environ.get("G1_GATE_LEG_AMP_MIN", "0")),
 }
+
+def _reference_joint_pos(motion_file):
+  """Reference joint trajectory [T,29] from the motion npz (None if unreadable)."""
+  try:
+    import numpy as _np
+    d = _np.load(motion_file, allow_pickle=True)
+    for k in ("joint_pos", "dof_pos", "jp"):
+      if k in getattr(d, "files", []):
+        return _np.asarray(d[k], dtype=float)
+  except Exception:
+    pass
+  return None
+
 
 # Per-section reporting (seconds in thriller_deploy time): the known 14-16 s brace
 # window, the mid-dance lean cluster, and the worst lean cluster (43-47 s) from the
@@ -557,6 +577,10 @@ def _run_condition(
   success = torch.zeros(n, dtype=torch.bool, device=device)
   done_step = torch.full((n,), -1, dtype=torch.long, device=device)
   mpkpe_acc, rr_mpkpe_acc, active_acc, drift_acc = [], [], [], []
+  # Joint-amplitude audit (2026-08-05): collect q so the gate can score achieved
+  # vs reference amplitude — the metric that matched hardware (legs 58-64%
+  # achieved while every gate bar passed). CPU accumulation, ~40 MB per condition.
+  q_acc = []
   tau_frames = []  # per-step (n, len(LEG_JOINTS)) |tau|, masked to active envs
   crosscheck = None
 
@@ -588,6 +612,7 @@ def _run_condition(
               - command.body_pos_w[:, anchor_i, :2]).norm(dim=1)
     drift_acc.append(torch.where(active, xy_err, torch.nan))
 
+    q_acc.append(asset.data.joint_pos.detach().cpu())
     tau = asset.data.qfrc_actuator[:, leg_ids].abs()
     tau_frames.append(torch.where(active.unsqueeze(1), tau, torch.nan))
 
@@ -625,6 +650,29 @@ def _run_condition(
   # whole motion even if their time_out flag would land on the same step as
   # the motion wrap. Entry/exit handoff is a separate future scenario.
   success = success | ~done_envs
+
+  # Achieved/reference amplitude per joint group. Reference amp comes from the
+  # motion the env tracks; achieved from the collected q trace (surviving envs).
+  amp_ratios = {}
+  try:
+    q_trace = torch.stack(q_acc, 0)                     # [T, envs, 29]
+    jn_all = list(asset.data.joint_names) if hasattr(asset.data, "joint_names") else list(asset.joint_names)
+    ref_jp = _reference_joint_pos(cfg.motion_file)       # [T_ref, 29] numpy, env joint order
+    if ref_jp is not None:
+      import numpy as _np
+      ach = (q_trace - q_trace.mean(dim=0, keepdim=True)).abs().quantile(0.95, dim=0)  # [envs,29]
+      ach = ach.mean(dim=0).numpy()                      # [29]
+      ref = _np.percentile(_np.abs(ref_jp - ref_jp.mean(axis=0)), 95, axis=0)
+      ratio = ach / _np.maximum(ref, 1e-3)
+      def _grp(pats):
+        ids = [i for i, n in enumerate(jn_all) if any(pt in n for pt in pats)]
+        return float(ratio[ids].mean()) if ids else None
+      amp_ratios = {
+        "leg_amp_ratio": _grp(("hip", "knee", "ankle")),
+        "arm_amp_ratio": _grp(("shoulder", "elbow", "wrist")),
+      }
+  except Exception as e:  # diagnostics must never kill the gate run
+    amp_ratios = {"error": repr(e)}
 
   active_steps = torch.stack(active_acc, 0).sum(0).clamp(min=1)
   mpkpe = (torch.stack(mpkpe_acc, 0).sum(0) / active_steps).mean().item()
@@ -707,6 +755,7 @@ def _run_condition(
     "drift": drift,
     "steps_run": step,
     "ankle_pitch": ankle_pitch_stats,
+    "amp_ratios": amp_ratios,
     "torques_nm": torques,
     "sections": sections,
     "crosscheck_step200": crosscheck,
@@ -835,6 +884,13 @@ def main() -> None:
         nom["success_rate"] >= GATE["survival_nominal_min"],
       f"survival>={GATE['survival_worst_min']} [{worst}]":
         w["success_rate"] >= GATE["survival_worst_min"],
+      **({f"survival>={GATE['delay60_survival_min']} [cmd_delay60ms]":
+            results["cmd_delay60ms"]["success_rate"] >= GATE["delay60_survival_min"]}
+         if "cmd_delay60ms" in results else {}),
+      **({f"leg_amp>={GATE['leg_amp_ratio_min']} [clean]":
+            (nom.get("amp_ratios") or {}).get("leg_amp_ratio", 0) is not None
+            and (nom.get("amp_ratios") or {}).get("leg_amp_ratio", 0) >= GATE["leg_amp_ratio_min"]}
+         if GATE["leg_amp_ratio_min"] > 0 else {}),
       f"ankle_mean<={GATE['ankle_mean_nominal_max_nm']}Nm [clean]":
         _le(nom["ankle_pitch"]["mean_abs"], GATE["ankle_mean_nominal_max_nm"]),
       f"ankle_mean<={GATE['ankle_mean_worst_max_nm']}Nm [{worst}]":

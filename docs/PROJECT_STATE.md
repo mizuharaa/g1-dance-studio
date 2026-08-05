@@ -46,6 +46,24 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-08-05 (TRAINING-CHAIN AUDIT for attempt 11 — latency-DR myth found; gate now measures
+  what hardware punished): full end-to-end audit prepping tomorrow's v14 run (user asked "v13" —
+  v14 supersedes, contains v13's term; prep sheet docs/TRAINING_PREP_20260806.md). ⭐ ROOT CAUSE
+  of v12's latency cliff: the delay DR counts 5 ms PHYSICS steps — the final curriculum stage's
+  MAX_LAG=12 = 60 ms, NOT the documented "0-80 ms" — zero training margin at the robot's measured
+  40-60 ms. v14 ladder now ends 16/4 (80 ms cmd + obs). Gate upgrades (sim_gap_check): records
+  amp_ratios (achieved/ref p95 amplitude, legs+arms — the ONE metric that matched hardware:
+  v12 58%/anchor 64% on the floor) with bar G1_GATE_LEG_AMP_MIN (launcher sets 0.80), and a new
+  row survival>=95% at cmd_delay60ms. Head-to-head telemetry (same floor, same hour): anchor
+  full 55.8 s clean + STANDING handoff (no catch-step — first ever), legs 64% arms 96% lag 60 ms,
+  precarious-footing 0.8% of ticks; v12 legs 58% arms 93% lag 40 ms, 2.8% precarious → v12's
+  faster reactivity without stability margin reads as jitter; fidelity gap smaller than the eye
+  test suggested. Camera: RealSense /dev/video8 wired into every show run (720p mp4 + 2 s stills;
+  pytest guard added after a test ffmpeg squatted the device through two real runs) — NEEDS
+  physical reposition, legs out of frame. Run-death desktop notifications + in-app reason alert
+  added the same day.
+
+
 - 2026-08-05 (V12 FIRST HARDWARE RUN — 25.3 s of dance, then a FALSE guard trip; latency + style
   gap now MEASURED on hardware; anchor re-promoted as smoke-test baseline): after fixing the dead
   SDK install (editable pointed at removed ~/robot/ since the teleop move — EVERY robot run since

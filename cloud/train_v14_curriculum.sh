@@ -84,7 +84,7 @@ if S3=$(resolve s3) && [ "$(echo "$S3" | sed 's/.*model_//; s/\.pt$//')" -ge 715
   echo "  stage 3 already complete ($S3) — skipping"
 else
 read -r R2 C2 <<< "$(resolve s2)"; echo "  resume run=$R2 ckpt=$C2"; assert_iter "$C2" 4900
-G1_SLOWDOWN=1.1111 G1_CMD_DELAY_MAX_LAG=10 G1_OBS_DELAY_MAX_LAG=2 G1_DRIFT_TERM_M=0.6 \
+G1_SLOWDOWN=1.1111 G1_CMD_DELAY_MAX_LAG=12 G1_OBS_DELAY_MAX_LAG=3 G1_DRIFT_TERM_M=0.6 \
   "$PY" "$ENTRY" "$TASK" "${COMMON[@]}" --env.commands.motion.motion-file "$M090" \
     --agent.max-iterations 2250 --agent.run-name "${RUN}-s3" \
     --agent.resume True --agent.load-run "$R2" --agent.load-checkpoint "$C2"
@@ -96,7 +96,7 @@ if S4=$(resolve s4) && [ "$(echo "$S4" | sed 's/.*model_//; s/\.pt$//')" -ge 940
   echo "  stage 4 already complete ($S4) — skipping straight to verify"
 else
 read -r R3 C3 <<< "$(resolve s3)"; echo "  resume run=$R3 ckpt=$C3"; assert_iter "$C3" 7150
-G1_SLOWDOWN=1.0 G1_CMD_DELAY_MAX_LAG=12 G1_OBS_DELAY_MAX_LAG=3 G1_DRIFT_TERM_M=0.8 \
+G1_SLOWDOWN=1.0 G1_CMD_DELAY_MAX_LAG=16 G1_OBS_DELAY_MAX_LAG=4 G1_DRIFT_TERM_M=0.8 \
   "$PY" "$ENTRY" "$TASK" "${COMMON[@]}" --env.commands.motion.motion-file "$M100" \
     --agent.max-iterations 2250 --agent.run-name "${RUN}-s4" \
     --agent.resume True --agent.load-run "$R3" --agent.load-checkpoint "$C3"

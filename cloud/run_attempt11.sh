@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# Attempt 9 (v12 fidelity-motion) — LEG-FIDELITY fix on the WARM v10 box. Native tempo.
+# ATTEMPT 11 (v14: lean shaping + keypoint termination + REAL 80ms latency DR).
 #
-# v11 = v10 + a dedicated leg-tracking reward + softened stance/drift so the
-# lower body stops losing to the arms (v10 rollout: legs 43-59% vs arms 77-137%
-# of the reference amplitude in the arm-swing section — a reward asymmetry, not a
-# capability limit). See cloud/sim2real_task_v14.py header.
+# Targets = the two 2026-08-05 HARDWARE numbers (data/telemetry/20260805-*):
+#   1. leg amplitude: v12 achieved 58% / anchor 64% of commanded — gate bar
+#      G1_GATE_LEG_AMP_MIN=0.80 (sim) demands visible progress;
+#   2. latency: robot measures 40-60 ms and v12 collapsed past 60 (the old DR
+#      ladder TOPPED at 60 ms = zero margin) — final stage now trains to 80 ms
+#      and the gate bars survival at cmd_delay60 >= 95%.
+# Recipe: see cloud/sim2real_task_v14.py header. A/B arm: G1_V14_LEAN=0 keeps
+# the old shaping and tests the keypoint termination alone.
 #
 # Motion input (audit F2): the hash-bound v12 bundle built by
 # tools/build_motion_bundle.py — motions/v12_bundle/{bundle.json,final.csv,
@@ -238,6 +242,11 @@ export G1_WAIST_SRC_WINDOWS="15.5-20.5,27.5-38.5"   # +2.5s: v12 restores the in
 # name (W&B + exports); falls back to a dated default for a single run.
 export RUN_NAME=${RUN_NAME:-train-thriller_v14style-$(date +%m%d)}
 # STYLE fix (2026-07-22): commit harder to the sharper reference
+# 2026-08-05 hardware-audit gate bars: survival at the top of the REAL latency
+# band (robot measured 40-60ms) + leg amplitude (hardware: v12 58% / anchor 64%
+# — the show-quality gap no old bar saw; sim bar 0.80 demands visible progress).
+export G1_GATE_DELAY60_SURVIVAL_MIN=${G1_GATE_DELAY60_SURVIVAL_MIN:-0.95}
+export G1_GATE_LEG_AMP_MIN=${G1_GATE_LEG_AMP_MIN:-0.80}
 export G1_LEG_POS_STD=${G1_LEG_POS_STD:-0.26}
 export G1_LEG_ORI_STD=${G1_LEG_ORI_STD:-0.34}
 M060=$NB/motions/thriller_v12_060.npz \
