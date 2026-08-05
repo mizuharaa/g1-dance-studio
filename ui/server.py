@@ -725,9 +725,23 @@ def library_import(payload: dict = Body(...)) -> dict:
 def promote_dance(dance_id: str, payload: dict = Body(...)) -> dict:
     dance = _load_dance_or_404(dance_id)
     try:
-        return _dance_dict(shows.promote(dance, payload.get("status", "")))
+        dance = shows.promote(
+            dance, payload.get("status", ""),
+            force=bool(payload.get("force")),
+            reason=payload.get("reason"),
+            forced_by=payload.get("forced_by") or "operator")
     except ValueError as e:
         raise HTTPException(400, str(e))
+    # Re-render the honest sim preview for the promoted policy (background; keyed
+    # off the policy file hash so an already-current video is a no-op). Matters
+    # most for force-promotes: the Show library must show THIS policy's video,
+    # not a stale one.
+    if dance.status == "show-ready" and dance.policy_path:
+        try:
+            sim_preview.render_async(dance)
+        except Exception:  # a preview issue must never fail/undo a promotion
+            pass
+    return _dance_dict(dance)
 
 
 @app.post("/api/dances/{dance_id}/sim-runs")

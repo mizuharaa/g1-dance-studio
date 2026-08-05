@@ -145,6 +145,10 @@ class Dance:
         "consecutive_clean": 0, "total_runs": 0, "last_run_at": None,
         "history": [],  # newest first, capped
     })
+    # Set ONLY by promote(force=True): {at, by, reason, policy_sha256,
+    # sim_exam_verdict, consecutive_clean, bundle_note}. None = gated promotion.
+    # Cleared by a subsequent gated show-ready promotion.
+    promote_override: dict | None = None
 
     @property
     def dir(self) -> Path:
@@ -535,14 +539,52 @@ def _capture_show_bundle(dance: Dance) -> None:
     dance.legacy_bundle = legacy
 
 
-def promote(dance: Dance, to_status: str) -> Dance:
+def promote(dance: Dance, to_status: str, *, force: bool = False,
+            reason: str | None = None, forced_by: str | None = None) -> Dance:
     """Human-driven status promotion, with the guard rails that make
-    'show-ready' mean something."""
+    'show-ready' mean something.
+
+    force=True (operator informed-override) promotes to show-ready WITHOUT the
+    exam / repeatability / sha-pin gates. It is loud, recorded on the record
+    (`promote_override`), and requires a non-empty reason. It only changes the
+    APP status: the robot-side launch chain (resolve_bundle + gen_config's
+    signed-verdict match) still fails closed on incomplete/unverified bundles,
+    so a force-promoted dance appears in Show Mode but cannot silently reach
+    the robot without its own gates."""
     if to_status not in DANCE_STATUSES:
         raise ValueError(f"unknown status: {to_status}")
+    if force and not (reason or "").strip():
+        raise ValueError("force promote requires a non-empty reason")
     with _record_lock(DANCES_DIR / dance.id):
         dance = load_dance(dance.id)  # fresh read under lock (finding #28)
-        if to_status == "show-ready":
+        if to_status == "show-ready" and force:
+            if not dance.policy_path or not _abs(dance.policy_path).exists():
+                raise ValueError(
+                    "cannot force promote: no policy file attached — even an "
+                    "override needs something to run")
+            # pin whatever is on disk NOW so the record says exactly what was
+            # forced (deliberately NOT claiming exam provenance).
+            dance.policy_sha256 = exam_verdict.full_sha256(_abs(dance.policy_path))
+            try:
+                _capture_show_bundle(dance)
+            except ValueError as exc:
+                # incomplete bundle: keep the promotion (that is what force
+                # means) but record why launch will refuse.
+                dance.bundle_id = None
+                dance.legacy_bundle = False
+                bundle_note = f"bundle capture failed: {exc}"
+            else:
+                bundle_note = None
+            dance.promote_override = {
+                "at": time.time(),
+                "by": forced_by or "operator",
+                "reason": (reason or "").strip(),
+                "policy_sha256": dance.policy_sha256,
+                "sim_exam_verdict": (dance.sim_exam or {}).get("verdict"),
+                "consecutive_clean": dance.repeatability.get("consecutive_clean", 0),
+                "bundle_note": bundle_note,
+            }
+        elif to_status == "show-ready":
             if dance.sim_exam is None or dance.sim_exam.get("verdict") != "pass":
                 raise ValueError("cannot promote: latest sim exam has not passed")
             clean = dance.repeatability["consecutive_clean"]
@@ -562,6 +604,7 @@ def promote(dance: Dance, to_status: str) -> Dance:
                     "cannot promote: policy file changed since the passing exam "
                     "(sha mismatch) — re-run the sim exam on the current policy")
             _capture_show_bundle(dance)
+            dance.promote_override = None  # a gated promotion clears any old override
         dance.status = to_status
         dance.save()
         if to_status == "show-ready" and dance.policy_path:

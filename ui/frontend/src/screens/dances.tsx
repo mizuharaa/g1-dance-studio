@@ -76,12 +76,26 @@ function DanceDetail({ dance, data }: { dance: Dance; data: ConsoleData }) {
     onSuccess: () => { toast.success("Dance promoted to show-ready"); queryClient.invalidateQueries({ queryKey: ["dances"] }) },
     onError: (error: Error) => toast.error(error.message),
   })
+  const forcePromote = useMutation({
+    mutationFn: (reason: string) => api.send(`/api/dances/${dance.id}/promote`, "POST", { status: "show-ready", force: true, reason }),
+    onSuccess: () => { toast.success("Dance FORCE-promoted to show-ready (override recorded)"); queryClient.invalidateQueries({ queryKey: ["dances"] }) },
+    onError: (error: Error) => toast.error(error.message),
+  })
+  const onForcePromote = () => {
+    const reason = window.prompt(
+      "FORCE PROMOTE (override)\n\nThis skips the sim-exam, repeatability, and sha gates. " +
+      "The override is permanently recorded on the dance record. Robot-side launch gates still apply.\n\n" +
+      "Reason (required):")
+    if (reason && reason.trim()) forcePromote.mutate(reason.trim())
+    else if (reason !== null) toast.error("A reason is required to force promote")
+  }
   return <>
     <Card className="overflow-hidden">
       <div className="h-1 bg-gradient-to-r from-blue-600 via-blue-400 to-transparent" />
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 border-b border-border/70"><div><div className="panel-kicker"><Library /> Dance record</div><CardTitle className="mt-2 text-xl">{dance.name}</CardTitle><div className="mt-2 flex flex-wrap items-center gap-2"><StatusBadge status={dance.status} /><Badge variant="secondary">{fmtDuration(dance.duration_s)}</Badge><span className="font-mono text-[10px] text-muted-foreground">{dance.id}</span></div></div><div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setManage(true)}>Manage</Button>{dance.status === "sim-verified" && <Button onClick={() => promote.mutate()}><ShieldCheck /> Promote</Button>}</div></CardHeader>
+      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 border-b border-border/70"><div><div className="panel-kicker"><Library /> Dance record</div><CardTitle className="mt-2 text-xl">{dance.name}</CardTitle><div className="mt-2 flex flex-wrap items-center gap-2"><StatusBadge status={dance.status} /><Badge variant="secondary">{fmtDuration(dance.duration_s)}</Badge><span className="font-mono text-[10px] text-muted-foreground">{dance.id}</span></div></div><div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setManage(true)}>Manage</Button>{dance.status === "sim-verified" && <Button onClick={() => promote.mutate()}><ShieldCheck /> Promote</Button>}{dance.status !== "show-ready" && <Button variant="outline" className="border-amber-500/60 text-amber-500 hover:bg-amber-500/10" onClick={onForcePromote}><ShieldCheck /> Force promote</Button>}</div></CardHeader>
       <CardContent className="pt-5">
         {dance.incident && <InlineAlert className="mb-4" tone="danger" title="Dance demoted after incident" body={String(dance.incident.detail ?? "Review the incident record before any new promotion.")} />}
+        {dance.promote_override && <InlineAlert className="mb-4" tone="warning" title="FORCE-promoted (verification gates skipped)" body={`Reason: ${dance.promote_override.reason ?? "—"} • by ${dance.promote_override.by ?? "operator"}${dance.promote_override.bundle_note ? ` • ${dance.promote_override.bundle_note}` : ""} — robot-side launch gates still apply.`} />}
         <div className="mb-5 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(250px,.65fr)]">
           <RobotPreview url={dancePreviewUrl(dance)} title={`${dance.name} simulation preview`} duration={dance.duration_s} />
           <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-1">

@@ -95,6 +95,7 @@ export interface Dance {
   notes?: string
   policy_sha256?: string | null
   incident?: { at?: number; detail?: string; second?: number; [key: string]: unknown } | null
+  promote_override?: { at?: number; by?: string; reason?: string; policy_sha256?: string; sim_exam_verdict?: string | null; consecutive_clean?: number; bundle_note?: string | null } | null
   audio?: { track?: string; source?: string; align?: { audio_delay_s?: number; performance_s?: number }; attached_at?: number; [key: string]: unknown } | null
   repeatability?: { consecutive_clean?: number; total_runs?: number; last_run_at?: number | null; history?: Array<{ passed?: boolean; at?: number; metrics?: ExamMetrics; policy_sha256?: string }> }
   repeatability_target?: number
