@@ -46,6 +46,19 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 ## Decision log
 
+- 2026-08-05 (HoloSoma evaluated — recipe-level adoption, not migration): user flagged v12's
+  perpetual near-tipping + limited leg/horizontal motion; evaluated github.com/amazon-far/holosoma
+  (Apache-2.0, G1 29-DoF WBT, BeyondMimic-derived like ours — full findings
+  experiments/holosoma_eval_20260805.md, clone in third_party/). KEY DIFFS vs our recipe:
+  (1) full-body keypoint termination incl. FEET/wrists 0.25 m (ours never terminates leg
+  under-reach); (2) far leaner shaping (no ankle/stance terms; DR + training-time pushes
+  every 1-3 s instead); (3) FastSAC option; (4) history_length=1 deploy contract works on a
+  real dancing G1; ships pretrained G1 dancing ONNX policies (sim2sim runnable on the laptop,
+  free). PLAN: benchmark their dancing policy sim2sim -> v14 A/B = v12 minus custom shaping
+  plus keypoint termination -> optional FastSAC arm; keep our 40-80 ms latency DR (theirs is
+  weaker); NOT migrating frameworks (our video front end, vetting, app, safety runtime stay).
+
+
 - 2026-08-05 (HANDOFF after a 2-week gap): **docs/HANDOFF_20260805.md is the single
   canonical statement of current state, open problems, and immediate actions — read it
   first; details are NOT repeated here.** Summary only: attempt 9 (v12-final) = best
