@@ -165,8 +165,14 @@ def test_non_free_run_passes_exact_promoted_bundle(run_env, monkeypatch):
     cmd, env = calls[0]
 
     # none of the free-only control knobs leak onto the signed path
-    for k in ("GROUND_LEG_KP_SCALE", "EXIT_MODE", "MAX_SECS"):
+    for k in ("GROUND_LEG_KP_SCALE", "EXIT_MODE"):
         assert k not in env, f"free knob {k} leaked onto the proven default"
+    # MAX_SECS is no longer free-only (2026-08-05): every run caps at the dance's
+    # own duration+3 s — the historical 52 s default silently truncated a 55.8 s
+    # motion. For the proven 51.77 s motion the reference length still governs
+    # (cap = min(ref_ticks, MAX_SECS·50)), so behavior is unchanged.
+    if d.duration_s:
+        assert env["MAX_SECS"] == str(int(d.duration_s) + 3)
     # the arm cap is a shared default (2.2) — present on both paths
     assert env["ARM_ACTION_CAP_SCALE"] == "2.2"
     # No implicit deploy defaults: the exact promoted bundle is always explicit.

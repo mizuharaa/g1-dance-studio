@@ -1,0 +1,1 @@
+{"left_kind": "REFERENCE (intended)", "left_achieved": 1.0, "right_kind": "POLICY (hardware-uncertainty scene)", "right_achieved": 1.0091660652842458, "right_fell_at": null, "scene": {"name": "hardware-uncertainty-v1", "xml_sha256": "3b5a9f30a78e8108fd1d7d20346a319e91d8009516d1cabd038222c84d0a6932"}}
