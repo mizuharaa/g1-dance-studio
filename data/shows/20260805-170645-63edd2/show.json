@@ -1,0 +1,17 @@
+{
+  "id": "20260805-170645-63edd2",
+  "dance_id": "20260722-a8908992",
+  "dance_name": "Thriller \u2014 v12 FINAL (audit-verified, native)",
+  "operator": "a",
+  "created_at": 1785924405.1777136,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "aborted",
+    "notes": "ground-run refused: hardcoded thriller_ground dir absent; fixed \u2014 ground-run now accepts the passed estimator-free bundle (gate still enforced)",
+    "at": 1785924582.9285455
+  },
+  "closed": true,
+  "mode": "rehearsal",
+  "setlist_id": null
+}

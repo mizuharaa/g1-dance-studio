@@ -1,0 +1,3 @@
+SHOW RUN: dance=20260722-a8908992 audio=banner latency_comp=0.0s
+REFUSED: ground policy artifacts not found: /home/alois/g1-dance/data/policies/thriller_ground/policy_meta.json, /home/alois/g1-dance/data/policies/thriller_ground/policy.onnx
+The obs-restricted retrain has not landed. Do NOT substitute the gantry policy — its obs needs a state estimator and would fall on the ground. Wait for data/policies/thriller_ground/.

@@ -2032,17 +2032,29 @@ def main():
     if a.mode == "stand-hold":
         return mode_stand_hold(Meta(Path(a.meta)), a.iface, a.i_will_watch_the_robot, a.secs) or 0
 
-    # ground-run uses the ESTIMATOR-FREE ground policy. Fail-safe if it isn't there yet.
+    # ground-run uses an ESTIMATOR-FREE policy. Historically only the dedicated
+    # data/policies/thriller_ground/ dir; since 2026-08-05 an explicitly passed
+    # bundle (--policy/--meta/--motion-npz, e.g. the show flow's resolved show
+    # bundle) is accepted as the fallback. SAFE: _ground_obs_order below still
+    # HARD-REFUSES any meta whose actor needs an estimator term — the exact
+    # danger (substituting the estimator-dependent gantry policy) that the
+    # dedicated-dir rule existed to prevent. v12+ history-stacked estimator-free
+    # bundles pass that gate; the old gantry family still refuses.
     if a.mode == "ground-run":
         gm, gp = Path(a.ground_meta), Path(a.ground_policy)
         gmot = Path(a.ground_motion)
+        if not (gm.exists() and gp.exists()):
+            gm, gp, gmot = Path(a.meta), Path(a.policy), Path(a.motion_npz)
+            print(f"[ground-run] dedicated ground dir absent — using the passed "
+                  f"bundle ({gp.name}); estimator-free gate still applies")
         missing = [str(p) for p in (gm, gp) if not p.exists()]
         if missing:
             raise SystemExit(
                 "REFUSED: ground policy artifacts not found: " + ", ".join(missing) +
-                "\nThe obs-restricted retrain has not landed. Do NOT substitute the "
-                "gantry policy — its obs needs a state estimator and would fall on the "
-                "ground. Wait for data/policies/thriller_ground/.")
+                "\nPass an estimator-free bundle via --policy/--meta/--motion-npz "
+                "or provide data/policies/thriller_ground/. Do NOT substitute the "
+                "gantry policy — its obs needs a state estimator and would fall on "
+                "the ground.")
         if not gmot.exists():   # motion may be shared with the gantry export
             gmot = Path(a.motion_npz)
         gsession = _load_validated_session(gm, gp, gmot, a.mode)
