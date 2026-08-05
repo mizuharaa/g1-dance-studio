@@ -1,0 +1,18 @@
+SHOW RUN: dance=20260722-a8908992 audio=banner latency_comp=0.0s
+[ground-run] dedicated ground dir absent — using the passed bundle (policy.onnx); estimator-free gate still applies
+REFUSED --exit stand: motion final frame is NOT a standing pose — joint 'left_elbow_joint' sits 39.0 deg (0.680 rad > 0.15 rad) from default. Handing off from a non-standing pose could topple the robot -> FALLING BACK to --exit damp (proven ramp-to-damping).
+[ground-run] human-confirmed. Damping is your remote's job if anything looks wrong.
+Traceback (most recent call last):
+  File "/home/alois/miniconda3/envs/tv/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/alois/miniconda3/envs/tv/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/home/alois/g1-dance/pipeline/deploy_runtime.py", line 2095, in <module>
+    sys.exit(main() or 0)
+  File "/home/alois/g1-dance/pipeline/deploy_runtime.py", line 2066, in main
+    return mode_ground_run(gmeta, gsession, gref, a.iface, a.i_will_watch_the_robot,
+  File "/home/alois/g1-dance/pipeline/deploy_runtime.py", line 1576, in mode_ground_run
+    make_dds(iface)
+  File "/home/alois/g1-dance/pipeline/deploy_runtime.py", line 675, in make_dds
+    from unitree_sdk2py.core.channel import ChannelFactoryInitialize
+ModuleNotFoundError: No module named 'unitree_sdk2py'

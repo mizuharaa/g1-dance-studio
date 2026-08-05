@@ -1,0 +1,17 @@
+{
+  "id": "20260805-171413-4dda07",
+  "dance_id": "20260722-a8908992",
+  "dance_name": "Thriller \u2014 v12 FINAL (audit-verified, native)",
+  "operator": "alois",
+  "created_at": 1785924853.1974096,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "aborted",
+    "notes": "",
+    "at": 1785924905.4143734
+  },
+  "closed": true,
+  "mode": "rehearsal",
+  "setlist_id": null
+}

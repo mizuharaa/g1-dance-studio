@@ -64,7 +64,27 @@ DEFAULT_POLICY = ROOT / "data/policies/thriller/policy.onnx"
 # with ROBOT_IFACE (env) or --iface for a WIRELESS show — but note real-time control over wifi
 # risks jitter/dropout on the 50 Hz balance loop (the read_state comms-loss deadman damps on a
 # stale read; validate wifi latency/jitter first — see docs/WIRELESS_SHOW.md).
-IFACE = os.environ.get("ROBOT_IFACE", "enp0s31f6")
+def _detect_robot_iface() -> str:
+    """NIC bearing the robot LAN (192.168.123.x). ROBOT_IFACE env wins; else scan
+    live interfaces (2026-08-05: cable moved to a USB NIC, the old enp0s31f6
+    default silently bound DDS to a dead port -> 'no LowState' NO-GO); else the
+    historical default."""
+    envif = os.environ.get("ROBOT_IFACE")
+    if envif:
+        return envif
+    try:
+        import subprocess
+        out = subprocess.run(["ip", "-4", "-o", "addr"], capture_output=True,
+                             text=True, timeout=3).stdout
+        for line in out.splitlines():
+            if " 192.168.123." in line:
+                return line.split()[1]
+    except Exception:
+        pass
+    return "enp0s31f6"
+
+
+IFACE = _detect_robot_iface()
 TORSO_NPZ_IDX = 15          # torso_link: mjlab body 16 minus the dropped world body
 CONTROL_HZ = 50.0
 # Firm approach gains for reaching the ready pose (verified on hardware 2026-07-05):

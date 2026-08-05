@@ -1,0 +1,17 @@
+{
+  "id": "20260805-171524-50c485",
+  "dance_id": "20260722-a8908992",
+  "dance_name": "Thriller \u2014 v12 FINAL (audit-verified, native)",
+  "operator": "alois",
+  "created_at": 1785924924.3705552,
+  "steps": {},
+  "deploy": null,
+  "outcome": {
+    "result": "aborted",
+    "notes": "crashed at make_dds: unitree_sdk2py editable install pointed at dead ~/robot path since the teleop folder move; SDK reinstalled + iface autodetect added; full offline audit green",
+    "at": 1785925149.128997
+  },
+  "closed": true,
+  "mode": "rehearsal",
+  "setlist_id": null
+}
