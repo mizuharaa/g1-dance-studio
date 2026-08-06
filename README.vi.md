@@ -118,7 +118,7 @@ Unitree **G1 EDU Ultimate** — 29 DoF điều khiển được, bàn tay khéo 
 pin ~48 V (13S), Jetson Orin trên thân. Giới hạn mô-men khớp 5–139 Nm; cổ chân
 (~40 Nm khả dụng, giảm theo tốc độ) là nút thắt của vũ đạo động.
 
-> ⚠️ **Robot này không có nút dừng khẩn cắt mô-men phần cứng.** Chỉ có nút B-damp
+> **CẢNH BÁO: robot này không có nút dừng khẩn cắt mô-men phần cứng.** Chỉ có nút B-damp
 > trên remote và công tắc nguồn. Mọi lần triển khai đều cần policy đã kiểm chứng
 > mô phỏng, xác nhận gõ phím, và người thật cầm remote đứng cạnh.
 > Xem [`docs/DEPLOY_SAFETY_GUARDS.md`](docs/DEPLOY_SAFETY_GUARDS.md).
@@ -127,9 +127,9 @@ pin ~48 V (13S), Jetson Orin trên thân. Giới hạn mô-men khớp 5–139 Nm
 
 | Hạng mục | Trạng thái |
 |---|---|
-| Video → trích xuất chuyển động | ✅ Chạy trọn vẹn |
-| Khả thi & sửa chuyển động | ✅ Cổng động lực học ngược + giảm cấp có kiểm soát |
-| Bảng điều khiển vận hành | ✅ Show mode, preview, audit, rollback |
+| Video → trích xuất chuyển động | [verified] Chạy trọn vẹn |
+| Khả thi & sửa chuyển động | [verified] Cổng động lực học ngược + giảm cấp có kiểm soát |
+| Bảng điều khiển vận hành | [verified] Show mode, preview, audit, rollback |
 | Bộ điều khiển RL | 🔄 Đang huấn luyện v8 (obs thầy–trò, hip-strategy, motion 1.8×) |
 | Hiệu chuẩn cổng với dữ liệu robot thật | 🔄 Đang thực hiện |
 | Phần cứng | 🛠 Đang sửa (RMA bộ chuyển đổi DC-DC) |

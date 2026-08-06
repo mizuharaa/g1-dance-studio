@@ -48,7 +48,7 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 
 - 2026-08-05 (TRAINING-CHAIN AUDIT for attempt 11 — latency-DR myth found; gate now measures
   what hardware punished): full end-to-end audit prepping tomorrow's v14 run (user asked "v13" —
-  v14 supersedes, contains v13's term; prep sheet docs/TRAINING_PREP_20260806.md). ⭐ ROOT CAUSE
+  v14 supersedes, contains v13's term; prep sheet docs/TRAINING_PREP_20260806.md). ROOT CAUSE
   of v12's latency cliff: the delay DR counts 5 ms PHYSICS steps — the final curriculum stage's
   MAX_LAG=12 = 60 ms, NOT the documented "0-80 ms" — zero training margin at the robot's measured
   40-60 ms. v14 ladder now ends 16/4 (80 ms cmd + obs). Gate upgrades (sim_gap_check): records
@@ -134,7 +134,7 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   legs, taxed arms) → realistic decoupled table. **(4) eval comparability** (didn't corrupt training
   but made cross-version verdicts meaningless) — J: gate bars now recorded in gap.json; K: drift
   banner compared max_m vs episode_p95; L: heldout certified only the first 20 s of a ~50 s dance.
-  ⭐ NET: the v8/v10/v11 ankle "safety" recipe was largely inert/inverted; the preview the user
+  NET: the v8/v10/v11 ankle "safety" recipe was largely inert/inverted; the preview the user
   judged by was a broken witness (stale motion + 90° rotation); the training reference was pre-blunted.
   NEXT RUN validates F/G/H/I (need GPU) + E's box layout assert; runs on the v12 motion. Watchlist
   (12 PLAUSIBLE, immaterial) in experiments/ml_audit_20260721/PLAUSIBLE.md — fix only if symptom
@@ -147,7 +147,7 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   last ckpt, unlike v7/v9/v10). Two box gates caught real bugs pre-spend (stance env-ordering +
   __main__ not delegating to mjlab train). **Results vs v10/v8:** native 49.5s; nominal survival
   **98.4%** (v10 85.2%, v8 99.2% — closed most of the gap v10 opened); rr_mpkpe **0.056 (BEST
-  ever)**; ankle p95 21.5 (PASS ≤22). ⭐ **LEG REACH FIXED** (the user's core complaint): 10-25s
+  ever)**; ankle p95 21.5 (PASS ≤22). **LEG REACH FIXED** (the user's core complaint): 10-25s
   arm-swing window knees **75-84%** of reference (v10 49-59%), hips 57-91% (v10 43-80%), arms
   ~81-85% — the dedicated motion_leg_pos/ori term + softened stance (-0.2) worked. Drift: clean
   deterministic rollout **0.31 m/26s (BETTER than v10's 0.56)**; gate mean 0.68 m, episode-max
@@ -269,7 +269,7 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   11000 collapsed to 45% — late-stage-3 instability is now a PATTERN: v7 and v9 both diverged late,
   v8 didn't; consider stopping s3 at ~9.5k). Gate: nominal 89.8% (v8 99.2%), drift 3.26 (v8 4.31 —
   better), ankle p95 20.96 (v8 20.4 — SAME), 40ms+push 43.0% (v8 59.4%; anchor deployed-quality bar
-  34.4%). Heldout 96.5/82.4. ⭐ KEY SCIENCE: ankle p95 unchanged despite the motion's ankle demand
+  34.4%). Heldout 96.5/82.4. KEY SCIENCE: ankle p95 unchanged despite the motion's ankle demand
   dropping 67.8→34 Nm ⇒ the ~21 Nm residual is STABILIZATION effort (lean corrections/chatter), not
   choreography — further slowdown won't reduce it; the ankle gate bar (≤15) may need revisiting
   against what stabilization physically costs. v9 dances 49% of the dance at NATIVE speed (75.3s vs
@@ -303,7 +303,7 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
 - 2026-07-17 (later): **V8 RE-VERIFY + FIRST GATE CALIBRATION DONE — box ready to DELETE.**
   Winner iter 10000 (6 screened; picker worked). Absolute gate FAIL / calibrated read = BEST POLICY
   YET: nominal survival **99.2% (first-ever ≥99% PASS)**, rr_mpkpe **0.059 (best)**, heldout 99.6/96.5;
-  FAILS drift (4.31 m) + ankle p95 (20.4) + 40ms+push (59.4% vs bar 95%). ⭐ CALIBRATION (Agent A,
+  FAILS drift (4.31 m) + ankle p95 (20.4) + 40ms+push (59.4% vs bar 95%). CALIBRATION (Agent A,
   via new --onnx gate mode): the ~70%-IRL anchor REPRODUCES its 07-08 numbers exactly (surv 100%,
   mpkpe 0.154, ankle p95 10.56) → **gate NOT hallucinated**; BUT anchor scores only 37.5% @40ms /
   **34.4% @40ms+push** → the latency bars are far stricter than deployed reality; v8 is 1.7× more
@@ -382,7 +382,7 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   repaired+grounded motion, then GPU wave (A calibration + F train).
 
 - 2026-07-16: **AGENT 0 (upstream audit) DONE — found a ROOT-CAUSE architecture defect**
-  (experiments/upstream_alignment_report.md). ⭐ **THE actor observation contract is likely WRONG:**
+  (experiments/upstream_alignment_report.md). **THE actor observation contract is likely WRONG:**
   Unitree's current first-party upstream task is `Unitree-G1-Tracking-No-State-Estimation`, whose
   actor obs DELIBERATELY DROPS `base_lin_vel` and `motion_anchor_pos_b` — those are **privileged
   CRITIC-ONLY terms** (asymmetric actor-critic; cross-checked in unitree_rl_lab's PolicyCfg vs
@@ -429,7 +429,7 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   `dance.policy_sha256`, which `attach_policy()` deliberately clears → EVERY retrain collapsed to one
   `nopolicy.mp4` that `render_async` saw as already-present and never re-rendered. Now hashes the
   actual `policy.onnx` file (distinct per policy). (2) Simulation tab: bigger players, 3-view toggle,
-  clear "left=intended / right=actual" labels. (3) ⭐ NEW same-scene color-coded OVERLAY
+  clear "left=intended / right=actual" labels. (3) NEW same-scene color-coded OVERLAY
   (`tools/sim_studio.py render_overlay()` + `--overlay-out/--model`): reference=green ghost,
   policy=blue, one mujoco scene, caveat banner, model path parameterized for the mjlab swap —
   VERIFIED by an independent overlay smoke render (green+blue figures overlaid). (4) Landmark preview

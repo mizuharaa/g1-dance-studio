@@ -31,12 +31,12 @@ v5–v7 wiring), leaving the order below. This is **byte-for-byte** `GROUND_OBS_
 
 | # | term | dims | units | frame | TRAIN source | DEPLOY source | MATCH |
 |---|---|---|---|---|---|---|---|
-| 1 | command | 58 | rad + rad/s | ref joint space (abs) | `mdp.generated_commands("motion")` = `MotionCommand.command` = cat(joint_pos[29], joint_vel[29]) of the motion npz at `time_steps` | `np.concatenate([ref_jp, ref_jv])` from `Reference.at(tick)` (npz `joint_pos`,`joint_vel`) | ✅ |
-| 2 | motion_anchor_ori_b | 6 | dimensionless (2 cols of R) | **torso_link** (anchor body) rel. to robot | `mdp.motion_anchor_ori_b` = first 2 cols of `R_robotTorsoᵀ·R_refTorso` | `mat_first_two_cols_b(ref_aquat, anchor_q)`; `anchor_q` = pelvis IMU quat ∘ waist-joint FK (→ torso); `ref_aquat` = npz torso quat, yaw-aligned | ✅ |
-| 3 | base_ang_vel | 3 | rad/s | **pelvis** (imu_in_pelvis gyro) | `mdp.builtin_sensor("robot/imu_ang_vel")` — gyro at the pelvis IMU site | raw `msg.imu_state.gyroscope` (physical pelvis IMU) | ✅ |
-| 4 | joint_pos | 29 | rad | joint space, **rel. to default** | `mdp.joint_pos_rel` (q − default) | `q − meta.default` | ✅ |
-| 5 | joint_vel | 29 | rad/s | joint space | `mdp.joint_vel_rel` (default vel = 0 → = dq) | `dq` | ✅ |
-| 6 | actions | 29 | unitless policy action (t−1) | — | `mdp.last_action` | `last_action` (prev tick; init 0) | ✅ |
+| 1 | command | 58 | rad + rad/s | ref joint space (abs) | `mdp.generated_commands("motion")` = `MotionCommand.command` = cat(joint_pos[29], joint_vel[29]) of the motion npz at `time_steps` | `np.concatenate([ref_jp, ref_jv])` from `Reference.at(tick)` (npz `joint_pos`,`joint_vel`) | [verified] |
+| 2 | motion_anchor_ori_b | 6 | dimensionless (2 cols of R) | **torso_link** (anchor body) rel. to robot | `mdp.motion_anchor_ori_b` = first 2 cols of `R_robotTorsoᵀ·R_refTorso` | `mat_first_two_cols_b(ref_aquat, anchor_q)`; `anchor_q` = pelvis IMU quat ∘ waist-joint FK (→ torso); `ref_aquat` = npz torso quat, yaw-aligned | [verified] |
+| 3 | base_ang_vel | 3 | rad/s | **pelvis** (imu_in_pelvis gyro) | `mdp.builtin_sensor("robot/imu_ang_vel")` — gyro at the pelvis IMU site | raw `msg.imu_state.gyroscope` (physical pelvis IMU) | [verified] |
+| 4 | joint_pos | 29 | rad | joint space, **rel. to default** | `mdp.joint_pos_rel` (q − default) | `q − meta.default` | [verified] |
+| 5 | joint_vel | 29 | rad/s | joint space | `mdp.joint_vel_rel` (default vel = 0 → = dq) | `dq` | [verified] |
+| 6 | actions | 29 | unitless policy action (t−1) | — | `mdp.last_action` | `last_action` (prev tick; init 0) | [verified] |
 
 **Joint order (all 29 terms that are joint-indexed):** `meta.joint_order_29dof` = the standard G1 order
 (L-leg 0–5, R-leg 6–11, waist 12–14, L-arm 15–21, R-arm 22–28). Deploy reads `motor_state[0..28]` **positionally**
@@ -80,10 +80,10 @@ running mean/var ARE exported with the policy.** (This is why deploy correctly a
 
 | aspect | TRAIN | DEPLOY | MATCH |
 |---|---|---|---|
-| control rate | sim_dt 0.005 × decimation 4 = **50 Hz** | `CONTROL_HZ`=50, absolute-deadline clock, 2·dt watchdog | ✅ |
-| `actions` term | `last_action` = action applied at t−1 | `last_action`, updated AFTER `run_policy` each tick (init 0) | ✅ |
-| reference phase | `MotionCommand.time_steps` starts 0, +1 per control step | `ref.at(tick)`, tick 0..N, +1 per loop; `time_step` also fed to ONNX for the baked motion tensors | ✅ by construction (see R5) |
-| training latency DR | cmd-bus delay 0–80 ms + obs delay 0–80 ms on measured terms (base `_apply_sim2real`); play/export = no delay | real actuation+leg-odom latency 40–80 ms (measured) is inside the trained band | ✅ (DR covers deploy latency) |
+| control rate | sim_dt 0.005 × decimation 4 = **50 Hz** | `CONTROL_HZ`=50, absolute-deadline clock, 2·dt watchdog | [verified] |
+| `actions` term | `last_action` = action applied at t−1 | `last_action`, updated AFTER `run_policy` each tick (init 0) | [verified] |
+| reference phase | `MotionCommand.time_steps` starts 0, +1 per control step | `ref.at(tick)`, tick 0..N, +1 per loop; `time_step` also fed to ONNX for the baked motion tensors | [verified] by construction (see R5) |
+| training latency DR | cmd-bus delay 0–80 ms + obs delay 0–80 ms on measured terms (base `_apply_sim2real`); play/export = no delay | real actuation+leg-odom latency 40–80 ms (measured) is inside the trained band | [verified] (DR covers deploy latency) |
 
 ---
 

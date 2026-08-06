@@ -48,7 +48,7 @@ File: `/ws/src/motion_tracking_controller/config/g1/controllers.yaml`
   `default_joint_pos −0.312/0.669/−0.363…`, per-joint `action_scale`, `anchor_body_name torso_link`,
   correct obs order + joint/body names. So **do NOT edit the yaml gains** — they aren't used for
   walking_controller and editing standby's would be wrong.
-- ⚠️ **Residual unknown (cross-check at launch, below)**: the code that *applies* metadata gains to
+- **Residual unknown (cross-check at launch, below)**: the code that *applies* metadata gains to
   the motors lives in the **compiled** `RlController.cpp` (only headers ship in `/opt/ros`), so
   "on_activate pushes metadata kp/kd to the actuators" is a strong inference, NOT source-verified.
   The startup-log check in §3 is the mandatory cross-check before any feet-down activation.

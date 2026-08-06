@@ -58,7 +58,7 @@ Stages (the script drives them; ~10k iters total, resuming each stage):
 2. **0–50 ms**, +3000 iters (resume s1).
 3. **0–60 ms**, +3000 iters (resume s2). *60, not 80 — sim PD already models mechanical lag.*
 
-> ⚠️ **UNVERIFIED on this mjlab version:** the resume flag names
+> **UNVERIFIED on this mjlab version:** the resume flag names
 > (`--agent.resume/--agent.load-run`). Before stage 2 runs, confirm:
 > `$PY $NB/cloud/train_sim2real_v5.py <TASK> --help | grep -i resume`. If they differ, the
 > curriculum silently restarts from scratch — check each stage resumed (reward continues, not resets).

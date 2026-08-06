@@ -146,7 +146,7 @@ Unitree **G1 EDU Ultimate** — 29 controllable DoF plus Inspire FTP dexterous h
 ankles (~40 Nm usable, speed-derated) are the binding constraint for dynamic
 choreography and drive most of the engineering in `pipeline/motion_dynamics.py`.
 
-> ⚠️ **This robot has no torque-cutting hardware e-stop.** The only hard stops are
+> **WARNING: this robot has no torque-cutting hardware e-stop.** The only hard stops are
 > the remote's B-damp and the power switch. Every deploy requires a sim-verified
 > policy, a typed confirmation, and a human physically present with the damping
 > remote. See [`docs/DEPLOY_SAFETY_GUARDS.md`](docs/DEPLOY_SAFETY_GUARDS.md).
@@ -155,9 +155,9 @@ choreography and drive most of the engineering in `pipeline/motion_dynamics.py`.
 
 | Track | State |
 |---|---|
-| Video → motion extraction | ✅ Working end to end |
-| Motion feasibility & repair | ✅ Inverse-dynamics gate + graceful degradation |
-| Operator console | ✅ Show mode, previews, audit, rollback |
+| Video → motion extraction | [verified] Working end to end |
+| Motion feasibility & repair | [verified] Inverse-dynamics gate + graceful degradation |
+| Operator console | [verified] Show mode, previews, audit, rollback |
 | RL controller | 🔄 v8 training (teacher–student obs, hip-strategy shaping, 1.8× feasible motion) |
 | Gate calibration vs. real-robot data | 🔄 In progress |
 | Hardware | 🛠 Down for repair (DC-DC converter RMA); deploy work staged |
