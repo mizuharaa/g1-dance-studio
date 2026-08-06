@@ -14,7 +14,7 @@
 
 [English](README.md) · Tiếng Việt
 
-<img src="docs/assets/dance_preview.gif" alt="Vũ đạo mẫu (trái) và policy đã huấn luyện trong mô phỏng vật lý (phải)" width="720"/>
+<img src="docs/assets/hero_sync_v2.gif" alt="Vũ đạo mẫu (trái) và policy đã huấn luyện trong mô phỏng vật lý (phải)" width="720"/>
 
 *Trái: vũ đạo mong muốn. Phải: policy đã huấn luyện — một mạng nơ-ron thật đang giữ
 thăng bằng 29 khớp ở tần số 50 Hz trong mô phỏng vật lý, dựng trên đúng mô hình robot

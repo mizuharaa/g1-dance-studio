@@ -15,7 +15,7 @@
 
 English · [Tiếng Việt](README.vi.md)
 
-<img src="docs/assets/dance_preview.gif" alt="Source performance with extracted pose landmarks (left) vs. the trained policy dancing in physics simulation (right)" width="720"/>
+<img src="docs/assets/hero_sync_v2.gif" alt="Source performance with extracted pose landmarks (left) vs. the trained policy dancing in physics simulation (right)" width="720"/>
 
 *Left: the source performance with GVHMR pose landmarks extracted — the pipeline's
 input. Right: the trained policy — a real neural network balancing 29 joints at
