@@ -53,7 +53,7 @@
    Volume g1dance-data if it still exists; else fresh volume).
 2. Push (laptop):
    `scp -P <PORT> -i .secrets/greennode_rsa cloud/*.py cloud/*.sh root@<IP>:/workspace/notebook-data/cloud/`
-   `scp -P <PORT> -i .secrets/greennode_rsa -r data/motions/thriller/v12_bundle root@<IP>:/workspace/notebook-data/motions/`
+   `scp -P <PORT> -i .secrets/greennode_rsa -r data/motions/thriller/v14_bundle root@<IP>:/workspace/notebook-data/motions/`
 3. On the box: `cd /workspace/notebook-data && nohup bash cloud/run_attempt11.sh > attempt11.out 2>&1 &`
    (selfcheck + 64-env smoke run BEFORE the spend; bundle manifest verified first.)
 4. Optional second box / second run: `G1_V14_LEAN=0` = keypoint-termination-only arm.
