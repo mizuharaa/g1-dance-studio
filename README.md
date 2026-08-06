@@ -15,11 +15,11 @@
 
 English · [Tiếng Việt](README.vi.md)
 
-<img src="docs/assets/dance_preview.gif" alt="Reference choreography (left) vs. the trained policy in physics simulation (right)" width="720"/>
+<img src="docs/assets/dance_preview.gif" alt="Source performance with extracted pose landmarks (left) vs. the trained policy dancing in physics simulation (right)" width="720"/>
 
-*Left: the intended choreography. Right: the trained policy — a real neural network
-balancing 29 joints at 50 Hz in physics simulation, rendered on the same robot model
-it was trained on.*
+*Left: the source performance with GVHMR pose landmarks extracted — the pipeline's
+input. Right: the trained policy — a real neural network balancing 29 joints at
+50 Hz in physics simulation — performing the same choreography.*
 
 </div>
 

@@ -99,7 +99,7 @@ Motion vetting gate enforces ≤1.5 m root excursion (2 m-radius dance area).
   weaker); NOT migrating frameworks (our video front end, vetting, app, safety runtime stay).
 
 
-- 2026-08-05 (HANDOFF after a 2-week gap): **docs/HANDOFF_20260805.md is the single
+- 2026-08-05 (HANDOFF after a 2-week gap): **docs/archive/HANDOFF_20260805.md is the single
   canonical statement of current state, open problems, and immediate actions — read it
   first; details are NOT repeated here.** Summary only: attempt 9 (v12-final) = best
   result of the project (8/9 harness-v2 gate PASS; v2 numbers not comparable to v5–v11);

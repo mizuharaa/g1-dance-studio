@@ -516,7 +516,7 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 ## 2026-08-05 — CLOSED: user confirms all notebook instances deleted long ago
 - No runaway billing. v13 (attempt 10) artifacts LOST with box 40711 — re-run via
   recipe ffcf6d2 when wanted. Remaining check: g1dance-data Network Volume (bills
-  separately while it exists). Details: docs/HANDOFF_20260805.md (canonical).
+  separately while it exists). Details: docs/archive/HANDOFF_20260805.md (canonical).
 
 ## 2026-08-06 — ATTEMPT 11 (v14) — box nb-108ca2bd, 103.245.250.152:54299
 - Fresh box (RTX 4090). Provisioning started ~03:23 UTC; auto-launch of

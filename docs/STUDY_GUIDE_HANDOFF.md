@@ -15,7 +15,7 @@ on. Prefers concrete-first explanations, then formalism.
 
 **Repo:** `github.com/mizuharaa/g1-dance-studio` — every file cited below exists.
 Read `docs/PROJECT_STATE.md` (decision log, reverse-chronological) and
-`docs/FIELD_GUIDE.txt` for narrative; `docs/HANDOFF_20260805.md` for recent state.
+`docs/FIELD_GUIDE.txt` for narrative; `docs/archive/HANDOFF_20260805.md` for recent state.
 
 ---
 
