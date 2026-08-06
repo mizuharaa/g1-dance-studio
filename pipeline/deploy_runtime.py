@@ -1601,6 +1601,19 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
     sub = lowstate_subscriber()
     q0, _, quat0, _, msg0 = read_state(sub)
     mode_machine = int(msg0.mode_machine)
+    # Gyro-bias calibration (2026-08-06, ecosystem finding: IMU bias drives slow
+    # sway/drift in estimator-free stacks). The robot is STANDING STILL here, so
+    # 1 s of samples gives the bias directly; subtracted from base_ang_vel in
+    # the loop. GYRO_BIAS_CAL=0 disables.
+    _gyro_bias = np.zeros(3)
+    if os.environ.get("GYRO_BIAS_CAL", "1") == "1":
+        _samples = []
+        for _ in range(50):
+            _, _, _, g50, _ = read_state(sub, timeout_s=0.5)
+            _samples.append(g50)
+        _gyro_bias = np.mean(_samples, axis=0)
+        print(f"   gyro bias calibrated (1s stand): {np.round(_gyro_bias, 4)} rad/s "
+              f"(|b|={np.linalg.norm(_gyro_bias):.4f}) — subtracted from base_ang_vel")
     _check_start_upright(quat0)   # refuse a non-upright start BEFORE releasing onboard (stays safe)
     _check_start_near_default(q0, meta)  # refuse a far-from-ready start (entry-fall guard, pre-release)
     _check_stable_contact(sub, meta)  # guards 1&2: refuse to release if SUSPENDED (ground-contact policy)
@@ -1684,7 +1697,8 @@ def mode_ground_run(meta, session, ref, iface, watch, max_secs, obs_order, exit_
                           f"{CONTACT_LOST_HARD_S:.1f}s sustained loss.")
             else:
                 _lost_run = 0
-            _single, _terms = build_obs_ground(meta, ref, q, dq, imu_quat, gyro,
+            _single, _terms = build_obs_ground(meta, ref, q, dq, imu_quat,
+                                               gyro - _gyro_bias,
                                                last_action, tick, obs_order)
             obs = _stacker.push(_terms)   # history-stack to the ONNX width (fix E)
             if not np.all(np.isfinite(obs)):

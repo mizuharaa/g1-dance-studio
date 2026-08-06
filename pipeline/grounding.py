@@ -376,3 +376,140 @@ def ground_motion_per_frame(
 
 def have_model() -> bool:
     return MODEL_XML.exists()
+
+
+# ---- stance foot-angle flattening (2026-08-06) -----------------------------------
+# Ecosystem-confirmed retarget defect (GMR/holosoma issues; measured HERE on the
+# v12 bundle: stance sole tilt median L 12 / R 24 deg, p90 40-52): GVHMR ankle
+# noise + GMR's missing foot-orientation objective leave the reference feet
+# TILTED while planted. A robot cannot track a 24-deg-tilted planted foot — the
+# policy either stands on sole edges (chatter/micro-steps) or gives up on leg
+# tracking (the measured 58-64% leg amplitude). Grounding fixed HEIGHT only;
+# this pass fixes ANGLE, stance frames only, swing/flight untouched.
+
+FLATTEN_TOL_DEG = 2.0          # leave tilts below this alone (real toe articulation)
+FLATTEN_MAX_CORR_DEG = 55.0    # never rotate an ankle further than this
+FLATTEN_STANCE_BAND_M = 0.03   # sole within this of the floor = stance candidate
+FLATTEN_BLEND_S = 0.15         # smooth correction on/off over this window
+
+
+def flatten_stance_feet(motion: np.ndarray, model=None, fps: float = 30.0):
+    """Level the sole during STANCE by adjusting ankle pitch/roll joint targets.
+
+    Per foot, per frame: stance = sole within FLATTEN_STANCE_BAND_M of the floor
+    AND vertical speed < SUPPORT_VMAX_MPS (same gates as grounding support).
+    For stance frames, a 2x2 finite-difference Jacobian in (ankle_pitch,
+    ankle_roll) drives the sole-up vector to world-up (3 Gauss-Newton steps,
+    per-step clamp, joint-limit clamp). The correction time-series is smoothed
+    over FLATTEN_BLEND_S so entries/exits cannot inject velocity spikes.
+    Returns (corrected_copy, info) with pre/post stance-tilt stats."""
+    model = model or _model()
+    import mujoco
+    data = mujoco.MjData(model)
+    out = motion.copy()
+    n = len(out)
+    dt = 1.0 / fps
+
+    feet = {
+        "left": ("left_ankle_roll_link", "left_ankle_pitch_joint", "left_ankle_roll_joint"),
+        "right": ("right_ankle_roll_link", "right_ankle_pitch_joint", "right_ankle_roll_joint"),
+    }
+    jadr = {}
+    jrange = {}
+    bids = {}
+    for side, (body, jp, jr) in feet.items():
+        bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, body)
+        jpid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, jp)
+        jrid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, jr)
+        bids[side] = bid
+        jadr[side] = (int(model.jnt_qposadr[jpid]), int(model.jnt_qposadr[jrid]))
+        jrange[side] = (model.jnt_range[jpid].copy(), model.jnt_range[jrid].copy())
+
+    # flat-sole reference direction in the ankle-link frame, calibrated from the
+    # MOTION'S OWN first frame — deploy motions start in the standby stand with
+    # feet flat (the model's all-zero pose is NOT flat-footed for this MJCF;
+    # measured 2026-08-06: zero-pose calibration read ~98 deg baseline).
+    data.qpos[:] = motion[0]
+    mujoco.mj_forward(model, data)
+    up_local = {s: data.xmat[b].reshape(3, 3).T @ np.array([0.0, 0.0, 1.0])
+                for s, b in bids.items()}
+
+    def _fk(row):
+        data.qpos[:] = row
+        mujoco.mj_forward(model, data)
+
+    def _tilt_and_axes(row, side):
+        _fk(row)
+        u = data.xmat[bids[side]].reshape(3, 3) @ up_local[side]
+        return u  # world components of the sole-up vector
+
+    lowest, soles = _fk_heights(motion, model)
+    floor = float(np.percentile(soles.min(axis=1), 5))
+    v = (np.gradient(soles, dt, axis=0) if n >= 2 else np.zeros_like(soles))
+    side_col = {"left": 0, "right": 1}
+
+    corr = {s: np.zeros((n, 2)) for s in feet}
+    pre_tilt = {s: [] for s in feet}
+    post_tilt = {s: [] for s in feet}
+    for s in feet:
+        col = side_col[s]
+        (a_p, a_r) = jadr[s]
+        (rng_p, rng_r) = jrange[s]
+        stance = ((soles[:, col] < floor + FLATTEN_STANCE_BAND_M)
+                  & (np.abs(v[:, col]) < SUPPORT_VMAX_MPS))
+        for i in np.where(stance)[0]:
+            row = out[i].copy()
+            u = _tilt_and_axes(row, s)
+            tilt0 = np.degrees(np.arccos(np.clip(u[2], -1, 1)))
+            pre_tilt[s].append(tilt0)
+            if tilt0 <= FLATTEN_TOL_DEG:
+                post_tilt[s].append(tilt0)
+                continue
+            total = np.zeros(2)
+            for _ in range(3):
+                u = _tilt_and_axes(row, s)
+                exy = u[:2]
+                if np.linalg.norm(exy) < np.sin(np.radians(FLATTEN_TOL_DEG)):
+                    break
+                J = np.zeros((2, 2))
+                eps = 1e-3
+                for k, adr in enumerate((a_p, a_r)):
+                    r2 = row.copy()
+                    r2[adr] += eps
+                    J[:, k] = (_tilt_and_axes(r2, s)[:2] - exy) / eps
+                try:
+                    step = np.linalg.lstsq(J, -exy, rcond=None)[0]
+                except np.linalg.LinAlgError:
+                    break
+                step = np.clip(step, -np.radians(15), np.radians(15))
+                total = np.clip(total + step, -np.radians(FLATTEN_MAX_CORR_DEG),
+                                np.radians(FLATTEN_MAX_CORR_DEG))
+                row[a_p] = np.clip(out[i][a_p] + total[0], rng_p[0], rng_p[1])
+                row[a_r] = np.clip(out[i][a_r] + total[1], rng_r[0], rng_r[1])
+            corr[s][i] = [row[a_p] - out[i][a_p], row[a_r] - out[i][a_r]]
+            post_tilt[s].append(
+                float(np.degrees(np.arccos(np.clip(_tilt_and_axes(row, s)[2], -1, 1)))))
+        # smooth the correction series so stance entry/exit is C1-ish
+        win = max(1, int(round(FLATTEN_BLEND_S * fps)))
+        if win > 1:
+            kernel = np.ones(win) / win
+            for k in range(2):
+                corr[s][:, k] = np.convolve(corr[s][:, k], kernel, mode="same")
+        out[:, a_p] += corr[s][:, 0]
+        out[:, a_r] += corr[s][:, 1]
+        out[:, a_p] = np.clip(out[:, a_p], rng_p[0], rng_p[1])
+        out[:, a_r] = np.clip(out[:, a_r], rng_r[0], rng_r[1])
+
+    info = {"params": {"tol_deg": FLATTEN_TOL_DEG, "max_corr_deg": FLATTEN_MAX_CORR_DEG,
+                       "stance_band_m": FLATTEN_STANCE_BAND_M, "blend_s": FLATTEN_BLEND_S},
+            "floor_m": floor}
+    for s in feet:
+        info[s] = {
+            "stance_frames": int(len(pre_tilt[s])),
+            "pre_tilt_median_deg": float(np.median(pre_tilt[s])) if pre_tilt[s] else None,
+            "pre_tilt_p90_deg": float(np.percentile(pre_tilt[s], 90)) if pre_tilt[s] else None,
+            "post_tilt_median_deg": float(np.median(post_tilt[s])) if post_tilt[s] else None,
+            "post_tilt_p90_deg": float(np.percentile(post_tilt[s], 90)) if post_tilt[s] else None,
+            "corr_p95_deg": float(np.degrees(np.percentile(np.abs(corr[s]), 95))),
+        }
+    return out, info

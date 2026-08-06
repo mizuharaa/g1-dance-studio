@@ -11,7 +11,7 @@
 # the old shaping and tests the keypoint termination alone.
 #
 # Motion input (audit F2): the hash-bound v12 bundle built by
-# tools/build_motion_bundle.py — motions/v12_bundle/{bundle.json,final.csv,
+# tools/build_motion_bundle.py — motions/v14_bundle/{bundle.json,final.csv,
 # scorecard.json,source.csv}. The manifest is verified below BEFORE any
 # retime/convert; tempo npz are regenerated whenever the source CSV hash
 # changes (a stale prior-attempt npz would silently train the OLD motion — its
@@ -19,10 +19,10 @@
 #
 # Push first (laptop) — FRESH BOX (all prior boxes deleted 2026-08): the v14
 # task imports the whole chain, push ALL of it + the shared eval/verify scripts
-# (simplest: push the entire cloud/ dir), and the v12_bundle motion dir:
+# (simplest: push the entire cloud/ dir), and the v14_bundle motion dir:
 #   scp -P <PORT> -i .secrets/greennode_rsa cloud/*.py cloud/*.sh \
 #     root@<IP>:/workspace/notebook-data/cloud/
-#   scp -P <PORT> -i .secrets/greennode_rsa -r data/motions/thriller/v12_bundle \
+#   scp -P <PORT> -i .secrets/greennode_rsa -r data/motions/thriller/v14_bundle \
 #     root@<IP>:/workspace/notebook-data/motions/
 # (chain: sim2real_task.py -> v5 -> v6 -> v8 -> v10 -> v11 -> v13 -> v14; plus
 #  pick_checkpoint / sim_gap_check / heldout_eval / export_ckpt_onnx /
@@ -35,8 +35,8 @@
 set -uo pipefail
 NB=${NB:-/workspace/notebook-data}
 PY=$NB/envs/mjlab/bin/python
-CSV=${G1_MOTION_CSV:-$NB/motions/v12_bundle/final.csv}
-BUNDLE=$NB/motions/v12_bundle
+CSV=${G1_MOTION_CSV:-$NB/motions/v14_bundle/final.csv}
+BUNDLE=$NB/motions/v14_bundle
 CSV2NPZ=$NB/repos/mjlab/src/mjlab/scripts/csv_to_npz.py
 [ -f "$NB/.wandb_key" ] && export WANDB_API_KEY=$(tr -d '[:space:]' < "$NB/.wandb_key")
 
@@ -56,7 +56,7 @@ nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader >/dev/null || die "
 # check runs laptop-side via pipeline.artifacts; member hashes are the
 # load-bearing part here.
 say "verify motion bundle manifest ($BUNDLE/bundle.json)"
-[ -f "$BUNDLE/bundle.json" ] || die "bundle manifest missing: $BUNDLE/bundle.json — scp -r data/motions/thriller/v12_bundle from the laptop"
+[ -f "$BUNDLE/bundle.json" ] || die "bundle manifest missing: $BUNDLE/bundle.json — scp -r data/motions/thriller/v14_bundle from the laptop"
 python3 - "$BUNDLE" "$CSV" << 'PYEOF' || die "bundle verification FAILED — refusing to train on unverified motion bytes"
 import hashlib, json, sys
 from pathlib import Path
@@ -111,30 +111,30 @@ PYEOF
 # train the wrong motion (audit F2).
 declare -A SPEED=( [060]=0.60 [075]=0.75 [090]=0.90 [100]=1.00 )
 CSVSHA=$(sha256sum "$CSV" | awk '{print $1}')
-STAMP=$NB/motions/thriller_v12_tempo.src.sha256
+STAMP=$NB/motions/thriller_v14_tempo.src.sha256
 if [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$CSVSHA" ]; then
   say "tempo npz stale or unstamped for source $CSVSHA — regenerating"
-  rm -f "$NB"/motions/thriller_v12_{060,075,090,100}.{csv,npz} \
-        "$NB"/motions/thriller_v12_{060,075,090,100}_check.json
+  rm -f "$NB"/motions/thriller_v14_{060,075,090,100}.{csv,npz} \
+        "$NB"/motions/thriller_v14_{060,075,090,100}_check.json
 fi
-if [ ! -f "$NB/motions/thriller_v12_100.npz" ]; then
+if [ ! -f "$NB/motions/thriller_v14_100.npz" ]; then
   [ -f "$CSV" ] || die "motion CSV missing: $CSV — push it from the laptop"
   head -1 "$CSV" | awk -F, 'NF != 36 { exit 1 }' || die "CSV not 36-column"
   say "retime tempo variants (fresh box: 0.60/0.75/0.90/1.00 from $CSV)"
   NATIVE_FRAMES=$(wc -l < "$CSV")
   for k in 060 075 090 100; do
-    OUT=$NB/motions/thriller_v12_${k}.csv
+    OUT=$NB/motions/thriller_v14_${k}.csv
     [ -f "$OUT" ] || "$PY" "$NB/cloud/retime_motion.py" --input "$CSV" --output "$OUT" \
-        --speed "${SPEED[$k]}" --check-json "$NB/motions/thriller_v12_${k}_check.json" \
+        --speed "${SPEED[$k]}" --check-json "$NB/motions/thriller_v14_${k}_check.json" \
       || die "retime ${SPEED[$k]}x FAILED"
-    NPZ=$NB/motions/thriller_v12_${k}.npz
+    NPZ=$NB/motions/thriller_v14_${k}.npz
     if [ ! -f "$NPZ" ]; then
       # csv_to_npz hardcodes its output to /tmp/motion.npz and never clears it, and
       # the conversion is `|| true`. Clear any stale prior-tempo npz FIRST so a flaky
       # conversion can't leave the previous variant's file to be copied here (audit B).
       rm -f /tmp/motion.npz
       MUJOCO_GL=egl "$PY" "$CSV2NPZ" --input-file "$OUT" \
-          --output-name "thriller_v12_${k}" --input-fps 30 --output-fps 50 || true
+          --output-name "thriller_v14_${k}" --input-fps 30 --output-fps 50 || true
       [ -f /tmp/motion.npz ] && cp /tmp/motion.npz "$NPZ"
     fi
     [ -f "$NPZ" ] || die "npz absent after conversion: $NPZ"
@@ -151,20 +151,20 @@ EOF
     LO=$((EXPF * 98 / 100)); HI=$((EXPF * 102 / 100))
     [ "$FRAMES" -ge "$LO" ] && [ "$FRAMES" -le "$HI" ] \
       || die "npz $k frame count $FRAMES outside expected $LO-$HI (stale/wrong-tempo conversion)"
-    echo "  thriller_v12_${k}.npz ready ($FRAMES frames, ~$((FRAMES / 50))s @50fps)"
+    echo "  thriller_v14_${k}.npz ready ($FRAMES frames, ~$((FRAMES / 50))s @50fps)"
   done
   echo "$CSVSHA" > "$STAMP"
 fi
 say "preflight OK (tempo npz present)"
 for k in 060 075 090 100; do
-  [ -f "$NB/motions/thriller_v12_${k}.npz" ] || die "missing thriller_v12_${k}.npz"
+  [ -f "$NB/motions/thriller_v14_${k}.npz" ] || die "missing thriller_v14_${k}.npz"
 done
 
 # ---- record REALIZED training inputs (motions/bundle_realized.json) ----------
 # Box-local manifest binding the tempo npz that will actually be trained on.
 # Self-contained for the same reason as the verifier above (no pipeline/ on the
 # box): copies the verified manifest's motion section, re-bases its member
-# paths under v12_bundle/, fills tempo_npz with fresh hashes, and stamps
+# paths under v14_bundle/, fills tempo_npz with fresh hashes, and stamps
 # schema/created_at/bundle_id with the same canonical-JSON recipe as
 # pipeline.artifacts.write_manifest — so the laptop can later run
 # artifacts.verify_manifest on the pulled file as-is.
@@ -173,7 +173,7 @@ python3 - "$NB/motions" << 'PYEOF' || die "failed to write motions/bundle_realiz
 import hashlib, json, sys, time
 from pathlib import Path
 motions = Path(sys.argv[1])
-src = json.loads((motions / "v12_bundle" / "bundle.json").read_text())
+src = json.loads((motions / "v14_bundle" / "bundle.json").read_text())
 
 def sha(p):
     h = hashlib.sha256()
@@ -188,7 +188,7 @@ def rebase(node):
     if isinstance(node, dict):
         if ("path" in node and "sha256" in node
                 and not Path(node["path"]).is_absolute()):
-            node["path"] = "v12_bundle/" + node["path"]
+            node["path"] = "v14_bundle/" + node["path"]
         for v in node.values():
             rebase(v)
     elif isinstance(node, list):
@@ -197,8 +197,8 @@ def rebase(node):
 
 rebase(motion)
 motion["tempo_npz"] = {
-    k: {"path": f"thriller_v12_{k}.npz",
-        "sha256": sha(motions / f"thriller_v12_{k}.npz")}
+    k: {"path": f"thriller_v14_{k}.npz",
+        "sha256": sha(motions / f"thriller_v14_{k}.npz")}
     for k in ("060", "075", "090", "100")}
 m = {"schema": src["schema"], "motion": motion,
      "source_bundle_id": src.get("bundle_id"),
@@ -218,7 +218,7 @@ say "64-env GPU smoke test (v11, stage-1 conditions, 3 iters)"
 G1_SLOWDOWN=1.6667 G1_OBS_HISTORY=5 G1_PHASE_OBS=${G1_PHASE_OBS:-0} \
 G1_CMD_DELAY_MAX_LAG=4 G1_OBS_DELAY_MAX_LAG=1 G1_DRIFT_TERM_M=0.8 \
   "$PY" "$NB/cloud/sim2real_task_v14.py" Mjlab-Tracking-Flat-Unitree-G1-S2R-V14 \
-    --env.scene.num-envs 64 --env.commands.motion.motion-file "$NB/motions/thriller_v12_060.npz" \
+    --env.scene.num-envs 64 --env.commands.motion.motion-file "$NB/motions/thriller_v14_060.npz" \
     --agent.max-iterations 3 --agent.run-name smoketest-v14 || die "smoke test FAIL"
 # NOTE: the smoke also exercises AUDIT F1's scoped_effort_limits startup readback —
 # a wrong realized forcerange on ANY control kills the smoke here, before real spend.
@@ -230,7 +230,7 @@ say "obs-layout gate (audit F3/E: deploy HistoryStacker vs live actor obs, byte-
 # (the layout is separately pinned CPU-side to HistoryStacker by unit test).
 G1_SLOWDOWN=1.6667 G1_OBS_HISTORY=5 G1_PHASE_OBS=${G1_PHASE_OBS:-0} \
   "$PY" "$NB/cloud/verify_obs_layout.py" --task Mjlab-Tracking-Flat-Unitree-G1-S2R-V14 \
-    --task-module sim2real_task_v14 --motion-file "$NB/motions/thriller_v12_100.npz" \
+    --task-module sim2real_task_v14 --motion-file "$NB/motions/thriller_v14_100.npz" \
     --num-envs 2
 _OBS_RC=$?
 if [ "$_OBS_RC" -eq 1 ]; then die "obs-layout gate FAILED — deploy contract mismatch"; fi
@@ -249,9 +249,9 @@ export G1_GATE_DELAY60_SURVIVAL_MIN=${G1_GATE_DELAY60_SURVIVAL_MIN:-0.95}
 export G1_GATE_LEG_AMP_MIN=${G1_GATE_LEG_AMP_MIN:-0.80}
 export G1_LEG_POS_STD=${G1_LEG_POS_STD:-0.26}
 export G1_LEG_ORI_STD=${G1_LEG_ORI_STD:-0.34}
-M060=$NB/motions/thriller_v12_060.npz \
-M075=$NB/motions/thriller_v12_075.npz \
-M090=$NB/motions/thriller_v12_090.npz \
-M100=$NB/motions/thriller_v12_100.npz \
+M060=$NB/motions/thriller_v14_060.npz \
+M075=$NB/motions/thriller_v14_075.npz \
+M090=$NB/motions/thriller_v14_090.npz \
+M100=$NB/motions/thriller_v14_100.npz \
   bash "$NB/cloud/train_v14_curriculum.sh"
 say "run_attempt11 DONE — pull exports, judge vs calibrated bars, sign, DELETE THE BOX"

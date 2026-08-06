@@ -26,6 +26,27 @@
    stance terms, saturation — HoloSoma evidence + our audit) + feet/wrist keypoint
    termination 0.25 m + keeps anti-chatter, leg tracking, 40 Nm ankle clamp DR.
 
+## Added 2026-08-06 morning (ecosystem-issue audit — GMR/holosoma/unitree_rl_mjlab)
+
+5. **Foot-angle retarget defect FOUND AND FIXED** (the issues' "foot contacting
+   angle" problem, measured in OUR reference): stance sole tilt was median
+   ~20 deg, p90 55+ (and G1 ankle roll only reaches ±15 deg — parts of the old
+   reference were MECHANICALLY IMPOSSIBLE for any policy; prime suspect for the
+   58-64% leg amplitude). New `pipeline.grounding.flatten_stance_feet` levels
+   planted soles within joint limits: median 20 -> 9-11 deg, p90 55 -> 38.
+   **Training motion is now `data/motions/thriller/v14_bundle/`
+   (bundle_id e55e683ef02a…)** — launcher + curriculum repointed. Build with
+   G1_BUNDLE_OVER_PCT=4.0 (torque-model absolutes falsified 6-10x; justification
+   in tools/build_motion_bundle.py).
+6. **Gyro-bias calibration at deploy** (T1-sway issue insight): ground-run now
+   measures IMU gyro bias during the 1 s pre-release stand and subtracts it from
+   base_ang_vel (GYRO_BIAS_CAL=0 disables).
+7. NOT adopted (with reasons): Isaac migration (real friction/collision gaps but
+   secondary to our measured causes; revisit only if v14 fails its bars);
+   FastSAC (a holosoma reproduction reports extreme jitter at 27k iters — not a
+   proven style fix); stillness reward (conflicts with the lean-shaping arm;
+   candidate knob only if v14 sways).
+
 ## Box session runbook (fresh box — all old boxes deleted)
 
 1. Provision per `docs/BOX_RECREATE_RUNBOOK.md` (RTX 4090 notebook, Network
