@@ -466,8 +466,11 @@ def _start_show_camera(show_dir: Path, run_proc) -> None:
     if "PYTEST_CURRENT_TEST" in os.environ:
         return  # tests must NEVER grab the real camera (a leftover test ffmpeg
                 # held /dev/video8 through two real runs, 2026-08-05)
-    dev = os.environ.get("SHOW_CAMERA_DEV", "/dev/video8")
-    if not Path(dev).exists():
+    # Prefer the color node; fall back to the IR node (pipewire grabbed video8
+    # after a replug, 2026-08-06 — a busy device must not lose the recording).
+    cands = [os.environ.get("SHOW_CAMERA_DEV", "/dev/video8"), "/dev/video6"]
+    dev = next((c for c in cands if Path(c).exists()), None)
+    if dev is None:
         return
     import shutil
     ff = (shutil.which("ffmpeg")
