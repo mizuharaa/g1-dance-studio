@@ -517,3 +517,14 @@ onboard AI-stand, not a custom phone pose; feet-off/gantry for the first validat
 - No runaway billing. v13 (attempt 10) artifacts LOST with box 40711 — re-run via
   recipe ffcf6d2 when wanted. Remaining check: g1dance-data Network Volume (bills
   separately while it exists). Details: docs/HANDOFF_20260805.md (canonical).
+
+## 2026-08-06 — ATTEMPT 11 (v14) — box nb-108ca2bd, 103.245.250.152:54299
+- Fresh box (RTX 4090). Provisioning started ~03:23 UTC; auto-launch of
+  cloud/run_attempt11.sh on completion (monitor on the laptop).
+- Recipe v14: lean shaping + keypoint termination 0.25m + REAL 80ms latency DR
+  (old ladder topped at 60ms — audit 2026-08-05). Motion: v14_bundle
+  (e55e683ef02a…, stance feet FLATTENED: tilt median 20->9-11 deg — the
+  GMR/holosoma foot-angle defect, measured + repaired 2026-08-06).
+- Gate bars: ankle 22/25, drift p95 1.5, NEW leg_amp>=0.80 [clean], NEW
+  survival>=0.95 [cmd_delay60ms]. Targets = hardware numbers (anchor 64% legs).
+- BILLING creation->deletion: pull + sign + DELETE after verify.
